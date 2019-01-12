@@ -223,6 +223,12 @@ func RestorePCI16Simple(f *os.File, pcidev PCIDevData, addr uint16) {
 		pcidev.ConfigDump[addr])
 }
 
+func RestoreDIRRoute(f *os.File, regname string, val uint16) {
+	fmt.Fprintf(f, "	RCBA_SET_REG_16(%s, DIR_ROUTE(PIRQ%c, PIRQ%c, PIRQ%c, PIRQ%c)),\n",
+		regname, 'A' + (val & 7), 'A' + ((val >> 4) & 7),
+		'A' + ((val >> 8) & 7), 'A' + ((val >> 12) & 7))
+}
+
 func RestorePCI32Simple(f *os.File, pcidev PCIDevData, addr uint16) {
 	fmt.Fprintf(f, "	pci_write_config32(PCI_DEV(%d, 0x%02x, %d), 0x%02x, 0x%02x%02x%02x%02x);\n",
 		pcidev.Bus, pcidev.Dev, pcidev.Func, addr,
