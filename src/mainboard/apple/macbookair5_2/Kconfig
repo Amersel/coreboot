@@ -1,0 +1,49 @@
+if BOARD_APPLE_MACBOOKAIR5_2
+
+config BOARD_SPECIFIC_OPTIONS
+	def_bool y
+	select BOARD_ROMSIZE_KB_8192
+	select EC_ACPI
+	select GFX_GMA_PANEL_1_ON_EDP
+	select HAVE_ACPI_RESUME
+	select HAVE_ACPI_TABLES
+	select HAVE_CMOS_DEFAULT
+	select HAVE_OPTION_TABLE
+	select HAVE_SPD_IN_CBFS
+	select INTEL_INT15
+	select MAINBOARD_HAS_LIBGFXINIT
+	select NORTHBRIDGE_INTEL_SANDYBRIDGE
+	select SERIRQ_CONTINUOUS_MODE
+	select SOUTHBRIDGE_INTEL_C216
+	select SYSTEM_TYPE_LAPTOP
+	select USE_NATIVE_RAMINIT
+
+config MAINBOARD_DIR
+	string
+	default apple/macbookair5_2
+
+config MAINBOARD_PART_NUMBER
+	string
+	default "MacBookAir5,2"
+
+config VGA_BIOS_ID
+	string
+	default "8086,0166"
+
+config DRAM_RESET_GATE_GPIO
+	int
+	default 28
+
+config MAX_CPUS
+	int
+	default 8
+
+config USBDEBUG_HCD_INDEX
+	int
+	default 0
+
+config MAINBOARD_SMBIOS_MANUFACTURER
+	string
+	default "Apple Inc."
+
+endif

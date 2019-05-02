@@ -1,0 +1,4 @@
+boot_option=Fallback
+debug_level=Debug
+gfx_uma_size=32M
+me_state=Normal
