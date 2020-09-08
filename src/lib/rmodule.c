@@ -54,7 +54,6 @@ int rmodule_parse(void *ptr, struct rmodule *module)
 	module->payload_size = rhdr->payload_end_offset -
 				rhdr->payload_begin_offset;
 	module->relocations = &base[rhdr->relocations_begin_offset];
-
 	return 0;
 }
 
@@ -111,11 +110,10 @@ static inline size_t rmodule_number_relocations(const struct rmodule *module)
 
 static void rmodule_copy_payload(const struct rmodule *module)
 {
-	printk(BIOS_DEBUG, "Loading module at %p with entry %p. "
-	       "filesize: 0x%x memsize: 0x%x\n",
-	       module->location, rmodule_entry(module),
-	       module->payload_size, rmodule_memory_size(module));
-
+	//printk(BIOS_DEBUG, "Loading module at %p with entry %p. "
+	//       "filesize: 0x%x memsize: 0x%x\n",
+	//       module->location, rmodule_entry(module),
+	//       module->payload_size, rmodule_memory_size(module));
 	/* No need to copy the payload if the load location and the
 	 * payload location are the same. */
 	if (module->location == module->payload)
@@ -179,13 +177,14 @@ int rmodule_load(void *base, struct rmodule *module)
 	 */
 	module->location = base;
 	rmodule_copy_payload(module);
+	
 	if (rmodule_relocate(module))
 		return -1;
+	
 	rmodule_clear_bss(module);
 
 	prog_segment_loaded((uintptr_t)module->location,
 				rmodule_memory_size(module), SEG_FINAL);
-
 	return 0;
 }
 
@@ -271,20 +270,19 @@ int rmodule_stage_load(struct rmod_stage_load *rsl)
 	if (!cbfs_load_and_decompress(fh, sizeof(stage), stage.len, rmod_loc,
 				      stage.memlen, stage.compression))
 		return -1;
-
+	
 	if (rmodule_parse(rmod_loc, &rmod_stage))
 		return -1;
+	
 
 	if (rmodule_load(&stage_region[load_offset], &rmod_stage))
 		return -1;
-
+	printk(BIOS_DEBUG, "rmodule_load finished. prog_set_area().\n");
 	prog_set_area(rsl->prog, rmod_stage.location,
 			rmodule_memory_size(&rmod_stage));
 
 	/* Allow caller to pick up parameters, if available. */
 	rsl->params = rmodule_parameters(&rmod_stage);
-
 	prog_set_entry(rsl->prog, rmodule_entry(&rmod_stage), rsl->params);
-
 	return 0;
 }

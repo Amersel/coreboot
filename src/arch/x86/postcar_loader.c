@@ -200,8 +200,9 @@ void run_postcar_phase(struct postcar_frame *pcf)
 	timestamp_add_now(TS_END_ROMSTAGE);
 
 	console_time_report();
-
+	printk(BIOS_DEBUG, "MANUAL DEBUG: console_time_report finished. prog_set_arg\n");
 	prog_set_arg(&prog, cbmem_top());
-
+	printk(BIOS_DEBUG, "MANUAL DEBUG: prog_set_arg finished. prog_run\n");
 	prog_run(&prog);
+	printk(BIOS_DEBUG, "MANUAL DEBUG: prog_run finished. run_postcar_phase end\n");
 }
