@@ -1,0 +1,4 @@
+Category: laptop
+FIXME: put ROM package, ROM socketed, ROM protocol, Flashrom support
+Board URL: https://www.lenovo.com/us/en/laptops/thinkpad/w-series/w541/
+Release year: 2015
