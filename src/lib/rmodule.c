@@ -264,8 +264,8 @@ int rmodule_stage_load(struct rmod_stage_load *rsl)
 
 	rmod_loc = &stage_region[rmodule_offset];
 
-	printk(BIOS_INFO, "Decompressing stage %s @ %p (%d bytes)\n",
-	       prog_name(rsl->prog), rmod_loc, stage.memlen);
+	//printk(BIOS_INFO, "Decompressing stage %s @ %p (%d bytes)\n",
+	//       prog_name(rsl->prog), rmod_loc, stage.memlen);
 
 	if (!cbfs_load_and_decompress(fh, sizeof(stage), stage.len, rmod_loc,
 				      stage.memlen, stage.compression))
@@ -277,7 +277,7 @@ int rmodule_stage_load(struct rmod_stage_load *rsl)
 
 	if (rmodule_load(&stage_region[load_offset], &rmod_stage))
 		return -1;
-	printk(BIOS_DEBUG, "rmodule_load finished. prog_set_area().\n");
+	printk(BIOS_DEBUG, "MANAUL DEBUG: decompressed, parsed, and rmodule_load finished. prog_set_area().\n");
 	prog_set_area(rsl->prog, rmod_stage.location,
 			rmodule_memory_size(&rmod_stage));
 

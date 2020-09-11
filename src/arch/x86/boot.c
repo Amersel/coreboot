@@ -35,6 +35,9 @@ void arch_prog_run(struct prog *prog)
 	asmlinkage void (*doit)(void *arg);
 #endif
 	doit = prog_entry(prog);
+	printk(BIOS_WARNING, "MANUAL DEBUG: prog_entry finished."
+			"doit(prog_entry_arg(prog)).\n");
 	doit(prog_entry_arg(prog));
+	printk(BIOS_WARNING, "MANUAL DEBUG: doit finished. arch_prog_run done.\n");
 #endif
 }
