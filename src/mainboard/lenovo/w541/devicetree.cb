@@ -1,4 +1,4 @@
-chip northbridge/intel/haswell # FIXME: check gfx
+chip northbridge/intel/haswell
 	register "gfx" = "GMA_STATIC_DISPLAYS(0)"
 	register "gpu_ddi_e_connected" = "1"
 	register "gpu_dp_b_hotplug" = "4"
@@ -65,13 +65,14 @@ chip northbridge/intel/haswell # FIXME: check gfx
 					register "dock_event_enable" = "0x01"
 					device pnp ff.1 on end # dummy
 				end
-				chip ec/lenovo/h8 # FIXME: has_keyboard_backlight, has_power_management_beeps, has_uwb
+				chip ec/lenovo/h8 # FIXME: has_power_management_beeps, has_uwb
 					register "beepmask0" = "0x00"
 					register "beepmask1" = "0x86"
 					register "config0" = "0xa6"
 					register "config1" = "0x05"
 					register "config2" = "0xa8"
 					register "config3" = "0xc4"
+					register "has_keyboard_backlight" = "1"
 					register "event2_enable" = "0xff"
 					register "event3_enable" = "0xff"
 					register "event4_enable" = "0xd0"
@@ -89,6 +90,9 @@ chip northbridge/intel/haswell # FIXME: check gfx
 						io 0x64 = 0x1600
 						io 0x66 = 0x1604
 					end
+				end
+				chip drivers/pc80/tpm
+					device pnp 0c31.0 on end
 				end
 			end
 			device pci 1f.2 on end # SATA Controller 1
