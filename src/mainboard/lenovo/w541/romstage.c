@@ -20,8 +20,8 @@ void mainboard_config_rcba(void)
 void mb_get_spd_map(uint8_t spd_map[4])
 {
 	spd_map[0] = 0xa0;
-	spd_map[1] = 0xa2;
-	spd_map[2] = 0xa4;
+	spd_map[1] = 0xa4;
+	spd_map[2] = 0xa2;
 	spd_map[3] = 0xa6;
 }
 

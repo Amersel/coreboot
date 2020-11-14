@@ -4,14 +4,14 @@ chip northbridge/intel/haswell # FIXME: check gfx
 	register "gpu_dp_b_hotplug" = "4"
 	register "gpu_dp_c_hotplug" = "4"
 	register "gpu_dp_d_hotplug" = "4"
-	register "gpu_panel_port_select" = "0"
+	register "gpu_panel_port_select" = "1"
 	register "gpu_panel_power_backlight_off_delay" = "1"
 	register "gpu_panel_power_backlight_on_delay" = "1"
 	register "gpu_panel_power_cycle_delay" = "6"
 	register "gpu_panel_power_down_delay" = "500"
 	register "gpu_panel_power_up_delay" = "2000"
 	register "gpu_pch_backlight_pwm_hz" = "220"
-	register "ec_present" = "false"
+	register "ec_present" = "true"
 	device cpu_cluster 0x0 on
 		chip cpu/intel/haswell
 			register "c1_acpower" = "1"
