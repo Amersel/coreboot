@@ -49,6 +49,32 @@ static void mainboard_config_upd(FSPM_UPD *mupd)
 			mupd->FspmConfig.DebugPrintLevel = FSP_LOG_LEVEL_DEFAULT;
 		}
 	}
+
+	/* Enable DCI */
+	if (vpd_get_bool(FSP_DCI, VPD_RW_THEN_RO, &val)) {
+		printk(BIOS_DEBUG, "Setting DciEn %d from VPD\n", val);
+		mupd->FspmConfig.PchDciEn = val;
+	} else {
+		printk(BIOS_INFO, "Not able to get VPD %s, default set "
+			"DciEn to %d\n", FSP_DCI, FSP_DCI_DEFAULT);
+		mupd->FspmConfig.PchDciEn = FSP_DCI_DEFAULT;
+	}
+
+	/*
+	 * UnusedUpdSpace0[0] is reserved for Memory Refresh Watermark.
+	 * Following code is effective when MemRefreshWaterMark patch is added to FSP
+	 * and when corresponding VPD variable is set.
+	 */
+	if (vpd_gets(FSPM_MEMREFRESHWATERMARK, val_str, VPD_LEN, VPD_RW_THEN_RO)) {
+		val = (uint8_t)atol(val_str);
+		if (val > 2) {
+			printk(BIOS_DEBUG, "Invalid MemRefreshWatermark value from VPD: "
+				"%d\n", val);
+			val = FSPM_MEMREFRESHWATERMARK_DEFAULT;
+		}
+		printk(BIOS_DEBUG, "Setting MemRefreshWatermark %d from VPD\n", val);
+		mupd->FspmConfig.UnusedUpdSpace0[0] = val;
+	}
 }
 
 /* Update bifurcation settings according to different Configs */

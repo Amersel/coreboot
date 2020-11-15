@@ -25,7 +25,6 @@
 #include <timestamp.h>
 #include <types.h>
 
-
 u8 pci_moving_config8(struct device *dev, unsigned int reg)
 {
 	u8 value, ones, zeroes;
@@ -1007,16 +1006,11 @@ static struct device *pci_scan_get_dev(struct bus *bus, unsigned int devfn)
 
 	prev = &bus->children;
 	for (dev = bus->children; dev; dev = dev->sibling) {
-		if (dev->path.type == DEVICE_PATH_PCI) {
-			if (dev->path.pci.devfn == devfn) {
-				/* Unlink from the list. */
-				*prev = dev->sibling;
-				dev->sibling = NULL;
-				break;
-			}
-		} else {
-			printk(BIOS_ERR, "child %s not a PCI device\n",
-			       dev_path(dev));
+		if (dev->path.type == DEVICE_PATH_PCI && dev->path.pci.devfn == devfn) {
+			/* Unlink from the list. */
+			*prev = dev->sibling;
+			dev->sibling = NULL;
+			break;
 		}
 		prev = &dev->sibling;
 	}
@@ -1284,6 +1278,16 @@ void pci_scan_bus(struct bus *bus, unsigned int min_devfn,
 
 	prev = &bus->children;
 	for (dev = bus->children; dev; dev = dev->sibling) {
+
+		/*
+		 * If static device is not PCI then enable it here and don't
+		 * treat it as a leftover device.
+		 */
+		if (dev->path.type != DEVICE_PATH_PCI) {
+			enable_static_device(dev);
+			continue;
+		}
+
 		/*
 		 * The device is only considered leftover if it is not hidden
 		 * and it has a Vendor ID of 0 (the default for a device that
@@ -1296,10 +1300,6 @@ void pci_scan_bus(struct bus *bus, unsigned int min_devfn,
 
 		/* Unlink it from list. */
 		*prev = dev->sibling;
-
-		/* If disabled in devicetree, do not print any messages. */
-		if (!dev->enabled)
-			continue;
 
 		if (!once++)
 			printk(BIOS_WARNING, "PCI: Leftover static devices:\n");

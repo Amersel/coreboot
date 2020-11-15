@@ -3,7 +3,6 @@
 #ifndef __SOUTHBRIDGE_AMD_PI_STONEYRIDGE_SMI_H__
 #define __SOUTHBRIDGE_AMD_PI_STONEYRIDGE_SMI_H__
 
-
 #define SMI_GEVENTS			24
 #define SCIMAPS				58
 #define SCI_GPES			32
@@ -212,7 +211,6 @@ struct sci_source {
 	uint8_t level;		/* Edge or Level,  smi_sci_dir */
 };
 
-uint16_t pm_acpi_smi_cmd_port(void);
 void configure_smi(uint8_t smi_num, uint8_t mode);
 void configure_gevent_smi(uint8_t gevent, uint8_t mode, uint8_t level);
 void configure_scimap(const struct sci_source *sci);

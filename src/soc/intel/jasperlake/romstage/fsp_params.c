@@ -66,9 +66,12 @@ static void soc_memory_init_params(FSP_M_CONFIG *m_cfg,
 		m_cfg->CpuTraceHubMode = config->TraceHubMode;
 	}
 
+	/* IPU configuration */
+	dev = pcidev_path_on_root(SA_DEVFN_IPU);
+	m_cfg->SaIpuEnable = is_dev_enabled(dev);
+
 	/* Change VmxEnable UPD value according to ENABLE_VMX Kconfig */
 	m_cfg->VmxEnable = CONFIG(ENABLE_VMX);
-
 
 	/* Enable SMBus controller based on config */
 	m_cfg->SmbusEnable = config->SmbusEnable;
@@ -113,6 +116,13 @@ static void soc_memory_init_params(FSP_M_CONFIG *m_cfg,
 
 	/* Skip the CPU replacement check */
 	m_cfg->SkipCpuReplacementCheck = config->SkipCpuReplacementCheck;
+
+	/*
+	 * Set GpioOverride
+	 * When GpioOverride is set FSP will not configure any GPIOs
+	 * and rely on GPIO settings programmed before moved to FSP.
+	 */
+	m_cfg->GpioOverride = 1;
 }
 
 void platform_fsp_memory_init_params_cb(FSPM_UPD *mupd, uint32_t version)

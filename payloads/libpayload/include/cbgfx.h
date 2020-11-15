@@ -56,6 +56,8 @@
 #define CBGFX_ERROR_FRAMEBUFFER_ADDR	0x15
 /* portrait screen not supported */
 #define CBGFX_ERROR_PORTRAIT_SCREEN	0x16
+/* cannot use buffered I/O */
+#define CBGFX_ERROR_GRAPHICS_BUFFER	0x17
 
 struct fraction {
 	int32_t n;
@@ -228,6 +230,24 @@ int draw_bitmap_direct(const void *bitmap, size_t size,
 int get_bitmap_dimension(const void *bitmap, size_t sz, struct scale *dim_rel);
 
 /**
+ * Setup color mappings of background and foreground colors. Black and white
+ * pixels will be mapped to the background and foreground colors, respectively.
+ * Call clear_color_map() to disabled color mapping.
+ *
+ * @param[in] background	Background color.
+ * @param[in] foreground	Foreground color.
+ *
+ * @return CBGFX_* error codes
+ */
+int set_color_map(const struct rgb_color *background,
+		  const struct rgb_color *foreground);
+
+/**
+ * Clear color mappings.
+ */
+void clear_color_map(void);
+
+/**
  * Setup alpha and rgb values for alpha blending.  When alpha is != 0,
  * this enables a translucent layer of color (defined by rgb) to be
  * blended at a given translucency (alpha) to all things drawn.  Call
@@ -244,8 +264,6 @@ int set_blend(const struct rgb_color *rgb, uint8_t alpha);
 
 /**
  * Clear alpha and rgb values, thus disabling any alpha blending.
- *
- * @return CBGFX_* error codes
  */
 void clear_blend(void);
 
@@ -256,3 +274,24 @@ void clear_blend(void);
  *	0   = min alpha argument, 0% opacity
  */
 #define ALPHA(percentage) MIN(255, (256 * percentage / 100))
+
+/**
+ * Enable buffered I/O. All CBGFX operations will be redirected to a working
+ * buffer, and only updated (redrawn) when flush_graphics_buffer() is called.
+ *
+ * @return CBGFX_* error codes
+ */
+int enable_graphics_buffer(void);
+
+/**
+ * Redraw buffered graphics data to real screen if graphics buffer is already
+ * enabled.
+ *
+ * @return CBGFX_* error codes
+ */
+int flush_graphics_buffer(void);
+
+/**
+ * Stop using buffered I/O and release allocated memory.
+ */
+void disable_graphics_buffer(void);

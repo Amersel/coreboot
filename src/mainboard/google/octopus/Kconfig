@@ -1,7 +1,7 @@
 
 config BOARD_GOOGLE_BASEBOARD_OCTOPUS
 	def_bool n
-	select SOC_INTEL_GLK
+	select SOC_INTEL_GEMINILAKE
 	select BOARD_ROMSIZE_KB_16384
 	select DRIVERS_GENERIC_GPIO_KEYS
 	select DRIVERS_GENERIC_MAX98357A
@@ -46,7 +46,6 @@ config CHROMEOS
 	default y
 	select EC_GOOGLE_CHROMEEC_SWITCHES
 	select HAS_RECOVERY_MRC_CACHE
-	select MRC_CLEAR_NORMAL_CACHE_ON_RECOVERY_RETRAIN
 	select VBOOT_LID_SWITCH
 
 config MAINBOARD_DIR
@@ -96,10 +95,6 @@ config MAINBOARD_PART_NUMBER
 config MAINBOARD_FAMILY
 	string
 	default "Google_Octopus"
-
-config MAX_CPUS
-	int
-	default 4
 
 config UART_FOR_CONSOLE
 	int

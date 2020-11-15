@@ -4,7 +4,7 @@
 #include <cpu/x86/cr.h>
 #include <cpu/x86/msr.h>
 
-#define MTRR_HIGH_MASK $((1 << (CONFIG_CPU_ADDR_BITS - 32)) - 1)
+#include "getsec_mtrr_setup.inc"
 
 .macro PUSH_MSR x
 	movl	$(\x), %ecx
@@ -22,46 +22,6 @@
 
 .macro CLEAR_MSR x
 	movl	$(\x), %ecx
-	xorl	%edx, %edx
-	xorl	%eax, %eax
-	wrmsr
-.endm
-
-/* Variable MTRR index is passed through %ebx */
-.macro PUSH_VAR_MTRR
-	movl	%ebx, %ecx
-	shll	%ecx
-	addl	MTRR_PHYS_BASE(0), %ecx
-	rdmsr
-	push	%eax
-	push	%edx
-	incl	%ecx	/* MTRR_PHYS_MASK */
-	rdmsr
-	push	%eax
-	push	%edx
-.endm
-
-.macro POP_VAR_MTRR
-	movl	%ebx, %ecx
-	shll	%ecx
-	addl	MTRR_PHYS_MASK(0), %ecx
-	pop	%edx
-	pop	%eax
-	wrmsr
-	decl	%ecx	/* MTRR_PHYS_BASE */
-	pop	%edx
-	pop	%eax
-	wrmsr
-.endm
-
-.macro CLEAR_VAR_MTRR
-	movl	%ebx, %ecx
-	shll	%ecx
-	addl	MTRR_PHYS_BASE(0), %ecx
-	xorl	%edx, %edx
-	xorl	%eax, %eax
-	wrmsr
-	incl	%ecx	/* MTRR_PHYS_MASK */
 	xorl	%edx, %edx
 	xorl	%eax, %eax
 	wrmsr
@@ -98,6 +58,7 @@ getsec_enteraccs:
 	/* Reserve space on stack for GDT */
 	subl	$8, %esp
 
+	PUSH_MSR MTRR_DEF_TYPE_MSR
 	PUSH_MSR IA32_MISC_ENABLE
 	PUSH_MSR MTRR_FIX_64K_00000
 	PUSH_MSR MTRR_FIX_16K_80000
@@ -111,12 +72,23 @@ getsec_enteraccs:
 	PUSH_MSR MTRR_FIX_4K_F8000
 
 	/* Push variable MTRRs in ascending order */
+
 	xorl	%ebx, %ebx
 	jmp	cond_push_var_mtrrs
 
 body_push_var_mtrrs:
 
-	PUSH_VAR_MTRR
+	movl	%ebx, %ecx
+	shll	%ecx
+	addl	$(MTRR_PHYS_BASE(0)), %ecx
+	rdmsr
+	push	%eax
+	push	%edx
+	incl	%ecx	/* MTRR_PHYS_MASK */
+	rdmsr
+	push	%eax
+	push	%edx
+
 	incl	%ebx
 
 cond_push_var_mtrrs:
@@ -125,7 +97,7 @@ cond_push_var_mtrrs:
 	rdmsr
 	andl	$(0xff), %eax
 	cmp	%ebx, %eax
-	jge	body_push_var_mtrrs
+	jg	body_push_var_mtrrs
 
 	/*
 	 * Disable cache.
@@ -136,10 +108,10 @@ cond_push_var_mtrrs:
 	orl	$(CR0_CD | CR0_NW), %eax
 	movl	%eax, %cr0
 
-	/* Disable fixed MTRRs */
+	/* Disable all MTRRs */
 	movl	$(MTRR_DEF_TYPE_MSR), %ecx
-	rdmsr
-	andl	$(~MTRR_DEF_TYPE_FIX_EN), %eax
+	xorl	%eax, %eax
+	xorl	%edx, %edx
 	wrmsr
 
 	/*
@@ -168,10 +140,24 @@ cond_push_var_mtrrs:
 	andl	$(0xff), %eax
 	movl	%eax, %ebx
 
+	xorl	%eax, %eax
+	xorl	%edx, %edx
+
+	jmp	cond_clear_var_mtrrs
+
 body_clear_var_mtrrs:
 
-	CLEAR_VAR_MTRR
 	decl	%ebx
+	movl	%ebx, %ecx
+	shll	%ecx
+	addl	$(MTRR_PHYS_BASE(0)), %ecx
+	wrmsr
+	incl	%ecx	/* MTRR_PHYS_MASK */
+	wrmsr
+
+cond_clear_var_mtrrs:
+
+	cmpl	$0, %ebx
 	jnz	body_clear_var_mtrrs
 
 	/*
@@ -179,24 +165,39 @@ body_clear_var_mtrrs:
 	 * Chapter A.1.1
 	 * Intel TXT Software Development Guide (Document: 315168-015)
 	 */
-	movl	$(MTRR_PHYS_BASE(0)), %ecx
-	movl	12(%ebp), %eax			/* %eax = acmbase */
-	orl	$(6), %eax			/* MTRR_TYPE_WB */
-	movl	$0, %edx
-	wrmsr
 
-	/* Round acmsize to next power of two. Required for MTRR programming. */
+	/* Determine size of AC module */
+	movl	12(%ebp), %eax			/* %eax = acmbase */
 	movl	$1, %ebx
-	movl	16(%ebp), %ecx			/* %ebx = acmsize */
-	dec	%ecx
-	bsr	%ecx, %ecx			/* find MSB */
-	inc	%ecx
-	shl	%cl, %ebx
-	movl	$(MTRR_PHYS_MASK(0)), %ecx
-	xorl	%eax, %eax
-	subl	%ebx, %eax			/* %eax = 4GIB - log2_ceil(ACM SIZE) */
-	orl	$((1 << 11)), %eax		/* MTRR_PHYS_MASK_VALID */
-	movl	MTRR_HIGH_MASK, %edx
+	movl	16(%ebp), %ebx			/* %ebx = acmsize */
+
+	/* Round up to page size */
+	addl	$(0xfff), %ebx
+	andl	$(~0xfff), %ebx			/* Aligned to a page (4 KiB) */
+
+	/*
+	 * Use XMM to store local variables. This code will need to be
+	 * used in romstage, and CAR will have been torn down by then.
+	 */
+	movd	%eax, %xmm0			/* XMM0: Base address of next MTRR */
+	movd	%ebx, %xmm1			/* XMM1: Remaining size to cache */
+
+	/*
+	 * Important note: The MTRRs must cache less than a page (4 KiB)
+	 * of unused memory after the BIOS ACM. Failure to do so will
+	 * result in a TXT reset with Class Code 5, Major Error Code 2.
+	 *
+	 * The caller must have checked that there are enough variable
+	 * MTRRs to cache the ACM size prior to invoking this routine.
+	 */
+	SET_UP_MTRRS_FOR_BIOS_ACM
+
+	/*
+	 * Now that the variable MTRRs have been set up, enable them.
+	 */
+	movl	$(MTRR_DEF_TYPE_MSR), %ecx
+	rdmsr
+	orl	$(MTRR_DEF_TYPE_EN), %eax
 	wrmsr
 
 	/* Enable cache - GPF# if not done */
@@ -266,19 +267,33 @@ body_clear_var_mtrrs:
 	orl	$(CR0_CD | CR0_NW), %eax
 	movl	%eax, %cr0
 
-	/* Restore MTTRs */
-
 	/* Pop variable MTRRs in descending order */
+
 	movl	$(MTRR_CAP_MSR), %ecx
 	rdmsr
 	andl	$(0xff), %eax
 	movl	%eax, %ebx
 
+	jmp	cond_pop_var_mtrrs
+
 body_pop_var_mtrrs:
 
-	POP_VAR_MTRR
 	decl	%ebx
-	jnz	body_pop_var_mtrrs
+	movl	%ebx, %ecx
+	shll	%ecx
+	addl	$(MTRR_PHYS_MASK(0)), %ecx
+	pop	%edx
+	pop	%eax
+	wrmsr
+	decl	%ecx	/* MTRR_PHYS_BASE */
+	pop	%edx
+	pop	%eax
+	wrmsr
+
+cond_pop_var_mtrrs:
+
+	cmpl	$0, %ebx
+	jne	body_pop_var_mtrrs
 
 	POP_MSR MTRR_FIX_4K_F8000
 	POP_MSR MTRR_FIX_4K_F0000
@@ -291,17 +306,12 @@ body_pop_var_mtrrs:
 	POP_MSR MTRR_FIX_16K_80000
 	POP_MSR MTRR_FIX_64K_00000
 	POP_MSR IA32_MISC_ENABLE
-
-	/* Enable fixed MTRRs */
-	movl	$(MTRR_DEF_TYPE_MSR), %ecx
-	rdmsr
-	orl	$(MTRR_DEF_TYPE_FIX_EN), %eax
-	wrmsr
+	POP_MSR MTRR_DEF_TYPE_MSR
 
 	/* Enable cache */
 	movl	%cr0, %eax
 	andl	$(~(CR0_CD | CR0_NW)), %eax
-	movl	%eax,    %cr0
+	movl	%eax, %cr0
 
 	/* Pop GDT */
 	addl	$8, %esp

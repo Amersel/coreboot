@@ -468,7 +468,7 @@ void acpi_create_ssdt_generator(acpi_header_t *ssdt, const char *oem_table_id)
 	{
 		struct device *dev;
 		for (dev = all_devices; dev; dev = dev->next)
-			if (dev->ops && dev->ops->acpi_fill_ssdt)
+			if (dev->enabled && dev->ops && dev->ops->acpi_fill_ssdt)
 				dev->ops->acpi_fill_ssdt(dev);
 		current = (unsigned long) acpigen_get_current();
 	}
@@ -1367,7 +1367,8 @@ unsigned long write_acpi_tables(unsigned long start)
 	if (slic_file
 	    && (slic_file->length > slic_size
 		|| slic_file->length < sizeof(acpi_header_t)
-		|| memcmp(slic_file->signature, "SLIC", 4) != 0)) {
+		|| (memcmp(slic_file->signature, "SLIC", 4) != 0
+		    && memcmp(slic_file->signature, "MSDM", 4) != 0))) {
 		slic_file = 0;
 	}
 
@@ -1626,7 +1627,7 @@ int get_acpi_table_revision(enum acpi_tables table)
 	case VFCT: /* ACPI 2.0/3.0/4.0: 1 */
 		return 1;
 	case IVRS:
-		return IVRS_FORMAT_FIXED;
+		return IVRS_FORMAT_MIXED;
 	case DBG2:
 		return 0;
 	case FACS: /* ACPI 2.0/3.0: 1, ACPI 4.0 upto 6.3: 2 */

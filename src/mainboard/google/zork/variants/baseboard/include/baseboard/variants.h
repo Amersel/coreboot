@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 
-
 #ifndef __BASEBOARD_VARIANTS_H__
 #define __BASEBOARD_VARIANTS_H__
 
@@ -37,6 +36,8 @@ void variant_devtree_update(void);
 void variant_audio_update(void);
 /* Update bluetooth configuration in devicetree during ramstage. */
 void variant_bluetooth_update(void);
+/* Update touchscreen configuration in devicetree during ramstage. */
+void variant_touchscreen_update(void);
 /* Configure PCIe GPIOs as per variant sequencing requirements. */
 void variant_pcie_gpio_configure(void);
 
@@ -54,8 +55,6 @@ const fsp_dxio_descriptor *baseboard_get_dxio_descriptors(size_t *num);
 const fsp_ddi_descriptor *baseboard_get_ddi_descriptors(size_t *num);
 
 /* Retrieve attributes from FW_CONFIG in CBI. */
-/* Return 1 if FW_CONFIG expected to be valid, else 0. */
-int variant_fw_config_valid(void);
 /* Return 0 if non-existent, 1 if present. */
 int variant_has_emmc(void);
 /* Return 0 if non-existent, 1 if present. */
@@ -66,7 +65,13 @@ int boot_is_factory_unprovisioned(void);
 
 /* Return true if variant uses v3 version of reference schematics. */
 bool variant_uses_v3_schematics(void);
+/* Return true if variant uses v3.6 version of reference schematics. */
+bool variant_uses_v3_6_schematics(void);
+/* Return true if variant uses CODEC_GPI pin for headphone jack interrupt. */
+bool variant_uses_codec_gpi(void);
 /* Return true if variant has active low power enable fow WiFi. */
 bool variant_has_active_low_wifi_power(void);
+/* Return value of daughterboard ID */
+int variant_get_daughterboard_id(void);
 
 #endif /* __BASEBOARD_VARIANTS_H__ */

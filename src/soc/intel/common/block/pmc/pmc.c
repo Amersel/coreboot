@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <acpi/acpi.h>
-#include <arch/io.h>
 #include <device/pci_ops.h>
 #include <console/console.h>
 #include <cpu/x86/smm.h>
@@ -122,6 +121,8 @@ static const unsigned short pci_device_ids[] = {
 	PCI_DEVICE_ID_INTEL_TGP_PMC,
 	PCI_DEVICE_ID_INTEL_MCC_PMC,
 	PCI_DEVICE_ID_INTEL_JSP_PMC,
+	PCI_DEVICE_ID_INTEL_ADP_P_PMC,
+	PCI_DEVICE_ID_INTEL_ADP_S_PMC,
 	0
 };
 

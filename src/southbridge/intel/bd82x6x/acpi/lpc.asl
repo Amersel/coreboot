@@ -43,11 +43,6 @@ Device (LPCB)
 		GR13,	 2,
 		GR14,	 2,
 		GR15,	 2,
-
-		Offset (0xf0),	// RCBA
-		RCEN,	1,
-		,	13,
-		RCBA,	18,
 	}
 
 	#include <southbridge/intel/common/acpi/irqlinks.asl>
@@ -184,8 +179,6 @@ Device (LPCB)
 		Name (_CRS, ResourceTemplate()
 		{
 			IO (Decode16, 0x70, 0x70, 1, 8)
-// Disable as Windows doesn't like it, and systems don't seem to use it.
-//			IRQNoFlags() { 8 }
 		})
 	}
 

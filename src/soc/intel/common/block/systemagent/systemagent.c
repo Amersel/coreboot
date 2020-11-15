@@ -146,7 +146,6 @@ void sa_fill_gnvs(struct global_nvs *gnvs)
 	       gnvs->a4gb, gnvs->a4gs);
 }
 
-
 static void sa_get_mem_map(struct device *dev, uint64_t *values)
 {
 	int i;
@@ -158,8 +157,7 @@ static void sa_get_mem_map(struct device *dev, uint64_t *values)
  * These are the host memory ranges that should be added:
  * - 0 -> 0xa0000: cacheable
  * - 0xc0000 -> top_of_ram : cacheable
- * - top_of_ram -> BGSM: cacheable with standard MTRRs and reserved
- * - BGSM -> TOLUD: not cacheable with standard MTRRs and reserved
+ * - top_of_ram -> TOLUD: not cacheable with standard MTRRs and reserved
  * - 4GiB -> TOUUD: cacheable
  *
  * The default SMRAM space is reserved so that the range doesn't
@@ -173,9 +171,10 @@ static void sa_get_mem_map(struct device *dev, uint64_t *values)
  * is not omitted the mtrr code will setup the area as cacheable
  * causing VGA access to not work.
  *
- * The TSEG region is mapped as cacheable so that one can perform
- * SMRAM relocation faster. Once the SMRR is enabled the SMRR takes
- * precedence over the existing MTRRs covering this region.
+ * Don't need to mark the entire top_of_ram till TOLUD range (used
+ * for stolen memory like GFX and ME, PTT, DPR, PRMRR, TSEG etc) as
+ * cacheable for OS usage as coreboot already done with mpinit w/ smm
+ * relocation early.
  *
  * It should be noted that cacheable entry types need to be added in
  * order. The reason is that the current MTRR code assumes this and
@@ -206,13 +205,8 @@ static void sa_add_dram_resources(struct device *dev, int *resource_count)
 
 	sa_get_mem_map(dev, &sa_map_values[0]);
 
-	/* top_of_ram -> BGSM */
+	/* top_of_ram -> TOLUD */
 	base_k = top_of_ram;
-	size_k = sa_map_values[SA_BGSM_REG] - base_k;
-	reserved_ram_resource(dev, index++, base_k / KiB, size_k / KiB);
-
-	/* BGSM -> TOLUD */
-	base_k = sa_map_values[SA_BGSM_REG];
 	size_k = sa_map_values[SA_TOLUD_REG] - base_k;
 	mmio_resource(dev, index++, base_k / KiB, size_k / KiB);
 
@@ -377,10 +371,46 @@ static const unsigned short systemagent_ids[] = {
 	PCI_DEVICE_ID_INTEL_TGL_ID_Y_4_2,
 	PCI_DEVICE_ID_INTEL_JSL_EHL,
 	PCI_DEVICE_ID_INTEL_EHL_ID_1,
+	PCI_DEVICE_ID_INTEL_EHL_ID_2,
+	PCI_DEVICE_ID_INTEL_EHL_ID_3,
+	PCI_DEVICE_ID_INTEL_EHL_ID_4,
+	PCI_DEVICE_ID_INTEL_EHL_ID_5,
+	PCI_DEVICE_ID_INTEL_EHL_ID_6,
+	PCI_DEVICE_ID_INTEL_EHL_ID_7,
+	PCI_DEVICE_ID_INTEL_EHL_ID_8,
+	PCI_DEVICE_ID_INTEL_EHL_ID_9,
+	PCI_DEVICE_ID_INTEL_EHL_ID_10,
+	PCI_DEVICE_ID_INTEL_EHL_ID_11,
+	PCI_DEVICE_ID_INTEL_EHL_ID_12,
 	PCI_DEVICE_ID_INTEL_JSL_ID_1,
 	PCI_DEVICE_ID_INTEL_JSL_ID_2,
 	PCI_DEVICE_ID_INTEL_JSL_ID_3,
 	PCI_DEVICE_ID_INTEL_JSL_ID_4,
+	PCI_DEVICE_ID_INTEL_JSL_ID_5,
+	PCI_DEVICE_ID_INTEL_ADL_S_ID_1,
+	PCI_DEVICE_ID_INTEL_ADL_S_ID_2,
+	PCI_DEVICE_ID_INTEL_ADL_S_ID_3,
+	PCI_DEVICE_ID_INTEL_ADL_S_ID_4,
+	PCI_DEVICE_ID_INTEL_ADL_S_ID_5,
+	PCI_DEVICE_ID_INTEL_ADL_S_ID_6,
+	PCI_DEVICE_ID_INTEL_ADL_S_ID_7,
+	PCI_DEVICE_ID_INTEL_ADL_S_ID_8,
+	PCI_DEVICE_ID_INTEL_ADL_S_ID_9,
+	PCI_DEVICE_ID_INTEL_ADL_S_ID_10,
+	PCI_DEVICE_ID_INTEL_ADL_S_ID_11,
+	PCI_DEVICE_ID_INTEL_ADL_S_ID_12,
+	PCI_DEVICE_ID_INTEL_ADL_S_ID_13,
+	PCI_DEVICE_ID_INTEL_ADL_S_ID_14,
+	PCI_DEVICE_ID_INTEL_ADL_S_ID_15,
+	PCI_DEVICE_ID_INTEL_ADL_P_ID_1,
+	PCI_DEVICE_ID_INTEL_ADL_P_ID_2,
+	PCI_DEVICE_ID_INTEL_ADL_P_ID_3,
+	PCI_DEVICE_ID_INTEL_ADL_P_ID_4,
+	PCI_DEVICE_ID_INTEL_ADL_P_ID_5,
+	PCI_DEVICE_ID_INTEL_ADL_P_ID_6,
+	PCI_DEVICE_ID_INTEL_ADL_P_ID_7,
+	PCI_DEVICE_ID_INTEL_ADL_P_ID_8,
+	PCI_DEVICE_ID_INTEL_ADL_P_ID_9,
 	0
 };
 

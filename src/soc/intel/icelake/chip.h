@@ -9,7 +9,6 @@
 #include <intelblocks/gspi.h>
 #include <stdint.h>
 #include <soc/gpe.h>
-#include <soc/gpio.h>
 #include <soc/pch.h>
 #include <soc/gpio_defs.h>
 #include <soc/pci_devs.h>
@@ -83,7 +82,6 @@ struct soc_intel_icelake_config {
 		SaGv_Enabled,
 	} SaGv;
 
-
 	/* Rank Margin Tool. 1:Enable, 0:Disable */
 	uint8_t RMT;
 
@@ -154,7 +152,6 @@ struct soc_intel_icelake_config {
 
 	/* Gfx related */
 	uint8_t IgdDvmt50PreAlloc;
-	uint8_t InternalGfx;
 	uint8_t SkipExtGfxScan;
 
 	uint32_t GraphicsConfigPtr;
@@ -171,8 +168,7 @@ struct soc_intel_icelake_config {
 	/* HeciEnabled decides the state of Heci1 at end of boot
 	 * Setting to 0 (default) disables Heci1 and hides the device from OS */
 	uint8_t HeciEnabled;
-	/* Intel Speed Shift Technology */
-	uint8_t speed_shift_enable;
+
 	/* Enable VR specific mailbox command
 	 * 00b - no VR specific cmd sent
 	 * 01b - VR mailbox cmd specifically for the MPS IMPV8 VR will be sent

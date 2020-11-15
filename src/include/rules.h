@@ -78,7 +78,11 @@
 #define ENV_RMODULE 0
 #define ENV_POSTCAR 0
 #define ENV_LIBAGESA 0
+#if CONFIG(VBOOT_STARTS_BEFORE_BOOTBLOCK)
+#define ENV_STRING "verstage-before-bootblock"
+#else
 #define ENV_STRING "verstage"
+#endif
 
 #elif defined(__RAMSTAGE__)
 #define ENV_DECOMPRESSOR 0
@@ -272,6 +276,13 @@
 #define ENV_USER_SPACE		1
 #else
 #define ENV_USER_SPACE		0
+#endif
+
+/* Define the first stage to run */
+#if CONFIG(VBOOT_STARTS_BEFORE_BOOTBLOCK)
+#define ENV_INITIAL_STAGE		ENV_SEPARATE_VERSTAGE
+#else
+#define ENV_INITIAL_STAGE		ENV_BOOTBLOCK
 #endif
 
 /**

@@ -69,6 +69,11 @@
 
 #ifndef __ACPI__
 
+static inline int pch_is_lp(void)
+{
+	return CONFIG(INTEL_LYNXPOINT_LP);
+}
+
 /* PCH platform types, safe for MRC consumption */
 enum pch_platform_type {
 	PCH_TYPE_MOBILE	 = 0,
@@ -84,7 +89,6 @@ void usb_xhci_route_all(void);
 enum pch_platform_type get_pch_platform_type(void);
 int pch_silicon_revision(void);
 int pch_silicon_id(void);
-int pch_is_lp(void);
 u16 get_pmbase(void);
 u16 get_gpiobase(void);
 
@@ -115,11 +119,7 @@ void disable_gpe(u32 mask);
 
 void pch_enable(struct device *dev);
 void pch_disable_devfn(struct device *dev);
-u32 pch_iobp_read(u32 address);
-void pch_iobp_write(u32 address, u32 data);
-void pch_iobp_update(u32 address, u32 andvalue, u32 orvalue);
 void pch_log_state(void);
-void acpi_create_intel_hpet(acpi_hpet_t * hpet);
 void acpi_create_serialio_ssdt(acpi_header_t *ssdt);
 
 void enable_usb_bar(void);
@@ -167,7 +167,7 @@ void mainboard_config_rcba(void);
 #define GEN_PMCON_2		0xa2
 #define GEN_PMCON_3		0xa4
 #define PMIR			0xac
-#define  PMIR_CF9LOCK		(1UL << 31)
+#define  PMIR_CF9LOCK		(1 << 31)
 #define  PMIR_CF9GR		(1 << 20)
 
 /* GEN_PMCON_3 bits */
@@ -212,8 +212,7 @@ void mainboard_config_rcba(void);
 #define LPC_GEN4_DEC		0x90 /* LPC IF Generic Decode Range 4 */
 #define LGMR			0x98 /* LPC Generic Memory Range */
 
-/* PCI Configuration Space (D31:F1): IDE */
-#define PCH_IDE_DEV		PCI_DEV(0, 0x1f, 1)
+/* PCI Configuration Space (D31:F2): SATA */
 #define PCH_SATA_DEV		PCI_DEV(0, 0x1f, 2)
 #define PCH_SATA2_DEV		PCI_DEV(0, 0x1f, 5)
 #define INTR_LN			0x3c
@@ -268,10 +267,10 @@ void mainboard_config_rcba(void);
 /* SATA IOBP Registers */
 #define SATA_IOBP_SP0G3IR	0xea000151
 #define SATA_IOBP_SP1G3IR	0xea000051
-#define SATA_IOBP_SP0DTLE_DATA	0xea002550
-#define SATA_IOBP_SP0DTLE_EDGE	0xea002554
-#define SATA_IOBP_SP1DTLE_DATA	0xea002750
-#define SATA_IOBP_SP1DTLE_EDGE	0xea002754
+#define SATA_IOBP_SP0DTLE_DATA	0xea002750
+#define SATA_IOBP_SP0DTLE_EDGE	0xea002754
+#define SATA_IOBP_SP1DTLE_DATA	0xea002550
+#define SATA_IOBP_SP1DTLE_EDGE	0xea002554
 
 #define SATA_DTLE_MASK		0xF
 #define SATA_DTLE_DATA_SHIFT	24
@@ -316,7 +315,7 @@ void mainboard_config_rcba(void);
 #define  XHCI_USB3_PORTSC_WRC	(1 << 19)	/* Warm Reset Complete */
 #define  XHCI_USB3_PORTSC_LWS	(1 << 16)	/* Link Write Strobe */
 #define  XHCI_USB3_PORTSC_PED	(1 << 1)	/* Port Enabled/Disabled */
-#define  XHCI_USB3_PORTSC_WPR	(1UL << 31)	/* Warm Port Reset */
+#define  XHCI_USB3_PORTSC_WPR	(1 << 31)	/* Warm Port Reset */
 #define  XHCI_USB3_PORTSC_PLS	(0xf << 5)	/* Port Link State */
 #define   XHCI_PLSR_DISABLED	(4 << 5)	/* Port is disabled */
 #define   XHCI_PLSR_RXDETECT	(5 << 5)	/* Port is disconnected */
@@ -405,45 +404,11 @@ void mainboard_config_rcba(void);
 
 #define PMBASE		0x40
 
-#define VCH		0x0000	/* 32bit */
-#define VCAP1		0x0004	/* 32bit */
-#define VCAP2		0x0008	/* 32bit */
-#define PVC		0x000c	/* 16bit */
-#define PVS		0x000e	/* 16bit */
-
-#define V0CAP		0x0010	/* 32bit */
-#define V0CTL		0x0014	/* 32bit */
-#define V0STS		0x001a	/* 16bit */
-
-#define V1CAP		0x001c	/* 32bit */
-#define V1CTL		0x0020	/* 32bit */
-#define V1STS		0x0026	/* 16bit */
-
-#define RCTCL		0x0100	/* 32bit */
-#define ESD		0x0104	/* 32bit */
-#define ULD		0x0110	/* 32bit */
-#define ULBA		0x0118	/* 64bit */
-
-#define RP1D		0x0120	/* 32bit */
-#define RP1BA		0x0128	/* 64bit */
-#define RP2D		0x0130	/* 32bit */
-#define RP2BA		0x0138	/* 64bit */
-#define RP3D		0x0140	/* 32bit */
-#define RP3BA		0x0148	/* 64bit */
-#define RP4D		0x0150	/* 32bit */
-#define RP4BA		0x0158	/* 64bit */
-#define HDD		0x0160	/* 32bit */
-#define HDBA		0x0168	/* 64bit */
-#define RP5D		0x0170	/* 32bit */
-#define RP5BA		0x0178	/* 64bit */
-#define RP6D		0x0180	/* 32bit */
-#define RP6BA		0x0188	/* 64bit */
-
 #define RPC		0x0400	/* 32bit */
 #define RPFN		0x0404	/* 32bit */
 
 /* Root Port configuratinon space hide */
-#define RPFN_HIDE(port)         (1UL << (((port) * 4) + 3))
+#define RPFN_HIDE(port)         (1 << (((port) * 4) + 3))
 /* Get the function number assigned to a Root Port */
 #define RPFN_FNGET(reg,port)    (((reg) >> ((port) * 4)) & 7)
 /* Set the function number for a Root Port */

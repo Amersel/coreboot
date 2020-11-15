@@ -14,7 +14,6 @@
 #define _SA_DEV(slot)           pcidev_path_on_root_debug(_SA_DEVFN(slot), __func__)
 #define _PCH_DEV(slot, func)    pcidev_path_on_root_debug(_PCH_DEVFN(slot, func), __func__)
 #else
-#include <arch/io.h>
 #define _SA_DEV(slot)           PCI_DEV(0, SA_DEV_SLOT_ ## slot, 0)
 #define _PCH_DEV(slot, func)    PCI_DEV(0, PCH_DEV_SLOT_ ## slot, func)
 #endif
@@ -71,36 +70,32 @@
 #define VTD_CAP_HIGH			0x0C
 #define VTD_EXT_CAP_HIGH		0x14
 
-#define MMAP_VTD_CFG_REG_DEVID	0x2024
-#define VTD_DEV			5
-#define VTD_FUNC		0
+/* CPU Devices */
+#define CBDMA_DEV_NUM           0x04
 
 #define VMD_DEV_NUM             0x05
 #define VMD_FUNC_NUM            0x05
 
+#define MMAP_VTD_CFG_REG_DEVID		0x2024
+#define VTD_DEV_NUM			0x5
+#define VTD_FUNC_NUM			0x0
+
+#if !defined(__SIMPLE_DEVICE__)
+#define VTD_DEV(bus)		pcidev_path_on_bus((bus), PCI_DEVFN(VTD_DEV_NUM, VTD_FUNC_NUM))
+#else
+#define VTD_DEV(bus)		PCI_DEV((bus), VTD_DEV_NUM, VTD_FUNC_NUM)
+#endif
+
 #define APIC_DEV_NUM            0x05
 #define APIC_FUNC_NUM           0x04
 
-#define CBDMA_DEV_NUM           0x04
-#define IIO_CBDMA_MMIO_SIZE     0x10000 //64kB for one CBDMA function
-
-#define PCH_IOAPIC_BUS_NUMBER   0x00
-#define PCH_IOAPIC_DEV_NUM      0x1F
-#define PCH_IOAPIC_FUNC_NUM     0x00
 
 /* PCH Device info */
 
 #define  XHCI_BUS_NUMBER        0x0
 #define  PCH_DEV_SLOT_XHCI      0x14
 #define  XHCI_FUNC_NUM          0x0
-
-#define HPET_BUS_NUM            0x0
-#define HPET_DEV_NUM            PCH_DEV_SLOT_LPC
-#define HPET0_FUNC_NUM          0x00
-
-#define MMAP_VTD_CFG_REG_DEVID		0x2024
-#define VTD_DEV				5
-#define VTD_FUNC			0
+#define   PCH_DEVFN_THERMAL	_PCH_DEVFN(XHCI, 2)
 
 #define PCH_DEV_SLOT_LPC        0x1f
 #define  PCH_DEVFN_LPC          _PCH_DEVFN(LPC, 0)
@@ -112,15 +107,9 @@
 #define  PCH_DEV_PMC            _PCH_DEV(LPC, 2)
 #define  PCH_DEV_SPI            _PCH_DEV(LPC, 5)
 
-
-#define CBDMA_DEV_NUM           0x04
-#define IIO_CBDMA_MMIO_SIZE     0x10000 //64kB for one CBDMA function
-
-#define VMD_DEV_NUM             0x05
-#define VMD_FUNC_NUM            0x05
-
-#define APIC_DEV_NUM            0x05
-#define APIC_FUNC_NUM           0x04
+#define HPET_BUS_NUM            0x0
+#define HPET_DEV_NUM            PCH_DEV_SLOT_LPC
+#define HPET0_FUNC_NUM          0x00
 
 #define PCH_IOAPIC_BUS_NUMBER   0x00
 #define PCH_IOAPIC_DEV_NUM      0x1F

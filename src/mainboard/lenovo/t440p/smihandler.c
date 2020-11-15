@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <arch/io.h>
 #include <device/pci_ops.h>
 #include <console/console.h>
 #include <cpu/x86/smm.h>
 #include <ec/acpi/ec.h>
 #include <ec/lenovo/h8/h8.h>
-#include <delay.h>
 #include <southbridge/intel/lynxpoint/pch.h>
 
 #define GPE_EC_SCI	1

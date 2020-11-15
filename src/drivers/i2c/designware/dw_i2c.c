@@ -698,7 +698,6 @@ static int dw_i2c_set_speed(unsigned int bus, enum i2c_speed speed,
 	return 0;
 }
 
-
 /*
  * Initialize this bus controller and set the speed.
  *
@@ -824,9 +823,6 @@ void dw_i2c_acpi_fill_ssdt(const struct device *dev)
 	int bus;
 	const char *path;
 	unsigned int speed;
-
-	if (!dev->enabled)
-		return;
 
 	bus = dw_i2c_soc_dev_to_bus(dev);
 

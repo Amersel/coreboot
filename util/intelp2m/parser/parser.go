@@ -7,9 +7,11 @@ import (
 	"strconv"
 )
 
+import "../platforms/common"
 import "../platforms/snr"
 import "../platforms/lbg"
 import "../platforms/apl"
+import "../platforms/cnl"
 import "../config"
 
 // PlatformSpecific - platform-specific interface
@@ -37,7 +39,7 @@ type padInfo struct {
 
 // generate - wrapper for Fprintf(). Writes text to the file specified
 // in config.OutputGenFile
-func (info *padInfo) generate(lvl uint8, line string, a ...interface{}) {
+func (info *padInfo) generate(lvl int, line string, a ...interface{}) {
 	if config.InfoLevelGet() >= lvl {
 		fmt.Fprintf(config.OutputGenFile, line, a...)
 	}
@@ -63,13 +65,15 @@ func (info *padInfo) reservedFprint() {
 // gpio  : gpio.c file descriptor
 // macro : string of the generated macro
 func (info *padInfo) padInfoMacroFprint(macro string) {
-	info.generate(2, "\n")
-	info.generate(1, "\t/* %s - %s ", info.id, info.function)
-	info.generate(2, "DW0: 0x%0.8x, DW1: 0x%0.8x ", info.dw0, info.dw1)
-	info.generate(1, "*/\n")
+	info.generate(2,
+		"\n\t/* %s - %s */\n\t/* DW0: 0x%0.8x, DW1: 0x%0.8x */\n",
+		info.id,
+		info.function,
+		info.dw0,
+		info.dw1)
 	info.generate(0, "\t%s", macro)
-	if config.InfoLevelGet() == 0 {
-		info.generate(0, "\t/* %s */", info.function)
+	if config.InfoLevelGet() == 1 {
+		info.generate(1, "\t/* %s */", info.function)
 	}
 	info.generate(0, "\n")
 }
@@ -141,6 +145,9 @@ func (parser *ParserData) PlatformSpecificInterfaceSet() {
 			InheritanceTemplate : snr.PlatformSpecific{},
 		},
 		config.ApolloType    : apl.PlatformSpecific{},
+		config.CannonType    : cnl.PlatformSpecific{
+			InheritanceTemplate : snr.PlatformSpecific{},
+		},
 	}
 	parser.platform = platform[config.PlatformGet()]
 }
@@ -198,7 +205,7 @@ func (parser *ParserData) padOwnershipExtract() bool {
 // padConfigurationExtract - reads GPIO configuration registers and returns true if the
 //                           information from the inteltool log was successfully parsed.
 func (parser *ParserData) padConfigurationExtract() bool {
-	// Only for Sunrise PCH and only for inteltool.log file template
+	// Only for Sunrise or CannonLake, and only for inteltool.log file template
 	if config.TemplateGet() != config.TempInteltool || config.IsPlatformApollo() {
 		return false
 	}
@@ -220,7 +227,8 @@ func (parser *ParserData) Parse() {
 	scanner := bufio.NewScanner(config.InputRegDumpFile)
 	for scanner.Scan() {
 		parser.line = scanner.Text()
-		if strings.Contains(parser.line, "GPIO Community") || strings.Contains(parser.line, "GPIO Group") {
+		isIncluded, _ := common.KeywordsCheck(parser.line, "GPIO Community", "GPIO Group");
+		if isIncluded {
 			parser.communityGroupExtract()
 		} else if !parser.padConfigurationExtract() && parser.platform.KeywordCheck(parser.line) {
 			if parser.padInfoExtract() != 0 {

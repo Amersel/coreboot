@@ -14,8 +14,8 @@ static const struct soc_amd_gpio gpio_set_stage_ram[] = {
 	PAD_NF(GPIO_0, PWR_BTN_L, PULL_NONE),
 	/* SYS_RESET_L */
 	PAD_NF(GPIO_1, SYS_RESET_L, PULL_NONE),
-	/* PCIE_WAKE_L */
-	PAD_NF(GPIO_2, WAKE_L, PULL_NONE),
+	/* WIFI_PCIE_WAKE_ODL */
+	PAD_SCI(GPIO_2, PULL_NONE, EDGE_LOW),
 	/* H1_FCH_INT_ODL */
 	PAD_INT(GPIO_3, PULL_NONE, EDGE_LOW, STATUS_DELIVERY),
 	/* PEN_DETECT_ODL */
@@ -23,7 +23,7 @@ static const struct soc_amd_gpio gpio_set_stage_ram[] = {
 	/* PEN_POWER_EN - Enabled*/
 	PAD_GPO(GPIO_5, HIGH),
 	/* FPMCU_INT_L */
-	PAD_SCI(GPIO_6, PULL_NONE, EDGE_LOW),
+	PAD_SCI(GPIO_6, PULL_NONE, LEVEL_LOW),
 	/* I2S_SDIN */
 	PAD_NF(GPIO_7, ACP_I2S_SDIN, PULL_NONE),
 	/* I2S_LRCLK - Bit banged in depthcharge */
@@ -65,8 +65,8 @@ static const struct soc_amd_gpio gpio_set_stage_ram[] = {
 	/* PCIE_RST1_L (unused) */
 	PAD_NC(GPIO_27),
 	/* GPIO_28: Not available */
-	/* GPIO_29: unused */
-	PAD_NC(GPIO_29),
+	/* GPIO_29: HP_INT_ODL */
+	PAD_GPI(GPIO_29, PULL_NONE),
 	/* FCH_ESPI_EC_CS_L */
 	PAD_NF(GPIO_30, ESPI_CS_L, PULL_NONE),
 	/*  EC_AP_INT_ODL (Sensor Framesync) */
@@ -85,8 +85,8 @@ static const struct soc_amd_gpio gpio_set_stage_ram[] = {
 	 * access will be very slow.
 	 */
 	PAD_GPO(GPIO_67, LOW), // Select Camera 1 Dmic
-	/* EMMC_RESET */
-	PAD_GPO(GPIO_68, LOW),
+	/* EMMC_RESET_L */
+	PAD_GPO(GPIO_68, HIGH),
 	/* FPMCU_BOOT0 - TODO: Check this */
 	PAD_GPO(GPIO_69, LOW),
 	/* EMMC_CLK */
@@ -109,10 +109,10 @@ static const struct soc_amd_gpio gpio_set_stage_ram[] = {
 	PAD_NF(GPIO_87, EMMC_DATA7, PULL_NONE),
 	/* EMMC_DATA5 */
 	PAD_NF(GPIO_88, EMMC_DATA5, PULL_NONE),
-	/*  EN_DEV_BEEP_L */
-	PAD_GPO(GPIO_89, HIGH),
-	/* Testpoint */
-	PAD_NC(GPIO_90),
+	/* GPIO_89 - unused */
+	PAD_NC(GPIO_89),
+	/* EN_PWR_TOUCHSCREEN */
+	PAD_GPO(GPIO_90, LOW),
 	/* EN_SPKR */
 	PAD_GPO(GPIO_91, LOW),
 	/* CLK_REQ0_L - WIFI */
@@ -164,8 +164,8 @@ static const struct soc_amd_gpio gpio_set_stage_ram[] = {
 	PAD_NF(GPIO_138, UART0_TXD, PULL_NONE),
 	/* DEV_BEEP_BCLK */
 	PAD_GPI(GPIO_139, PULL_NONE),
-	/* USI_RESET */
-	PAD_GPO(GPIO_140, HIGH),
+	/* USI_RESET_L */
+	PAD_GPO(GPIO_140, LOW),
 	/* UART1_RXD - FPMCU */
 	PAD_NF(GPIO_141, UART1_RXD, PULL_NONE),
 	/* SD_AUX_RESET_L */

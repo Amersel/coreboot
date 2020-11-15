@@ -19,8 +19,6 @@
 /* The max hash size to expect is for SHA512. */
 #define VBOOT_MAX_HASH_SIZE VB2_SHA512_DIGEST_SIZE
 
-#define TODO_BLOCK_SIZE 1024
-
 /* exports */
 
 vb2_error_t vb2ex_read_resource(struct vb2_context *ctx,
@@ -144,7 +142,7 @@ static vb2_error_t hash_body(struct vb2_context *ctx,
 {
 	uint64_t load_ts;
 	uint32_t remaining;
-	uint8_t block[TODO_BLOCK_SIZE];
+	uint8_t block[CONFIG_VBOOT_HASH_BLOCK_SIZE];
 	uint8_t hash_digest[VBOOT_MAX_HASH_SIZE];
 	const size_t hash_digest_sz = sizeof(hash_digest);
 	size_t block_size = sizeof(block);
@@ -206,7 +204,6 @@ static vb2_error_t hash_body(struct vb2_context *ctx,
 
 	return VB2_SUCCESS;
 }
-
 
 static uint32_t extend_pcrs(struct vb2_context *ctx)
 {
@@ -405,7 +402,7 @@ void verstage_main(void)
 
 	/* Lock rec hash space if available. */
 	if (CONFIG(VBOOT_HAS_REC_HASH_SPACE)) {
-		rv = antirollback_lock_space_rec_hash();
+		rv = antirollback_lock_space_mrc_hash(MRC_REC_HASH_NV_INDEX);
 		if (rv) {
 			printk(BIOS_INFO, "Failed to lock rec hash space(%x)\n",
 			       rv);

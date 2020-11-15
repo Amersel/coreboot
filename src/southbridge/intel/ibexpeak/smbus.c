@@ -4,6 +4,7 @@
 #include <device/path.h>
 #include <device/smbus.h>
 #include <device/pci.h>
+#include <device/pci_def.h>
 #include <device/pci_ids.h>
 #include <device/pci_ops.h>
 #include <device/smbus_host.h>
@@ -16,7 +17,7 @@ static void pch_smbus_init(struct device *dev)
 
 	/* Enable clock gating */
 	reg16 = pci_read_config32(dev, 0x80);
-	reg16 &= ~((1 << 8)|(1 << 10)|(1 << 12)|(1 << 14));
+	reg16 &= ~((1 << 8) | (1 << 10) | (1 << 12) | (1 << 14));
 	pci_write_config32(dev, 0x80, reg16);
 
 	/* Set Receive Slave Address */
@@ -33,7 +34,7 @@ static int lsmbus_read_byte(struct device *dev, u8 address)
 
 	device = dev->path.i2c.device;
 	pbus = get_pbus_smbus(dev);
-	res = find_resource(pbus->dev, 0x20);
+	res = find_resource(pbus->dev, PCI_BASE_ADDRESS_4);
 
 	return do_smbus_read_byte(res->base, device, address);
 }
@@ -46,7 +47,7 @@ static int lsmbus_write_byte(struct device *dev, u8 address, u8 val)
 
 	device = dev->path.i2c.device;
 	pbus = get_pbus_smbus(dev);
-	res = find_resource(pbus->dev, 0x20);
+	res = find_resource(pbus->dev, PCI_BASE_ADDRESS_4);
 
 	return do_smbus_write_byte(res->base, device, address, val);
 }

@@ -14,8 +14,8 @@ static const struct soc_amd_gpio gpio_set_stage_ram[] = {
 	PAD_NF(GPIO_0, PWR_BTN_L, PULL_NONE),
 	/* SYS_RESET_L */
 	PAD_NF(GPIO_1, SYS_RESET_L, PULL_NONE),
-	/* PCIE_WAKE_L */
-	PAD_NF(GPIO_2, WAKE_L, PULL_NONE),
+	/* WIFI_PCIE_WAKE_ODL */
+	PAD_SCI(GPIO_2, PULL_NONE, EDGE_LOW),
 	/* H1_FCH_INT_ODL */
 	PAD_INT(GPIO_3, PULL_NONE, EDGE_LOW, STATUS_DELIVERY),
 	/* PEN_DETECT_ODL */
@@ -65,8 +65,8 @@ static const struct soc_amd_gpio gpio_set_stage_ram[] = {
 	PAD_NF(GPIO_30, ESPI_CS_L, PULL_NONE),
 	/* EC_AP_INT_ODL (Sensor Framesync) */
 	PAD_GPI(GPIO_31, PULL_NONE),
-	/* TP */
-	PAD_NC(GPIO_32),
+	/* EN_PWR_TOUCHSCREEN */
+	PAD_GPO(GPIO_32, LOW),
 	/* GPIO_33 - GPIO_39: Not available */
 	/* NVME_AUX_RESET_L */
 	PAD_GPO(GPIO_40, HIGH),
@@ -79,8 +79,8 @@ static const struct soc_amd_gpio gpio_set_stage_ram[] = {
 	 * access will be very slow.
 	 */
 	PAD_GPO(GPIO_67, LOW),  // Select Camera 1 Dmic
-	/* EMMC_RESET */
-	PAD_GPO(GPIO_68, LOW),
+	/* EMMC_RESET_L */
+	PAD_GPO(GPIO_68, HIGH),
 	/* RAM ID 3 */
 	PAD_GPI(GPIO_69, PULL_NONE),
 	/* EMMC_CLK */
@@ -93,8 +93,8 @@ static const struct soc_amd_gpio gpio_set_stage_ram[] = {
 	/* EN_PWR_CAMERA */
 	PAD_GPO(GPIO_76, HIGH),
 	/* GPIO_77 - GPIO_83: Not available */
-	/* UNUSED */
-	PAD_NC(GPIO_84),
+	/* HP_INT_ODL */
+	PAD_GPI(GPIO_84, PULL_NONE),
 	/* APU_EDP_BL_DISABLE TODP: Set low in depthcharge */
 	PAD_GPO(GPIO_85, HIGH),
 	/* RAM ID 2 */
@@ -103,8 +103,8 @@ static const struct soc_amd_gpio gpio_set_stage_ram[] = {
 	PAD_NF(GPIO_87, EMMC_DATA7, PULL_NONE),
 	/* EMMC_DATA5 */
 	PAD_NF(GPIO_88, EMMC_DATA5, PULL_NONE),
-	/*  EN_DEV_BEEP_L */
-	PAD_GPO(GPIO_89, HIGH),
+	/* GPIO_89 - unused */
+	PAD_NC(GPIO_89),
 	/* RAM ID 1 */
 	PAD_GPI(GPIO_90, PULL_NONE),
 	/* EN_SPKR */
@@ -150,8 +150,8 @@ static const struct soc_amd_gpio gpio_set_stage_ram[] = {
 	PAD_NF(GPIO_138, UART0_TXD, PULL_NONE),
 	/* DEV_BEEP_BCLK */
 	PAD_GPI(GPIO_139, PULL_NONE),
-	/* USI_RESET */
-	PAD_GPO(GPIO_140, HIGH),
+	/* USI_RESET_L */
+	PAD_GPO(GPIO_140, LOW),
 	/* USB_HUB_RST_L */
 	PAD_GPO(GPIO_141, HIGH),
 	/* SD_AUX_RESET_L */

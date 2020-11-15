@@ -277,7 +277,6 @@ int rmodule_stage_load(struct rmod_stage_load *rsl)
 
 	if (rmodule_load(&stage_region[load_offset], &rmod_stage))
 		return -1;
-
 	prog_set_area(rsl->prog, rmod_stage.location,
 			rmodule_memory_size(&rmod_stage));
 

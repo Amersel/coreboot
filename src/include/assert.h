@@ -22,9 +22,16 @@
 #define __ASSERT_LINE__ __LINE__
 #endif
 
+#ifndef _PORTING_H_	/* TODO: Isolate AGESA properly. */
+#define __build_time_assert(x) \
+	(__builtin_constant_p(x) ? ((x) ? 1 : dead_code_t(int)) : 0)
+#else
+#define __build_time_assert(x) 0
+#endif
+
 /* GCC and CAR versions */
 #define ASSERT(x) {							\
-	if (!(x)) {							\
+	if (!__build_time_assert(x) && !(x)) {				\
 		printk(BIOS_EMERG,					\
 			"ASSERTION ERROR: file '%s', line %d\n",	\
 			__ASSERT_FILE__, __ASSERT_LINE__);		\
@@ -33,7 +40,7 @@
 	}								\
 }
 #define ASSERT_MSG(x, msg) {						\
-	if (!(x)) {							\
+	if (!__build_time_assert(x) && !(x)) {				\
 		printk(BIOS_EMERG,					\
 			"ASSERTION ERROR: file '%s', line %d\n",	\
 			__ASSERT_FILE__, __ASSERT_LINE__);		\
@@ -73,4 +80,15 @@ extern void _dead_code_assertion_failed(void) __attribute__((noreturn));
 	*(type *)(uintptr_t)0; \
 })
 
+#ifdef __x86_64__
+#define pointer_to_uint32_safe(x) ({ \
+	if ((uintptr_t)(x) > 0xffffffffUL) \
+		die("Cast from pointer to uint32_t overflows"); \
+	(uint32_t)(uintptr_t)(x); \
+})
+#else
+#define pointer_to_uint32_safe(x) ({ \
+	(uint32_t)(uintptr_t)(x); \
+})
+#endif
 #endif // __ASSERT_H__

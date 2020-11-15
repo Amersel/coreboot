@@ -19,9 +19,9 @@ static const struct pad_config override_gpio_table[] = {
 	/* A18 : DDSP_HPDB ==> HDMI_HPD */
 	PAD_CFG_NF(GPP_A18, NONE, DEEP, NF1),
 	/* A19 : DDSP_HPD1 ==> USB_C0_DP_HPD */
-	PAD_CFG_NF(GPP_A19, NONE, DEEP, NF1),
+	PAD_NC(GPP_A19, NONE),
 	/* A20 : DDSP_HPD2 ==> USB_C1_DP_HPD */
-	PAD_CFG_NF(GPP_A20, NONE, DEEP, NF1),
+	PAD_NC(GPP_A20, NONE),
 	/* A22 : DDPC_CTRLDATA ==> EN_HDMI_PWR */
 	PAD_CFG_GPO(GPP_A22, 1, DEEP),
 	/* A23 : I2S1_SCLK ==> I2S1_SPKR_SCLK */
@@ -145,6 +145,9 @@ static const struct pad_config early_gpio_table[] = {
 	PAD_CFG_GPO(GPP_C0, 1, DEEP),
 	/* C21 : UART2_TXD ==> H1_PCH_INT_ODL */
 	PAD_CFG_GPI_APIC(GPP_C21, NONE, PLTRST, LEVEL, INVERT),
+
+	/* D16 : ISH_UART0_CTS# ==> EN_PP3300_SD */
+	PAD_CFG_GPO(GPP_D16, 1, DEEP),
 };
 
 const struct pad_config *variant_override_gpio_table(size_t *num)

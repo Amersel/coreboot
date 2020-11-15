@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <memlayout.h>
+#include <soc/psp_transfer.h>
+#include <fmap_config.h>
 
 /*
  * Start of available space is 0x15000 and this is where the
@@ -11,23 +13,21 @@
 #define PSP_SRAM_SIZE			160K
 
 #define VERSTAGE_START			0x15000
-#define VBOOT_WORK_SIZE			12K
-#define FMAP_CACHE_SIZE			2K
 
 /*
  * The temp stack can be made much smaller if needed - even 256 bytes
  * should be sufficient.  This is just for the function mapping the
  * actual stack.
  */
-#define PSP_VERSTAGE_TEMP_STACK_START	0x39000
+#define PSP_VERSTAGE_TEMP_STACK_START	0x32000
 #define PSP_VERSTAGE_TEMP_STACK_SIZE	4K
 
 /*
  * The top of the stack must be 4k aligned, so set the bottom as 4k aligned
  * and make the size a multiple of 4k
  */
-#define PSP_VERSTAGE_STACK_START	0x3B000
-#define PSP_VERSTAGE_STACK_SIZE		8K
+#define PSP_VERSTAGE_STACK_START	0x33000
+#define PSP_VERSTAGE_STACK_SIZE		40K
 
 ENTRY(_psp_vs_start)
 SECTIONS
@@ -51,10 +51,7 @@ SECTIONS
 	ALIGN_COUNTER(64)
 	_everstage = .;
 
-	ALIGN_COUNTER(64)
-	REGION(vboot2_work, ., VBOOT_WORK_SIZE, 64)
-
-	FMAP_CACHE(., FMAP_SIZE)
+	#include "memlayout_transfer_buffer.inc"
 
 	PSP_VERSTAGE_TEMP_STACK_END = (PSP_VERSTAGE_TEMP_STACK_START + PSP_VERSTAGE_TEMP_STACK_SIZE );
 

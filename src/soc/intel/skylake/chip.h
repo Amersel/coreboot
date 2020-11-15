@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-
 #ifndef _SOC_CHIP_H_
 #define _SOC_CHIP_H_
 
@@ -86,7 +85,7 @@ struct soc_intel_skylake_config {
 	uint32_t deep_sx_config;
 
 	/* TCC activation offset */
-	int tcc_offset;
+	uint32_t tcc_offset;
 
 	/* Package PL4 power limit in Watts */
 	u32 PowerLimit4;
@@ -263,7 +262,15 @@ struct soc_intel_skylake_config {
 		AspmL1,
 		AspmL0sL1,
 		AspmAutoConfig,
-	} PcieRpAspm[CONFIG_MAX_ROOT_PORTS];
+	} pcie_rp_aspm[CONFIG_MAX_ROOT_PORTS];
+
+	/* PCIe RP L1 substate */
+	enum {
+		L1SS_Default,
+		L1SS_Disabled,
+		L1SS_L1_1,
+		L1SS_L1_2,
+	} pcie_rp_l1substates[CONFIG_MAX_ROOT_PORTS];
 
 	/* USB related */
 	struct usb2_port_config usb2_ports[16];
@@ -300,13 +307,8 @@ struct soc_intel_skylake_config {
 	/* Bus voltage level, default is 3.3V */
 	enum skylake_i2c_voltage i2c_voltage[CONFIG_SOC_INTEL_I2C_DEV_MAX];
 
-	/* Camera */
-	u8 Cio2Enable;
-	u8 SaImguEnable;
-
 	/* eMMC and SD */
 	u8 ScsEmmcHs400Enabled;
-	u8 ScsSdCardEnabled;
 	u8 EmmcHs400DllNeed;
 	u8 ScsEmmcHs400RxStrobeDll1;
 	u8 ScsEmmcHs400TxDataDll;
@@ -336,7 +338,6 @@ struct soc_intel_skylake_config {
 	u32 LogoPtr;
 	u32 LogoSize;
 	u32 GraphicsConfigPtr;
-	u8 Device4Enable;
 	u8 RtcLock;
 	/* GPIO IRQ Route  The valid values is 14 or 15*/
 	u8 GpioIrqSelect;
@@ -459,9 +460,7 @@ struct soc_intel_skylake_config {
 	 * Setting to 0 (default) disables Heci1 and hides the device from OS
 	 */
 	u8 HeciEnabled;
-	u8 PmTimerDisabled;
-	/* Intel Speed Shift Technology */
-	u8 speed_shift_enable;
+
 	/*
 	 * Enable VR specific mailbox command
 	 * 000b - Don't Send any VR command

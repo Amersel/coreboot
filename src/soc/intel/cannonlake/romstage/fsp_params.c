@@ -52,7 +52,7 @@ static void soc_memory_init_params(FSPM_UPD *mupd, const config_t *config)
 			mask |= (1 << i);
 	}
 	m_cfg->PcieRpEnableMask = mask;
-	m_cfg->PrmrrSize = get_prmrr_size();
+	m_cfg->PrmrrSize = get_valid_prmrr_size();
 	m_cfg->EnableC6Dram = config->enable_c6dram;
 #if CONFIG(SOC_INTEL_COMETLAKE)
 	m_cfg->SerialIoUartDebugControllerNumber = CONFIG_UART_FOR_CONSOLE;
@@ -156,6 +156,9 @@ void platform_fsp_memory_init_params_cb(FSPM_UPD *mupd, uint32_t version)
 
 	/* Configure VT-d */
 	tconfig->VtdDisable = 0;
+
+	/* Set HECI1 PCI BAR address */
+	m_cfg->Heci1BarAddress = HECI1_BASE_ADDRESS;
 
 	mainboard_memory_init_params(mupd);
 }

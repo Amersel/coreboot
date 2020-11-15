@@ -9,8 +9,6 @@
 #include <intelblocks/gspi.h>
 #include <intelblocks/power_limit.h>
 #include <soc/gpe.h>
-#include <soc/gpio.h>
-#include <soc/gpio_defs.h>
 #include <soc/pch.h>
 #include <soc/pci_devs.h>
 #include <soc/pmc.h>
@@ -56,6 +54,47 @@ enum fivr_voltage_supported {
 #define FIVR_ENABLE_ALL_SX (FIVR_ENABLE_S0i1_S0i2 | FIVR_ENABLE_S0i3 |	\
 			    FIVR_ENABLE_S3 | FIVR_ENABLE_S4 | FIVR_ENABLE_S5)
 
+/* Bit values for use in LpmStateEnableMask. */
+enum lpm_state_mask {
+	LPM_S0i2_0 = BIT(0),
+	LPM_S0i2_1 = BIT(1),
+	LPM_S0i2_2 = BIT(2),
+	LPM_S0i3_0 = BIT(3),
+	LPM_S0i3_1 = BIT(4),
+	LPM_S0i3_2 = BIT(5),
+	LPM_S0i3_3 = BIT(6),
+	LPM_S0i3_4 = BIT(7),
+	LPM_S0iX_ALL = LPM_S0i2_0 | LPM_S0i2_1 | LPM_S0i2_2
+		     | LPM_S0i3_0 | LPM_S0i3_1 | LPM_S0i3_2 | LPM_S0i3_3 | LPM_S0i3_4,
+};
+
+/*
+ * VR domains. The domains are IA,GT,SA,VLCC and FIVR.
+ */
+enum vr_domains {
+	VR_DOMAIN_IA,
+	VR_DOMAIN_GT,
+	VR_DOMAIN_SA,
+	VR_DOMAIN_VLCC,
+	VR_DOMAIN_FIVR,
+	VR_DOMAIN_MAX
+};
+
+/*
+ * Slew Rate configuration for Deep Package C States for VR domain.
+ * They are fast time divided by 2.
+ * 0 - Fast/2
+ * 1 - Fast/4
+ * 2 - Fast/8
+ * 3 - Fast/16
+ */
+enum slew_rate {
+	SLEW_FAST_2,
+	SLEW_FAST_4,
+	SLEW_FAST_8,
+	SLEW_FAST_16
+};
+
 struct soc_intel_tigerlake_config {
 
 	/* Common struct containing soc config data required by common code */
@@ -78,6 +117,9 @@ struct soc_intel_tigerlake_config {
 
 	/* Enable S0iX support */
 	int s0ix_enable;
+	/* S0iX: Selectively disable individual sub-states, by default all are enabled. */
+	enum lpm_state_mask LpmStateDisableMask;
+
 	/* Support for TCSS xhci, xdci, TBT PCIe root ports and DMA controllers */
 	uint8_t TcssD3HotDisable;
 	/* Support for TBT PCIe root ports and DMA controllers with D3Hot->D3Cold */
@@ -127,6 +169,32 @@ struct soc_intel_tigerlake_config {
 	uint16_t usb2_wake_enable_bitmap;
 	/* Wake Enable Bitmap for USB3 ports */
 	uint16_t usb3_wake_enable_bitmap;
+
+	/*
+	 * Acoustic Noise Mitigation
+	 * 0 - Disable
+	 * 1 - Enable noise mitigation
+	 */
+	uint8_t AcousticNoiseMitigation;
+
+	/*
+	 * Offset 0x054B - Disable Fast Slew Rate for Deep Package
+	 * C States for VR domains. Disable Fast Slew Rate for Deep
+	 * Package C States based on Acoustic Noise Mitigation feature
+	 * enabled. The domains are IA,GT,SA,VLCC and FIVR.
+	 * 0 - False
+	 * 1 - True
+	 */
+	uint8_t FastPkgCRampDisable[VR_DOMAIN_MAX];
+
+	/*
+	 * Offset 0x0550 - Slew Rate configuration for Deep Package
+	 * C States for VR domains. Slew Rate configuration for Deep
+	 * Package C States for VR domains based on Acoustic Noise
+	 * Mitigation feature enabled. The domains are IA,GT,SA,VLCC and FIVR.
+	 * Slew rates are defined as enum slew_rate.
+	 */
+	uint8_t SlowSlewRate[VR_DOMAIN_MAX];
 
 	/* SATA related */
 	uint8_t SataEnable;
@@ -193,7 +261,6 @@ struct soc_intel_tigerlake_config {
 
 	/* Gfx related */
 	uint8_t IgdDvmt50PreAlloc;
-	uint8_t InternalGfx;
 	uint8_t SkipExtGfxScan;
 
 	uint32_t GraphicsConfigPtr;
@@ -202,9 +269,6 @@ struct soc_intel_tigerlake_config {
 	/* HeciEnabled decides the state of Heci1 at end of boot
 	 * Setting to 0 (default) disables Heci1 and hides the device from OS */
 	uint8_t HeciEnabled;
-
-	/* Intel Speed Shift Technology */
-	uint8_t speed_shift_enable;
 
 	/* Enable/Disable EIST. 1b:Enabled, 0b:Disabled */
 	uint8_t eist_enable;
@@ -374,6 +438,59 @@ struct soc_intel_tigerlake_config {
 	 * Default 0. Setting this to 1 to check CPU replacement.
 	 */
 	uint8_t CpuReplacementCheck;
+
+	/*
+	 * SLP_S3 Minimum Assertion Width Policy
+	 *  1 = 60us
+	 *  2 = 1ms
+	 *  3 = 50ms (default)
+	 *  4 = 2s
+	 */
+	uint8_t PchPmSlpS3MinAssert;
+
+	/*
+	 * SLP_S4 Minimum Assertion Width Policy
+	 *  1 = 1s (default)
+	 *  2 = 2s
+	 *  3 = 3s
+	 *  4 = 4s
+	 */
+	uint8_t PchPmSlpS4MinAssert;
+
+	/*
+	 * SLP_SUS Minimum Assertion Width Policy
+	 *  1 = 0ms
+	 *  2 = 500ms
+	 *  3 = 1s
+	 *  4 = 4s (default)
+	 */
+	uint8_t PchPmSlpSusMinAssert;
+
+	/*
+	 * SLP_A Minimum Assertion Width Policy
+	 *  1 = 0ms
+	 *  2 = 4s
+	 *  3 = 98ms
+	 *  4 = 2s (default)
+	 */
+	uint8_t PchPmSlpAMinAssert;
+
+	/*
+	 * PCH PM Reset Power Cycle Duration
+	 *  0 = 4s (default)
+	 *  1 = 1s
+	 *  2 = 2s
+	 *  3 = 3s
+	 *  4 = 4s
+	 *
+	 * NOTE: Duration programmed in the PchPmPwrCycDur should never be smaller than the
+	 * stretch duration programmed in the following registers:
+	 *  - GEN_PMCON_A.SLP_S3_MIN_ASST_WDTH (PchPmSlpS3MinAssert)
+	 *  - GEN_PMCON_A.S4MAW (PchPmSlpS4MinAssert)
+	 *  - PM_CFG.SLP_A_MIN_ASST_WDTH (PchPmSlpAMinAssert)
+	 *  - PM_CFG.SLP_LAN_MIN_ASST_WDTH
+	 */
+	uint8_t PchPmPwrCycDur;
 };
 
 typedef struct soc_intel_tigerlake_config config_t;

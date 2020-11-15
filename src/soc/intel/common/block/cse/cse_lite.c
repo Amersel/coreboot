@@ -7,7 +7,6 @@
 #include <commonlib/region.h>
 #include <fmap.h>
 #include <intelblocks/cse.h>
-#include <lib.h>
 #include <security/vboot/vboot_common.h>
 #include <security/vboot/misc.h>
 #include <vb2_api.h>
@@ -85,6 +84,11 @@ enum bp_status {
 	/* This value is returned when a partition is not present per initial image layout */
 	BP_STATUS_PARTITION_NOT_PRESENT = 2,
 
+	/*
+	 * This value is returned when unexpected issues are detected in CSE Data area
+	 * and CSE TCB-SVN downgrade scenario.
+	 */
+	BP_STATUS_DATA_FAILURE = 3,
 };
 
 /*
@@ -153,16 +157,26 @@ struct get_bp_info_rsp {
 	struct cse_bp_info bp_info;
 } __packed;
 
+static void cse_log_status_registers(void)
+{
+	printk(BIOS_DEBUG, "cse_lite: CSE status registers: HFSTS1: 0x%x, HFSTS2: 0x%x "
+			"HFSTS3: 0x%x\n", me_read_config32(PCI_ME_HFSTS1),
+			me_read_config32(PCI_ME_HFSTS2), me_read_config32(PCI_ME_HFSTS3));
+}
+
 static void cse_trigger_recovery(uint8_t rec_sub_code)
 {
+	/* Log CSE Firmware Status Registers to help debugging */
+	cse_log_status_registers();
 	if (CONFIG(VBOOT)) {
-		struct vb2_context *ctx;
-		ctx = vboot_get_context();
+		struct vb2_context *ctx = vboot_get_context();
+		if (ctx == NULL)
+			goto failure;
 		vb2api_fail(ctx, VB2_RECOVERY_INTEL_CSE_LITE_SKU, rec_sub_code);
 		vboot_save_data(ctx);
 		vboot_reboot();
 	}
-
+failure:
 	die("cse_lite: Failed to trigger recovery mode(recovery subcode:%d)\n", rec_sub_code);
 }
 
@@ -355,12 +369,21 @@ static bool cse_set_next_boot_partition(enum boot_partition_id bp)
 	return true;
 }
 
+__weak void cse_board_reset(void)
+{
+	/* Default weak implementation, does nothing. */
+}
+
 /* Set the CSE's next boot partition and issues system reset */
 static bool cse_set_and_boot_from_next_bp(enum boot_partition_id bp)
 {
 	if (!cse_set_next_boot_partition(bp))
 		return false;
 
+	/* Allow the board to perform a reset for CSE RO<->RW jump */
+	cse_board_reset();
+
+	/* If board does not perform the reset, then perform global_reset */
 	do_global_reset();
 
 	die("cse_lite: Failed to reset the system\n");
@@ -442,6 +465,44 @@ static bool cse_get_target_rdev(const struct cse_bp_info *cse_bp_info,
 	return true;
 }
 
+static bool cse_data_clear_request(const struct cse_bp_info *cse_bp_info)
+{
+	struct data_clr_request {
+		struct mkhi_hdr hdr;
+		uint8_t reserved[4];
+	} __packed;
+
+	struct data_clr_request data_clr_rq = {
+		.hdr.group_id = MKHI_GROUP_ID_BUP_COMMON,
+		.hdr.command = MKHI_BUP_COMMON_DATA_CLEAR,
+		.reserved = {0},
+	};
+
+	if (!cse_is_hfs1_cws_normal() || !cse_is_hfs1_com_soft_temp_disable() ||
+			cse_get_current_bp(cse_bp_info) != RO) {
+		printk(BIOS_ERR, "cse_lite: CSE doesn't meet DATA CLEAR cmd prerequisites\n");
+		return false;
+	}
+
+	printk(BIOS_DEBUG, "cse_lite: Sending DATA CLEAR HECI command\n");
+
+	struct mkhi_hdr data_clr_rsp;
+	size_t data_clr_rsp_sz = sizeof(data_clr_rsp);
+
+	if (!heci_send_receive(&data_clr_rq, sizeof(data_clr_rq), &data_clr_rsp,
+		&data_clr_rsp_sz)) {
+		return false;
+	}
+
+	if (data_clr_rsp.result) {
+		printk(BIOS_ERR, "cse_lite: CSE DATA CLEAR command response failed: %d\n",
+				data_clr_rsp.result);
+		return false;
+	}
+
+	return true;
+}
+
 static bool cse_get_cbfs_rw_version(const struct region_device *source_rdev,
 		void *cse_cbfs_rw_ver)
 {
@@ -487,9 +548,38 @@ static int cse_check_version_mismatch(const struct cse_bp_info *cse_bp_info,
 		return cse_cbfs_rw_ver.build - cse_rw_ver->build;
 }
 
+/* Check if CSE RW data partition is valid or not */
+static bool cse_is_rw_dp_valid(const struct cse_bp_info *cse_bp_info)
+{
+	const struct cse_bp_entry *rw_bp;
+
+	rw_bp = cse_get_bp_entry(RW, cse_bp_info);
+	return rw_bp->status != BP_STATUS_DATA_FAILURE;
+}
+
+/*
+ * It returns true if RW partition doesn't indicate BP_STATUS_DATA_FAILURE
+ * otherwise false if any operation fails.
+ */
+static bool cse_fix_data_failure_err(const struct cse_bp_info *cse_bp_info)
+{
+	/*
+	 * If RW partition status indicates BP_STATUS_DATA_FAILURE,
+	 *  - Send DATA CLEAR HECI command to CSE
+	 *  - Send SET BOOT PARTITION INFO(RW) command to set CSE's next partition
+	 *  - Issue GLOBAL RESET HECI command.
+	 */
+	if (cse_is_rw_dp_valid(cse_bp_info))
+		return true;
+
+	if (!cse_data_clear_request(cse_bp_info))
+		return false;
+
+	return cse_boot_to_rw(cse_bp_info);
+}
+
 static bool cse_erase_rw_region(const struct region_device *target_rdev)
 {
-
 	if (rdev_eraseat(target_rdev, 0, region_device_sz(target_rdev)) < 0) {
 		printk(BIOS_ERR, "cse_lite: CSE RW partition could not be erased\n");
 		return false;
@@ -512,6 +602,12 @@ static bool cse_is_rw_version_latest(const struct cse_bp_info *cse_bp_info,
 		const struct region_device *source_rdev)
 {
 	return !cse_check_version_mismatch(cse_bp_info, source_rdev);
+}
+
+static bool cse_is_downgrade_instance(const struct cse_bp_info *cse_bp_info,
+		const struct region_device *source_rdev)
+{
+	return cse_check_version_mismatch(cse_bp_info, source_rdev) < 0;
 }
 
 static bool cse_is_update_required(const struct cse_bp_info *cse_bp_info,
@@ -564,7 +660,8 @@ static bool cse_update_rw(const struct cse_bp_info *cse_bp_info,
 	return true;
 }
 
-static bool cse_prep_for_rw_update(const struct cse_bp_info *cse_bp_info)
+static bool cse_prep_for_rw_update(const struct cse_bp_info *cse_bp_info,
+		const struct region_device *source_rdev)
 {
 	/*
 	 * To set CSE's operation mode to HMRFPO mode:
@@ -574,13 +671,19 @@ static bool cse_prep_for_rw_update(const struct cse_bp_info *cse_bp_info)
 	if (!cse_boot_to_ro(cse_bp_info))
 		return false;
 
+	if (cse_is_downgrade_instance(cse_bp_info, source_rdev) &&
+			!cse_data_clear_request(cse_bp_info)) {
+		printk(BIOS_ERR, "cse_lite: CSE FW downgrade is aborted\n");
+		return false;
+	}
+
 	return cse_hmrfpo_enable();
 }
 
 static uint8_t cse_trigger_fw_update(const struct cse_bp_info *cse_bp_info,
 		const struct region_device *source_rdev, struct region_device *target_rdev)
 {
-	if (!cse_prep_for_rw_update(cse_bp_info))
+	if (!cse_prep_for_rw_update(cse_bp_info, source_rdev))
 		return CSE_LITE_SKU_COMMUNICATION_ERROR;
 
 	if (!cse_update_rw(cse_bp_info, source_rdev, target_rdev))
@@ -630,6 +733,9 @@ void cse_fw_sync(void *unused)
 		cse_trigger_recovery(CSE_LITE_SKU_COMMUNICATION_ERROR);
 	}
 
+	if (!cse_fix_data_failure_err(&cse_bp_info.bp_info))
+		cse_trigger_recovery(CSE_LITE_SKU_DATA_WIPE_ERROR);
+
 	/* If RW blob is present in CBFS, then trigger CSE firmware update */
 	uint8_t rv;
 	struct region_device source_rdev;
@@ -645,8 +751,12 @@ void cse_fw_sync(void *unused)
 	}
 }
 
-#if CONFIG(SOC_INTEL_TIGERLAKE)
-BOOT_STATE_INIT_ENTRY(BS_DEV_INIT_CHIPS, BS_ON_ENTRY, cse_fw_sync, NULL);
+#if CONFIG(SOC_INTEL_TIGERLAKE) || CONFIG(SOC_INTEL_JASPERLAKE)
+/*
+ * This needs to happen after the MRC cache write to avoid a 2nd
+ * memory training sequence.
+ */
+BOOT_STATE_INIT_ENTRY(BS_DEV_RESOURCES, BS_ON_ENTRY, cse_fw_sync, NULL);
 #else
 BOOT_STATE_INIT_ENTRY(BS_PRE_DEVICE, BS_ON_ENTRY, cse_fw_sync, NULL);
 #endif

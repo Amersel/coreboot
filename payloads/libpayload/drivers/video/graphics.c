@@ -41,12 +41,17 @@
 static struct rect canvas;
 static struct rect screen;
 
+static uint8_t *gfx_buffer;
+
 /*
  * Framebuffer is assumed to assign a higher coordinate (larger x, y) to
  * a higher address
  */
-static struct cb_framebuffer *fbinfo;
-static uint8_t *fbaddr;
+static const struct cb_framebuffer *fbinfo;
+
+/* Shorthand for up-to-date virtual framebuffer address */
+#define REAL_FB ((unsigned char *)phys_to_virt(fbinfo->physical_address))
+#define FB	(gfx_buffer ? gfx_buffer : REAL_FB)
 
 #define LOG(x...)	printf("CBGFX: " x)
 #define PIVOT_H_MASK	(PIVOT_H_LEFT|PIVOT_H_CENTER|PIVOT_H_RIGHT)
@@ -61,17 +66,53 @@ static const struct vector vzero = {
 	.y = 0,
 };
 
+struct color_transformation {
+	uint8_t base;
+	int16_t scale;
+};
+
+struct color_mapping {
+	struct color_transformation red;
+	struct color_transformation green;
+	struct color_transformation blue;
+	int enabled;
+};
+
+static struct color_mapping color_map;
+
+static inline void set_color_trans(struct color_transformation *trans,
+				   uint8_t bg_color, uint8_t fg_color)
+{
+	trans->base = bg_color;
+	trans->scale = fg_color - bg_color;
+}
+
+int set_color_map(const struct rgb_color *background,
+		  const struct rgb_color *foreground)
+{
+	if (background == NULL || foreground == NULL)
+		return CBGFX_ERROR_INVALID_PARAMETER;
+
+	set_color_trans(&color_map.red, background->red, foreground->red);
+	set_color_trans(&color_map.green, background->green,
+			foreground->green);
+	set_color_trans(&color_map.blue, background->blue, foreground->blue);
+	color_map.enabled = 1;
+
+	return CBGFX_SUCCESS;
+}
+
+void clear_color_map(void)
+{
+	color_map.enabled = 0;
+}
+
 struct blend_value {
 	uint8_t alpha;
 	struct rgb_color rgb;
 };
 
-static struct blend_value blend = {
-	.alpha = 0,
-	.rgb.red = 0,
-	.rgb.green = 0,
-	.rgb.blue = 0,
-};
+static struct blend_value blend;
 
 int set_blend(const struct rgb_color *rgb, uint8_t alpha)
 {
@@ -185,6 +226,15 @@ static int within_box(const struct vector *v, const struct rect *bound)
 		return -1;
 }
 
+/* Helper function that applies color_map to the color. */
+static inline uint8_t apply_map(uint8_t color,
+				const struct color_transformation *trans)
+{
+	if (!color_map.enabled)
+		return color;
+	return trans->base + trans->scale * color / UINT8_MAX;
+}
+
 /*
  * Helper function that applies color and opacity from blend struct
  * into the color.
@@ -203,13 +253,16 @@ static inline uint32_t calculate_color(const struct rgb_color *rgb,
 {
 	uint32_t color = 0;
 
-	color |= (apply_blend(rgb->red, blend.rgb.red)
+	color |= (apply_blend(apply_map(rgb->red, &color_map.red),
+			      blend.rgb.red)
 		  >> (8 - fbinfo->red_mask_size))
 		 << fbinfo->red_mask_pos;
-	color |= (apply_blend(rgb->green, blend.rgb.green)
+	color |= (apply_blend(apply_map(rgb->green, &color_map.green),
+			      blend.rgb.green)
 		  >> (8 - fbinfo->green_mask_size))
 		 << fbinfo->green_mask_pos;
-	color |= (apply_blend(rgb->blue, blend.rgb.blue)
+	color |= (apply_blend(apply_map(rgb->blue, &color_map.blue),
+			      blend.rgb.blue)
 		  >> (8 - fbinfo->blue_mask_size))
 		 << fbinfo->blue_mask_pos;
 	if (invert)
@@ -248,7 +301,7 @@ static inline void set_pixel(struct vector *coord, uint32_t color)
 		break;
 	}
 
-	uint8_t * const pixel = fbaddr + rcoord.y * bpl + rcoord.x * bpp / 8;
+	uint8_t * const pixel = FB + rcoord.y * bpl + rcoord.x * bpp / 8;
 	for (i = 0; i < bpp / 8; i++)
 		pixel[i] = (color >> (i * 8));
 }
@@ -262,12 +315,9 @@ static int cbgfx_init(void)
 	if (initialized)
 		return 0;
 
-	fbinfo = lib_sysinfo.framebuffer;
-	if (!fbinfo)
-		return CBGFX_ERROR_FRAMEBUFFER_INFO;
+	fbinfo = &lib_sysinfo.framebuffer;
 
-	fbaddr = phys_to_virt((uint8_t *)(uintptr_t)(fbinfo->physical_address));
-	if (!fbaddr)
+	if (!fbinfo->physical_address)
 		return CBGFX_ERROR_FRAMEBUFFER_ADDR;
 
 	switch (fbinfo->orientation) {
@@ -579,7 +629,7 @@ int clear_screen(const struct rgb_color *rgb)
 	 * We assume that for 32bpp the high byte gets ignored anyway. */
 	if ((((color >> 8) & 0xff) == (color & 0xff)) && (bpp == 16 ||
 	    (((color >> 16) & 0xff) == (color & 0xff)))) {
-		memset(fbaddr, color & 0xff, fbinfo->y_resolution * bpl);
+		memset(FB, color & 0xff, fbinfo->y_resolution * bpl);
 	} else {
 		for (p.y = 0; p.y < screen.size.height; p.y++)
 			for (p.x = 0; p.x < screen.size.width; p.x++)
@@ -808,24 +858,25 @@ static int draw_bitmap_v3(const struct vector *top_left,
 		}
 
 		/*
-		 * Initialize the sample array for this line. For pixels to the
-		 * left of S0 there are no corresponding input pixels so just
-		 * copy the S0 values over.
-		 *
-		 * Also initialize the equals counter, which counts how many of
-		 * the latest pixels were exactly equal. We know the columns
-		 * left of S0 must be equal to S0, so start with that number.
+		 * Initialize the sample array for this line, and also
+		 * the equals counter, which counts how many of the latest
+		 * pixels were exactly equal.
 		 */
-		int equals = S0 * SSZ;
+		int equals = 0;
 		uint8_t last_equal = ypix[0][0];
-		for (sy = 0; sy < SSZ; sy++) {
-			for (sx = S0; sx < SSZ; sx++) {
-				if (sx >= dim_org->width) {
+		for (sx = 0; sx < SSZ; sx++) {
+			for (sy = 0; sy < SSZ; sy++) {
+				if (sx - S0 >= dim_org->width) {
 					sample[sx][sy] = sample[sx - 1][sy];
 					equals++;
 					continue;
 				}
-				uint8_t i = ypix[sy][sx - S0];
+				/*
+				 * For pixels to the left of S0 there are no
+				 * corresponding input pixels so just use
+				 * ypix[sy][0].
+				 */
+				uint8_t i = ypix[sy][MAX(0, sx - S0)];
 				if (pal_to_rgb(i, pal, header->colors_used,
 					       &sample[sx][sy]))
 					goto bitmap_error;
@@ -836,8 +887,6 @@ static int draw_bitmap_v3(const struct vector *top_left,
 					equals = 1;
 				}
 			}
-			for (sx = S0 - 1; sx >= 0; sx--)
-				sample[sx][sy] = sample[S0][sy];
 		}
 
 		ix = 0;
@@ -1209,4 +1258,38 @@ int get_bitmap_dimension(const void *bitmap, size_t sz, struct scale *dim_rel)
 	dim_rel->y.d = canvas.size.height;
 
 	return CBGFX_SUCCESS;
+}
+
+int enable_graphics_buffer(void)
+{
+	if (gfx_buffer)
+		return CBGFX_SUCCESS;
+
+	if (cbgfx_init())
+		return CBGFX_ERROR_INIT;
+
+	size_t buffer_size = fbinfo->y_resolution * fbinfo->bytes_per_line;
+	gfx_buffer = malloc(buffer_size);
+	if (!gfx_buffer) {
+		LOG("%s: Failed to create graphics buffer (%zu bytes).\n",
+		    __func__, buffer_size);
+		return CBGFX_ERROR_GRAPHICS_BUFFER;
+	}
+
+	return CBGFX_SUCCESS;
+}
+
+int flush_graphics_buffer(void)
+{
+	if (!gfx_buffer)
+		return CBGFX_ERROR_GRAPHICS_BUFFER;
+
+	memcpy(REAL_FB, gfx_buffer, fbinfo->y_resolution * fbinfo->bytes_per_line);
+	return CBGFX_SUCCESS;
+}
+
+void disable_graphics_buffer(void)
+{
+	free(gfx_buffer);
+	gfx_buffer = NULL;
 }
