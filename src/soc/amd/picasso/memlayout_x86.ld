@@ -75,16 +75,11 @@ SECTIONS
 
 #if CONFIG(VBOOT)
 	PSP_SHAREDMEM_DRAM_START(CONFIG_PSP_SHAREDMEM_BASE)
-	_transfer_buffer = .;
-	REGION(transfer_info, ., TRANSFER_INFO_SIZE, 4)
-	VBOOT2_WORK(., VB2_FIRMWARE_WORKBUF_RECOMMENDED_SIZE)
 #endif
 
-	PRERAM_CBMEM_CONSOLE(., CONFIG_PRERAM_CBMEM_CONSOLE_SIZE)
-	TIMESTAMP(., TIMESTAMP_BUFFER_SIZE)
-	FMAP_CACHE(., FMAP_SIZE)
+#include "memlayout_transfer_buffer.inc"
+
 #if CONFIG(VBOOT)
-	_etransfer_buffer = .;
 	PSP_SHAREDMEM_DRAM_END(CONFIG_PSP_SHAREDMEM_BASE + CONFIG_PSP_SHAREDMEM_SIZE)
 #endif
 	_ = ASSERT((CONFIG_BOOTBLOCK_ADDR + CONFIG_C_ENV_BOOTBLOCK_SIZE - 0x10) == CONFIG_X86_RESET_VECTOR, "Reset vector should be -0x10 from end of bootblock");
@@ -102,7 +97,20 @@ SECTIONS
 }
 
 #if ENV_BOOTBLOCK
-/* Bootblock specific scripts which provide more SECTION directives. */
-#include <cpu/x86/16bit/entry16.ld>
-#include <cpu/x86/16bit/reset16.ld>
+
+gdtptr16_offset = gdtptr16 & 0xffff;
+nullidt_offset = nullidt & 0xffff;
+
+SECTIONS {
+	/* Trigger an error if I have an unusable start address */
+	_TOO_LOW = CONFIG_X86_RESET_VECTOR - 0xfff0;
+	_bogus = ASSERT(_start16bit >= _TOO_LOW, "_start16bit too low. Please report.");
+
+	. = CONFIG_X86_RESET_VECTOR;
+	.reset . : {
+		*(.reset);
+		. = 15;
+		BYTE(0x00);
+	}
+}
 #endif  /* ENV_BOOTBLOCK */

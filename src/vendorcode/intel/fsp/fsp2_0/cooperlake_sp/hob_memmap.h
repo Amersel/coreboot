@@ -36,6 +36,16 @@ are permitted provided that the following conditions are met:
 	0xbd, 0x56, 0xda, 0x91, 0xc0, 0x7f \
 	}
 
+/* Bit definitions for RasModes */
+#define CH_INDEPENDENT		0
+#define FULL_MIRROR_1LM		BIT0
+#define FULL_MIRROR_2LM		BIT1
+#define CH_LOCKSTEP		BIT2
+#define RK_SPARE		BIT3
+#define PARTIAL_MIRROR_1LM	BIT5
+#define PARTIAL_MIRROR_2LM	BIT6
+#define STAT_VIRT_LOCKSTEP	BIT7
+
 #define MEMTYPE_1LM_MASK       (1 << 0)
 #define MEMTYPE_2LM_MASK       (1 << 1)
 #define MEMTYPE_VOLATILE_MASK  (MEMTYPE_1LM_MASK | MEMTYPE_2LM_MASK)
@@ -58,6 +68,9 @@ are permitted provided that the following conditions are met:
 #define MEM_TYPE_RESERVED (1 << 8)
 #define MEM_ADDR_64MB_SHIFT_BITS 26
 
+#define NGN_MAX_SERIALNUMBER_STRLEN 4
+#define NGN_MAX_PARTNUMBER_STRLEN 20
+#define NGN_FW_VER_LEN 4
 //
 //  System Memory Map HOB information
 //
@@ -85,6 +98,47 @@ typedef struct SystemMemoryMapElement {
 	UINT32   ElementSize;
 } SYSTEM_MEMORY_MAP_ELEMENT;
 
+typedef struct DimmDevice {
+	UINT8    Present;
+	UINT8    reserved1[1];
+	UINT8    DcpmmPresent;
+	UINT8    reserved2[1];
+	UINT8    NumRanks;
+	UINT8    reserved3[1];
+	UINT8    actKeyByte2;
+	UINT8    reserved4[4];
+	UINT16   nonVolCap;
+	UINT16   DimmSize;
+	UINT8    reserved5[4];
+	UINT16   SPDMMfgId;				    // Module Mfg Id from SPD
+	UINT16   VendorID;
+	UINT16   DeviceID;
+	UINT8    reserved6[22];
+	UINT8    serialNumber[NGN_MAX_SERIALNUMBER_STRLEN]; // Serial Number
+	UINT8    PartNumber[NGN_MAX_PARTNUMBER_STRLEN];     // Part Number
+	UINT8    FirmwareVersionStr[NGN_FW_VER_LEN];        // Used to update the SMBIOS TYPE 17
+	UINT8    reserved7[23];
+	UINT16   SubsystemVendorID;
+	UINT16   SubsystemDeviceID;
+	UINT8    reserved8[4];
+	UINT8    DimmSku;				    // Dimm SKU info
+	UINT8    reserved9[3];
+	INT32    commonTck;
+	UINT8    EnergyType;
+	UINT8    reserved10[1];
+	UINT16   SPDRegVen;				    // Register Vendor ID in SPD
+} MEMMAP_DIMM_DEVICE_INFO_STRUCT;
+
+struct ChannelDevice {
+	UINT8    reserved1[15];
+	MEMMAP_DIMM_DEVICE_INFO_STRUCT    DimmInfo[MAX_IMC];
+};
+
+typedef struct socket {
+	UINT8    reserved1[1114];
+	struct   ChannelDevice ChannelInfo[MAX_CH];
+} MEMMAP_SOCKET;
+
 /* NOTE - Reserved sizes need to be calibrated if any of the above #define values change */
 typedef struct SystemMemoryMapHob {
   UINT8    reserved1[61];
@@ -96,21 +150,26 @@ typedef struct SystemMemoryMapHob {
   UINT32   memSize;                               // Total physical memory size
   UINT16   memFreq;                               // Mem Frequency
 
-  UINT8    reserved2[61];
+  UINT8    reserved2[22];
 
+  UINT8    DdrVoltage;
+  UINT8    reserved3[33];
+  UINT8    RasModesEnabled;                       // RAS modes that are enabled
+  UINT8    reserved4[4];
   UINT8    NumChPerMC;
   UINT8    numberEntries;                         // Number of Memory Map Elements
   SYSTEM_MEMORY_MAP_ELEMENT Element[(MAX_SOCKET * MAX_DRAM_CLUSTERS * MAX_SAD_RULES) + MAX_FPGA_REMOTE_SAD_RULES];
-
-  UINT8    reserved3[24551];
+  UINT8    reserved5[2216];
+  MEMMAP_SOCKET Socket[MAX_SOCKET];
+  UINT8    reserved6[1603];
 
   UINT16  BiosFisVersion;                              // Firmware Interface Specification version currently supported by BIOS
 
-  UINT8    reserved4[24];
+  UINT8    reserved7[24];
 
   UINT32   MmiohBase;                                   // MMIOH base in 64MB granularity
 
-  UINT8    reserved5[2];
+  UINT8    reserved8[5];
 
 } SYSTEM_MEMORY_MAP_HOB;
 

@@ -45,6 +45,7 @@ are permitted provided that the following conditions are met:
 #define MAX_IMC                   2
 #define MAX_CH                    6
 #define MC_MAX_NODE               (MAX_SOCKET * MAX_IMC)
+#define MAX_CHA_MAP               4
 
 // Maximum KTI PORTS to be used in structure definition
 #if (MAX_SOCKET == 1)
@@ -111,13 +112,20 @@ typedef enum {
 } PCIE_PORTS;
 
 /**
- IIO Stacks
- **/
+ * IIO Stacks
+ *
+ * Ports    Stack	Stack(HOB)	IioConfigIou
+ * =================================================
+ * 0        CSTACK	stack 0		IOU0
+ * 1A..1D   PSTACK0	stack 1		IOU1
+ * 2A..2D   PSTACK1	stack 2		IOU2
+ * 3A..3D   PSTACK2	stack 4		IOU3
+ */
 typedef enum {
 	CSTACK = 0,
 	PSTACK0,
 	PSTACK1,
-	PSTACK2,
+	PSTACK2 = 4,
 	MAX_STACKS
 } IIO_STACKS;
 
@@ -147,7 +155,7 @@ typedef struct {
   uint16_t                    M2PciePresentBitmap;
   uint8_t                     TotM3Kti;
   uint8_t                     TotCha;
-  uint32_t                    ChaList;
+  uint32_t                    ChaList[MAX_CHA_MAP];
   uint32_t                    SocId;
   QPI_PEER_DATA               PeerInfo[MAX_FW_KTI_PORTS];    // QPI LEP info
 } QPI_CPU_DATA;
@@ -201,6 +209,7 @@ typedef struct _STACK_RES {
   uint64_t                  PciResourceMem64Base;
   uint64_t                  PciResourceMem64Limit;
   uint32_t                  VtdBarAddress;
+  uint32_t                  Mmio32MinSize;         // Minimum required size of MMIO32 resource needed for this stack
 } STACK_RES;
 
 typedef struct {

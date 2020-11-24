@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <arch/io.h>
 #include <bootblock_common.h>
 #include <build.h>
 #include <console/console.h>
@@ -104,7 +105,6 @@ static void setup_mmconfig(void)
 	      IOSF_REG(BUNIT_MMCONF_REG) | IOSF_BYTE_EN;
 	pci_io_write_config32(IOSF_PCI_DEV, MCR_REG, reg);
 }
-
 
 void bootblock_soc_early_init(void)
 {

@@ -14,8 +14,8 @@ static const struct soc_amd_gpio gpio_set_stage_ram[] = {
 	PAD_NF(GPIO_0, PWR_BTN_L, PULL_NONE),
 	/* SYS_RESET_L */
 	PAD_NF(GPIO_1, SYS_RESET_L, PULL_NONE),
-	/* PCIE_WAKE_L */
-	PAD_NF(GPIO_2, WAKE_L, PULL_NONE),
+	/* WIFI_PCIE_WAKE_ODL */
+	PAD_SCI(GPIO_2, PULL_NONE, EDGE_LOW),
 	/* H1_FCH_INT_ODL */
 	PAD_INT(GPIO_3, PULL_NONE, EDGE_LOW, STATUS_DELIVERY),
 	/* PEN_DETECT_ODL */
@@ -30,7 +30,7 @@ static const struct soc_amd_gpio gpio_set_stage_ram[] = {
 	PAD_NF(GPIO_8, ACP_I2S_LRCLK, PULL_NONE),
 	/* TOUCHPAD_INT_ODL */
 	PAD_SCI(GPIO_9, PULL_NONE, EDGE_LOW),
-	/* S0iX SLP - (unused - goes to EC & FPMCU */
+	/* S0iX SLP - (unused - goes to EC */
 	PAD_NC(GPIO_10),
 	/* EC_IN_RW_OD */
 	PAD_GPI(GPIO_11, PULL_NONE),
@@ -79,8 +79,8 @@ static const struct soc_amd_gpio gpio_set_stage_ram[] = {
 	 * access will be very slow.
 	 */
 	PAD_GPO(GPIO_67, LOW),  // Select Camera 1 Dmic
-	/* EMMC_RESET */
-	PAD_GPO(GPIO_68, LOW),
+	/* EMMC_RESET_L */
+	PAD_GPO(GPIO_68, HIGH),
 	/* RAM ID 3 */
 	PAD_GPI(GPIO_69, PULL_NONE),
 	/* EMMC_CLK */
@@ -97,8 +97,8 @@ static const struct soc_amd_gpio gpio_set_stage_ram[] = {
 	PAD_GPI(GPIO_84, PULL_NONE),
 	/* APU_EDP_BL_DISABLE TODP: Set low in depthcharge */
 	PAD_GPO(GPIO_85, HIGH),
-	/* RAM ID 2 */
-	PAD_GPI(GPIO_86, PULL_NONE),
+	/* RAM ID 2 - Keep High */
+	PAD_GPO(GPIO_86, HIGH),
 	/* EMMC_DATA7 */
 	PAD_NF(GPIO_87, EMMC_DATA7, PULL_NONE),
 	/* EMMC_DATA5 */
@@ -289,6 +289,16 @@ __weak void variant_pcie_gpio_configure(void)
 		wifi_power_reset_configure_v3();
 	else
 		wifi_power_reset_configure_pre_v3();
+}
+
+__weak void finalize_gpios(int slp_typ)
+{
+}
+
+const __weak struct soc_amd_gpio *variant_bootblock_gpio_table(size_t *size, int slp_typ)
+{
+	*size = 0;
+	return NULL;
 }
 
 static const struct soc_amd_gpio gpio_sleep_table[] = {

@@ -8,29 +8,29 @@ chip soc/amd/picasso
 
 	register "acp_pin_cfg" = "I2S_PINS_I2S_TDM"
 	register "acp_i2s_wake_enable" = "0"
-	register "acpi_pme_enable" = "0"
+	register "acp_pme_enable" = "0"
 
 	# Start : OPN Performance Configuration
 	# (Configuratin that is common for all variants)
 	# For the below fields, 0 indicates use SOC default
 
 	# PROCHOT_L de-assertion Ramp Time
-	register "prochot_l_deassertion_ramp_time" = "20" #mS
+	register "prochot_l_deassertion_ramp_time_ms" = "20"
 
 	# Lower die temperature limit
-	register "thermctl_limit" = "100" #degrees C
+	register "thermctl_limit_degreeC" = "100"
 
 	# FP5 Processor Voltage Supply PSI Currents
-	register "psi0_current_limit" = "18000" #mA
-	register "psi0_soc_current_limit" = "12000"  #mA
-	register "vddcr_soc_voltage_margin" = "0" #mV
-	register "vddcr_vdd_voltage_margin" = "0" #mV
+	register "psi0_current_limit_mA" = "18000"
+	register "psi0_soc_current_limit_mA" = "12000"
+	register "vddcr_soc_voltage_margin_mV" = "0"
+	register "vddcr_vdd_voltage_margin_mV" = "0"
 
 	# VRM Limits
-	register "vrm_maximum_current_limit" = "0"  #mA
-	register "vrm_soc_maximum_current_limit" = "0"  #mA
-	register "vrm_current_limit" = "0"  #mA
-	register "vrm_soc_current_limit" = "0" #mA
+	register "vrm_maximum_current_limit_mA" = "0"
+	register "vrm_soc_maximum_current_limit_mA" = "0"
+	register "vrm_current_limit_mA" = "0"
+	register "vrm_soc_current_limit_mA" = "0"
 
 	# Misc SMU settings
 	register "sb_tsi_alert_comparator_mode_en" = "0"
@@ -40,9 +40,19 @@ chip soc/amd/picasso
 
 	# End : OPN Performance Configuration
 
-	register "sd_emmc_config" = "SD_EMMC_EMMC_HS400"
-
-	register "xhci0_force_gen1" = "0"
+	register "emmc_config" = "{
+		.timing = SD_EMMC_EMMC_HS400,
+		.sdr104_hs400_driver_strength = SD_EMMC_DRIVE_STRENGTH_A,
+		/*
+		 * The reference design was missing a pull-up on the CMD line.
+		 * This means we can't run at the full 400 kHz. By setting this
+		 * to 1 we run at the slowest frequency possible by the
+		 * controller (~97 kHz).
+		 *
+		 * Boards that have the pull-up should correctly set this.
+		 */
+		.init_khz_preset = 1,
+	}"
 
 	register "has_usb2_phy_tune_params" = "1"
 
@@ -200,7 +210,12 @@ chip soc/amd/picasso
 		device pci 0.2 on  end # IOMMU
 		device pci 1.0 on  end # Dummy Host Bridge, must be enabled
 		device pci 1.1 off end # GPP Bridge 0
-		device pci 1.2 on  end # GPP Bridge 1 - Wifi
+		device pci 1.2 on      # GPP Bridge 1 - Wifi
+			chip drivers/wifi/generic
+				register "wake" = "GEVENT_8"
+				device pci 00.0 on  end
+			end
+		end
 		device pci 1.3 on  end # GPP Bridge 2 - SD
 		device pci 1.4 off end # GPP Bridge 3
 		device pci 1.5 off end # GPP Bridge 4

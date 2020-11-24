@@ -7,7 +7,9 @@ chip soc/amd/picasso
 	register "fadt_boot_arch" = "ACPI_FADT_LEGACY_DEVICES | ACPI_FADT_8042"
 	register "fadt_flags" = "ACPI_FADT_SLEEP_BUTTON" # See table 5-34 ACPI 6.3 spec
 
-	register "sd_emmc_config" = "SD_EMMC_DISABLE"
+	register "emmc_config" = "{
+		.timing = SD_EMMC_DISABLE,
+	}"
 
 	register "has_usb2_phy_tune_params" = "1"
 
@@ -96,6 +98,15 @@ chip soc/amd/picasso
 	register "usb_port_overcurrent_pin[3]" = "USB_OC_PIN_0"
 	register "usb_port_overcurrent_pin[4]" = "USB_OC_PIN_0"
 	register "usb_port_overcurrent_pin[5]" = "USB_OC_PIN_0"
+
+	# SPI Configuration
+	register "common_config.spi_config" = "{
+		.normal_speed = SPI_SPEED_33M, /* MHz */
+		.fast_speed = SPI_SPEED_66M, /* MHz */
+		.altio_speed = SPI_SPEED_33M, /* MHz */
+		.tpm_speed = SPI_SPEED_33M, /* MHz */
+		.read_mode = SPI_READ_MODE_QUAD114,
+	}"
 
 	# eSPI Configuration
 	register "common_config.espi_config" = "{

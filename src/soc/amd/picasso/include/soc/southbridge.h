@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#ifndef __PICASSO_SB_H__
-#define __PICASSO_SB_H__
+#ifndef AMD_PICASSO_SOUTHBRIDGE_H
+#define AMD_PICASSO_SOUTHBRIDGE_H
 
 #include <types.h>
 #include <device/device.h>
@@ -221,10 +221,14 @@
 #define   FCH_AOAC_STAT0		BIT(6)
 #define   FCH_AOAC_STAT1		BIT(7)
 
-#define FCH_UART_LEGACY_DECODE		0xfedc0020
-#define   FCH_LEGACY_3F8_SH		3
-#define   FCH_LEGACY_2F8_SH		1
-#define   FCH_LEGACY_3E8_SH		2
+#define FCH_LEGACY_UART_DECODE		(ALINK_AHB_ADDRESS + 0x20) /* 0xfedc0020 */
+#define   FCH_LEGACY_UART_MAP_SHIFT	8
+#define   FCH_LEGACY_UART_MAP_SIZE	2
+#define   FCH_LEGACY_UART_MAP_MASK	0x3
+#define   FCH_LEGACY_UART_RANGE_2E8	0
+#define   FCH_LEGACY_UART_RANGE_2F8	1
+#define   FCH_LEGACY_UART_RANGE_3E8	2
+#define   FCH_LEGACY_UART_RANGE_3F8	3
 
 #define PM1_LIMIT			16
 #define GPE0_LIMIT			28
@@ -269,16 +273,17 @@ typedef struct aoac_devs {
 } __packed aoac_devs_t;
 
 void enable_aoac_devices(void);
-bool is_aoac_device_enabled(int dev);
-void power_on_aoac_device(int dev);
-void power_off_aoac_device(int dev);
-void wait_for_aoac_enabled(int dev);
+bool is_aoac_device_enabled(unsigned int dev);
+void power_on_aoac_device(unsigned int dev);
+void power_off_aoac_device(unsigned int dev);
+void wait_for_aoac_enabled(unsigned int dev);
 void sb_clk_output_48Mhz(void);
 void sb_enable(struct device *dev);
 void southbridge_final(void *chip_info);
 void southbridge_init(void *chip_info);
 void fch_pre_init(void);
 void fch_early_init(void);
+void set_uart_legacy_config(unsigned int uart_idx, unsigned int range_idx);
 
 /* Initialize all the i2c buses that are marked with early init. */
 void i2c_soc_early_init(void);
@@ -289,4 +294,4 @@ void i2c_soc_init(void);
 /* Allow the board to change the default I2C pad configuration */
 void mainboard_i2c_override(int bus, uint32_t *pad_settings);
 
-#endif /* __PICASSO_SB_H__ */
+#endif /* AMD_PICASSO_SOUTHBRIDGE_H */

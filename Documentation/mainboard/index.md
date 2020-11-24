@@ -26,6 +26,10 @@ This section contains documentation about coreboot on specific mainboards.
 
 - [CN81XX EVB SFF](cavium/cn8100_sff_evb.md)
 
+## Clevo
+
+- [N130WU / N131WU](clevo/n130wu/index.md)
+
 ## Dell
 
 - [OptiPlex 9010 SFF](dell/optiplex_9010.md)
@@ -61,8 +65,10 @@ The boards in this section are not real mainboards, but emulators.
 ### EliteBook series
 
 - [HP Laptops with KBC1126 EC](hp/hp_kbc1126_laptops.md)
+- [HP Sure Start](hp/hp_sure_start.md)
 - [EliteBook 2560p](hp/2560p.md)
 - [EliteBook 8760w](hp/8760w.md)
+- [EliteBook Folio 9480m](hp/folio_9480m.md)
 
 ## Intel
 
@@ -118,6 +124,7 @@ The boards in this section are not real mainboards, but emulators.
 
 ## OCP
 
+- [Delta Lake](ocp/deltalake.md)
 - [Tioga Pass](ocp/tiogapass.md)
 
 ## Open Cellular

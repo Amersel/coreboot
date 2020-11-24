@@ -54,7 +54,7 @@ unsigned long acpi_fill_ivrs_ioapic(acpi_ivrs_t *ivrs, unsigned long current)
 	ivhd_ioapic->dte_setting = IVHD_DTE_LINT_1_PASS | IVHD_DTE_LINT_0_PASS |
 				   IVHD_DTE_SYS_MGT_NO_TRANS | IVHD_DTE_NMI_PASS |
 				   IVHD_DTE_EXT_INT_PASS | IVHD_DTE_INIT_PASS;
-	ivhd_ioapic->handle = CONFIG_MAX_CPUS; /* FCH IOAPIC ID */
+	ivhd_ioapic->handle = CONFIG_PICASSO_FCH_IOAPIC_ID;
 	ivhd_ioapic->source_dev_id = PCI_DEVFN(SMBUS_DEV, SMBUS_FUNC);
 	ivhd_ioapic->variety = IVHD_SPECIAL_DEV_IOAPIC;
 	current += sizeof(ivrs_ivhd_special_t);
@@ -63,7 +63,7 @@ unsigned long acpi_fill_ivrs_ioapic(acpi_ivrs_t *ivrs, unsigned long current)
 	memset(ivhd_ioapic, 0, sizeof(*ivhd_ioapic));
 
 	ivhd_ioapic->type = IVHD_DEV_8_BYTE_EXT_SPECIAL_DEV;
-	ivhd_ioapic->handle = CONFIG_MAX_CPUS + 1; /* GNB IOAPIC ID */
+	ivhd_ioapic->handle = CONFIG_PICASSO_GNB_IOAPIC_ID;
 	ivhd_ioapic->source_dev_id = PCI_DEVFN(0, 1);
 	ivhd_ioapic->variety = IVHD_SPECIAL_DEV_IOAPIC;
 	current += sizeof(ivrs_ivhd_special_t);
@@ -500,7 +500,6 @@ uintptr_t agesa_write_acpi_tables(const struct device *device, uintptr_t current
 
 	printk(BIOS_DEBUG, "Searching for AGESA FSP ACPI Tables\n");
 
-	current = add_agesa_acpi_table(AMD_FSP_ACPI_SSDT_HOB_GUID, "SSDT", rsdp, current);
 	current = add_agesa_acpi_table(AMD_FSP_ACPI_CRAT_HOB_GUID, "CRAT", rsdp, current);
 	current = add_agesa_acpi_table(AMD_FSP_ACPI_ALIB_HOB_GUID, "ALIB", rsdp, current);
 

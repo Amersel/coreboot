@@ -9,8 +9,6 @@
 #include <intelblocks/gspi.h>
 #include <intelblocks/power_limit.h>
 #include <soc/gpe.h>
-#include <soc/gpio.h>
-#include <soc/gpio_defs.h>
 #include <soc/pch.h>
 #include <soc/pci_devs.h>
 #include <soc/pmc.h>
@@ -62,16 +60,15 @@ struct soc_intel_jasperlake_config {
 	/* TCC activation offset */
 	uint32_t tcc_offset;
 
-	/* System Agent dynamic frequency support. Only effects ULX/ULT CPUs.
-	 * When enabled memory will be training at two different frequencies.
-	 * 0:Disabled, 1:FixedPoint0, 2:FixedPoint1, 3:FixedPoint2,
-	 * 4:FixedPoint3, 5:Enabled */
+	/* System Agent dynamic frequency support.
+	 * When enabled memory will be training at different frequencies.
+	 * 0:Disabled, 1:FixedPoint0(low), 2:FixedPoint1(mid), 3:FixedPoint2
+	 * (high), 4:Enabled */
 	enum {
 		SaGv_Disabled,
 		SaGv_FixedPoint0,
 		SaGv_FixedPoint1,
 		SaGv_FixedPoint2,
-		SaGv_FixedPoint3,
 		SaGv_Enabled,
 	} SaGv;
 
@@ -138,19 +135,19 @@ struct soc_intel_jasperlake_config {
 	/* Heci related */
 	uint8_t Heci3Enabled;
 
+	/* VR Config Settings for IA Core */
+	uint16_t ImonSlope;
+	uint16_t ImonOffset;
+
 	/* Gfx related */
 	uint8_t IgdDvmt50PreAlloc;
-	uint8_t InternalGfx;
 	uint8_t SkipExtGfxScan;
 
 	uint32_t GraphicsConfigPtr;
-	uint8_t Device4Enable;
 
 	/* HeciEnabled decides the state of Heci1 at end of boot
 	 * Setting to 0 (default) disables Heci1 and hides the device from OS */
 	uint8_t HeciEnabled;
-	/* Intel Speed Shift Technology */
-	uint8_t speed_shift_enable;
 
 	/* Enable/Disable EIST. 1b:Enabled, 0b:Disabled */
 	uint8_t eist_enable;
@@ -344,6 +341,24 @@ struct soc_intel_jasperlake_config {
 	 *  - PM_CFG.SLP_LAN_MIN_ASST_WDTH
 	 */
 	uint8_t PchPmPwrCycDur;
+
+	/*
+	 * FIVR RFI Frequency
+	 * PCODE MMIO Mailbox: Set the desired RFI frequency, in increments of 100KHz.
+	 * 0: Auto.
+	 * Range varies based on XTAL clock:
+	 *    0-1918 (Up to 191.8HMz) for 24MHz clock;
+	 *    0-1535 (Up to 153.5MHz) for 19MHz clock.
+	 */
+	uint16_t FivrRfiFrequency;
+
+	/*
+	 * FIVR RFI Spread Spectrum
+	 * Set the Spread Spectrum Range. <b>0: 0%</b>;
+	 * FIVR RFI Spread Spectrum, in 0.1% increments.
+	 * Range: 0.0% to 10.0% (0-100)
+	 */
+	uint8_t FivrSpreadSpectrum;
 };
 
 typedef struct soc_intel_jasperlake_config config_t;

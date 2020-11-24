@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <assert.h>
 #include <console/console.h>
 #include <bootstate.h>
 #include <drivers/ipmi/ipmi_ops.h>
@@ -7,6 +8,7 @@
 #include <gpio.h>
 #include <soc/lewisburg_pch_gpio_defs.h>
 #include <soc/ramstage.h>
+#include <soc/soc_util.h>
 #include <stdio.h>
 #include <string.h>
 #include <smbios.h>
@@ -14,6 +16,7 @@
 #include <device/pci_ops.h>
 #include <soc/util.h>
 #include <hob_iiouds.h>
+#include <hob_memmap.h>
 #include <cpxsp_dl_gpio.h>
 
 #include "ipmi.h"
@@ -22,6 +25,21 @@
 
 extern struct fru_info_str fru_strings;
 static char slot_id_str[SLOT_ID_LEN];
+
+/*
+ * Update SMBIOS type 0 ec version.
+ * In deltalake, BMC version is used to represent ec version.
+ * In current version of OpenBMC, it follows IPMI v2.0 to define minor revision as BCD
+ * encoded, so the format of it must be transferred before send to SMBIOS.
+ */
+void smbios_ec_revision(uint8_t *ec_major_revision, uint8_t *ec_minor_revision)
+{
+	uint8_t bmc_major_revision, bmc_minor_revision;
+
+	ipmi_bmc_version(&bmc_major_revision, &bmc_minor_revision);
+	*ec_major_revision = bmc_major_revision & 0x7f; /* bit[6:0] Major Firmware Revision */
+	*ec_minor_revision = ((bmc_minor_revision / 16) * 10) + (bmc_minor_revision % 16);
+}
 
 /* Override SMBIOS 2 Location In Chassis from BMC */
 const char *smbios_mainboard_location_in_chassis(void)
@@ -51,31 +69,53 @@ typedef struct {
 } slot_info;
 
 slot_info slotinfo[] = {
-	{CSTACK,  SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0xE8, "DL on board M.2 #1 - boot"},
-	{PSTACK1, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x10, "DL on board M.2 #2"},
-	{PSTACK1, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x18, "Mezz Card"},
-	{PSTACK2, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x00, "1ou expansion M.2 #1"},
-	{PSTACK2, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x08, "1ou expansion M.2 #2"},
-	{PSTACK2, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x10, "1ou expansion M.2 #3"},
-	{PSTACK2, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x18, "1ou expansion M.2 #4"},
-	{PSTACK0, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x00, "2ou expansion M.2 #1"},
-	{PSTACK0, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x08, "2ou expansion M.2 #2"},
-	{PSTACK0, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x10, "2ou expansion M.2 #3"},
-	{PSTACK0, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x18, "2ou expansion M.2 #4"},
-	{PSTACK1, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x00, "2ou expansion M.2 #5"},
-	{PSTACK1, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x08, "2ou expansion M.2 #6"},
-	{PSTACK2, SlotTypePciExpressGen3X16, SlotDataBusWidth16X, 0x00, "Mezz Card(Class-2)"},
+	{CSTACK,  SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0xE8, "SSD1_M2_Data_Drive"},
+	{PSTACK1, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x10, "SSD0_M2_Boot_Drive"},
+	{PSTACK1, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x18, "BB_OCP_NIC"},
+	{PSTACK2, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x00, "1OU_JD2_M2_3"},
+	{PSTACK2, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x08, "1OU_JD2_M2_2"},
+	{PSTACK2, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x10, "1OU_JD1_M2_1"},
+	{PSTACK2, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x18, "1OU_JD1_M2_0"},
+	{PSTACK0, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x00, "2OU_JD1_M2_0"},
+	{PSTACK0, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x08, "2OU_JD1_M2_1"},
+	{PSTACK0, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x10, "2OU_JD3_M2_4"},
+	{PSTACK0, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x18, "2OU_JD3_M2_5"},
+	{PSTACK1, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x00, "2OU_JD2_M2_3"},
+	{PSTACK1, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x08, "2OU_JD2_M2_2"},
+	{PSTACK2, SlotTypePciExpressGen3X16, SlotDataBusWidth16X, 0x00, "1OU_OCP_NIC"},
 };
+
+#define SPD_REGVID_LEN 6
+/* A 4-digit long number plus a space */
+static void write_oem_word(uint16_t val, char *str)
+{
+	snprintf(str, SPD_REGVID_LEN, "%04x ", val);
+}
 
 static void dl_oem_smbios_strings(struct device *dev, struct smbios_type11 *t)
 {
 	uint8_t pcie_config = 0;
+	const struct SystemMemoryMapHob *hob;
+	char spd_reg_vid[SPD_REGVID_LEN];
+	char empty[1] = "";
+	char *oem_str7 = empty;
 
 	/* OEM string 1 to 6 */
 	ocp_oem_smbios_strings(dev, t);
 
-	/* TODO: Add real OEM string 7, add TBF for now */
-	t->count = smbios_add_oem_string(t->eos, TBF);
+	/* OEM string 7 is the register vendor ID in SPD for each DIMM strung together */
+	hob = get_system_memory_map();
+	assert(hob != NULL);
+	/* There are at most 6 channels and 2 DIMMs per channel, but Delta Lake has 6 DIMMs,
+	   e.g. b300 0000 b300 0000 b300 0000 b300 0000 b300 0000 b300 0000 */
+	for (int ch = 0; ch < MAX_CH; ch++) {
+		for (int dimm = 0; dimm < MAX_IMC; dimm++) {
+			write_oem_word(hob->Socket[0].ChannelInfo[ch].DimmInfo[dimm].SPDRegVen,
+				spd_reg_vid);
+			oem_str7 = strconcat(oem_str7, spd_reg_vid);
+		}
+	}
+	t->count = smbios_add_oem_string(t->eos, oem_str7);
 
 	/* Add OEM string 8 */
 	if (ipmi_get_pcie_config(&pcie_config) == CB_SUCCESS) {
@@ -103,7 +143,6 @@ static void dl_oem_smbios_strings(struct device *dev, struct smbios_type11 *t)
 	}
 }
 
-#if CONFIG(GENERATE_SMBIOS_TABLES)
 static int create_smbios_type9(int *handle, unsigned long *current)
 {
 	int index;
@@ -127,7 +166,7 @@ static int create_smbios_type9(int *handle, unsigned long *current)
 
 	for (index = 0; index < ARRAY_SIZE(slotinfo); index++) {
 		if (pcie_config == PCIE_CONFIG_A) {
-			if (index == 0 || index == 2)
+			if (index == 0 || index == 1 || index == 2)
 				printk(BIOS_INFO, "Find Config-A slot: %s\n",
 					slotinfo[index].slot_designator);
 			else
@@ -209,7 +248,17 @@ static int mainboard_smbios_data(struct device *dev, int *handle, unsigned long 
 
 	return len;
 }
-#endif
+
+void smbios_fill_dimm_locator(const struct dimm_info *dimm, struct smbios_type17 *t)
+{
+	char buf[40];
+
+	snprintf(buf, sizeof(buf), "DIMM %c0", 'A' + dimm->channel_num);
+	t->device_locator = smbios_add_string(t->eos, buf);
+
+	snprintf(buf, sizeof(buf), "_Node0_Channel%d_Dimm0", dimm->channel_num);
+	t->bank_locator = smbios_add_string(t->eos, buf);
+}
 
 unsigned int smbios_processor_family(struct cpuid_result res)
 {
@@ -226,9 +275,7 @@ static void mainboard_enable(struct device *dev)
 {
 	dev->ops->get_smbios_strings = dl_oem_smbios_strings,
 	read_fru_areas(CONFIG_BMC_KCS_BASE, CONFIG_FRU_DEVICE_ID, 0, &fru_strings);
-#if (CONFIG(GENERATE_SMBIOS_TABLES))
 	dev->ops->get_smbios_data = mainboard_smbios_data;
-#endif
 }
 
 void mainboard_silicon_init_params(FSPS_UPD *params)

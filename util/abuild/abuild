@@ -263,10 +263,8 @@ function update_config
 	# Disable all other payload config options
 	{
 		echo "# CONFIG_PAYLOAD_SEABIOS is not set"
-		echo "# CONFIG_PAYLOAD_BAYOU is not set"
 		echo "# CONFIG_PAYLOAD_FILO is not set"
 		echo "# CONFIG_PAYLOAD_GRUB2 is not set"
-		echo "# CONFIG_PAYLOAD_OPENBIOS is not set"
 		echo "# CONFIG_PAYLOAD_DEPTHCHARGE is not set"
 		echo "# CONFIG_PAYLOAD_LINUXBOOT is not set"
 		echo "# CONFIG_PAYLOAD_UBOOT is not set"
@@ -795,8 +793,6 @@ if [ "$cpus" != "1" ]; then
 	# FIXME: disabled until we managed to eliminate all the make(1) quirks
 	echo | xargs -P ${cpus:-0} -n 1 echo 2>/dev/null >/dev/null && USE_XARGS=1
 fi
-
-git submodule update --checkout --init
 
 if [ "$USE_XARGS" = "0" ]; then
 test "$MAKEFLAGS" == "" && test "$cpus" != "" && export MAKEFLAGS="-j $cpus"

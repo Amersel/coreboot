@@ -140,6 +140,8 @@ static const struct {
 	  "10th generation (Comet Lake family) Core Processor (Mobile)" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_CML_U3,
 	  "10th generation (Comet Lake family) Core Processor (Mobile)" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_HEWITTLAKE,
+	  "Xeon E7 v4/Xeon E5 v4/Xeon E3 v4/Xeon D (Hewitt Lake)" },
 	/* Southbridges (LPC controllers) */
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82371XX, "371AB/EB/MB" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_ICH10, "ICH10" },
@@ -275,6 +277,7 @@ static const struct {
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_QM175, "QM175" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CM238, "CM238" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_C621, "C621" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_C621A, "C621A" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_C622, "C622" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_C624, "C624" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_C625, "C625" },
@@ -771,13 +774,13 @@ int main(int argc, char *argv[])
 	}
 
 	gfx = pci_get_dev(pacc, 0, 0, 0x02, 0);
-
 	if (gfx) {
 		pci_fill_info(gfx, PCI_FILL_IDENT | PCI_FILL_BASES |
 				   PCI_FILL_CLASS);
-
-		if (gfx->vendor_id != PCI_VENDOR_ID_INTEL)
-			gfx = 0;
+		if ((gfx->device_class & 0xff00) != 0x0300)
+			gfx = NULL;
+		else if (gfx->vendor_id != PCI_VENDOR_ID_INTEL)
+			gfx = NULL;
 	}
 
 	if (sb->device_id == PCI_DEVICE_ID_INTEL_BAYTRAIL_LPC) {
