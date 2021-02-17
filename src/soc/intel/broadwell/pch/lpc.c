@@ -10,17 +10,10 @@
 #include <device/pci_ops.h>
 #include <arch/ioapic.h>
 #include <acpi/acpi.h>
-#include <acpi/acpi_gnvs.h>
 #include <cpu/x86/smm.h>
-#include <cbmem.h>
-#include <ec/google/chromeec/ec.h>
-#include <vendorcode/google/chromeos/gnvs.h>
-#include <string.h>
-#include <soc/gpio.h>
 #include <soc/iobp.h>
 #include <soc/iomap.h>
 #include <soc/lpc.h>
-#include <soc/nvs.h>
 #include <soc/pch.h>
 #include <soc/pci_devs.h>
 #include <soc/pm.h>
@@ -29,6 +22,7 @@
 #include <soc/intel/broadwell/pch/chip.h>
 #include <acpi/acpigen.h>
 #include <southbridge/intel/common/rtc.h>
+#include <southbridge/intel/lynxpoint/lp_gpio.h>
 
 static void pch_enable_ioapic(struct device *dev)
 {
@@ -131,8 +125,6 @@ static void pch_power_options(struct device *dev)
 {
 	u16 reg16;
 	const char *state;
-	/* Get the chip configuration */
-	const struct soc_intel_broadwell_pch_config *config = config_of(dev);
 	int pwr_on = CONFIG_MAINBOARD_POWER_FAILURE_STATE;
 
 	/* Which state do we want to goto after g3 (power restored)?
@@ -161,24 +153,6 @@ static void pch_power_options(struct device *dev)
 	default:
 		state = "undefined";
 	}
-	pci_write_config16(dev, GEN_PMCON_3, reg16);
-	printk(BIOS_INFO, "Set power %s after power failure.\n", state);
-
-	/* GPE setup based on device tree configuration */
-	enable_all_gpe(config->gpe0_en_1, config->gpe0_en_2,
-		       config->gpe0_en_3, config->gpe0_en_4);
-
-	/* SMI setup based on device tree configuration */
-	enable_alt_smi(config->alt_gp_smi_en);
-}
-
-static void pch_misc_init(struct device *dev)
-{
-	u8 reg8;
-	u16 reg16;
-	u32 reg32;
-
-	reg16 = pci_read_config16(dev, GEN_PMCON_3);
 
 	reg16 &= ~(3 << 4);	/* SLP_S4# Assertion Stretch 4s */
 	reg16 |= (1 << 3);	/* SLP_S4# Assertion Stretch Enable */
@@ -189,6 +163,24 @@ static void pch_misc_init(struct device *dev)
 	reg16 |= (1 << 12);	/* Disable SLP stretch after SUS well */
 
 	pci_write_config16(dev, GEN_PMCON_3, reg16);
+	printk(BIOS_INFO, "Set power %s after power failure.\n", state);
+
+	if (dev->chip_info) {
+		const struct soc_intel_broadwell_pch_config *config = dev->chip_info;
+
+		/* GPE setup based on device tree configuration */
+		enable_all_gpe(config->gpe0_en_1, config->gpe0_en_2,
+			       config->gpe0_en_3, config->gpe0_en_4);
+
+		/* SMI setup based on device tree configuration */
+		enable_alt_smi(config->alt_gp_smi_en);
+	}
+}
+
+static void pch_misc_init(struct device *dev)
+{
+	u8 reg8;
+	u32 reg32;
 
 	/* Prepare sleep mode */
 	reg32 = inl(ACPI_BASE_ADDRESS + PM1_CNT);
@@ -338,7 +330,10 @@ static void pch_enable_mphy(void)
 
 static void pch_init_deep_sx(struct device *dev)
 {
-	const struct soc_intel_broadwell_pch_config *config = config_of(dev);
+	const struct soc_intel_broadwell_pch_config *config = dev->chip_info;
+
+	if (!config)
+		return;
 
 	if (config->deep_sx_enable_ac) {
 		RCBA32_OR(DEEP_S3_POL, DEEP_S3_EN_AC);
@@ -493,10 +488,10 @@ static void pch_lpc_add_mmio_resources(struct device *dev)
 	res->flags = IORESOURCE_MEM | IORESOURCE_ASSIGNED | IORESOURCE_FIXED;
 
 	/* RCBA */
-	if (default_decode_base > RCBA_BASE_ADDRESS) {
+	if (default_decode_base > CONFIG_FIXED_RCBA_MMIO_BASE) {
 		res = new_resource(dev, RCBA);
-		res->base = RCBA_BASE_ADDRESS;
-		res->size = 16 * 1024;
+		res->base = CONFIG_FIXED_RCBA_MMIO_BASE;
+		res->size = CONFIG_RCBA_LENGTH;
 		res->flags = IORESOURCE_MEM | IORESOURCE_ASSIGNED |
 			     IORESOURCE_FIXED | IORESOURCE_RESERVE;
 	}
@@ -569,7 +564,6 @@ static void pch_lpc_add_gen_io_resources(struct device *dev, int reg_value,
 static void pch_lpc_add_io_resources(struct device *dev)
 {
 	struct resource *res;
-	const struct soc_intel_broadwell_pch_config *config = config_of(dev);
 
 	/* Add the default claimed IO range for the LPC device. */
 	res = new_resource(dev, 0);
@@ -585,16 +579,17 @@ static void pch_lpc_add_io_resources(struct device *dev)
 	pch_lpc_add_io_resource(dev, ACPI_BASE_ADDRESS, ACPI_BASE_SIZE, PMBASE);
 
 	/* LPC Generic IO Decode range. */
-	pch_lpc_add_gen_io_resources(dev, config->gen1_dec, LPC_GEN1_DEC);
-	pch_lpc_add_gen_io_resources(dev, config->gen2_dec, LPC_GEN2_DEC);
-	pch_lpc_add_gen_io_resources(dev, config->gen3_dec, LPC_GEN3_DEC);
-	pch_lpc_add_gen_io_resources(dev, config->gen4_dec, LPC_GEN4_DEC);
+	if (dev->chip_info) {
+		const struct soc_intel_broadwell_pch_config *config = dev->chip_info;
+		pch_lpc_add_gen_io_resources(dev, config->gen1_dec, LPC_GEN1_DEC);
+		pch_lpc_add_gen_io_resources(dev, config->gen2_dec, LPC_GEN2_DEC);
+		pch_lpc_add_gen_io_resources(dev, config->gen3_dec, LPC_GEN3_DEC);
+		pch_lpc_add_gen_io_resources(dev, config->gen4_dec, LPC_GEN4_DEC);
+	}
 }
 
 static void pch_lpc_read_resources(struct device *dev)
 {
-	struct global_nvs *gnvs;
-
 	/* Get the normal PCI resources of this device. */
 	pci_dev_read_resources(dev);
 
@@ -603,57 +598,6 @@ static void pch_lpc_read_resources(struct device *dev)
 
 	/* Add IO resources. */
 	pch_lpc_add_io_resources(dev);
-
-	/* Allocate ACPI NVS in CBMEM */
-	gnvs = cbmem_add(CBMEM_ID_ACPI_GNVS, sizeof(struct global_nvs));
-	if (!acpi_is_wakeup_s3() && gnvs)
-		memset(gnvs, 0, sizeof(struct global_nvs));
-}
-
-static void southcluster_inject_dsdt(const struct device *device)
-{
-	struct global_nvs *gnvs;
-
-	gnvs = cbmem_find(CBMEM_ID_ACPI_GNVS);
-	if (!gnvs) {
-		gnvs = cbmem_add(CBMEM_ID_ACPI_GNVS, sizeof(*gnvs));
-		if (gnvs)
-			memset(gnvs, 0, sizeof(*gnvs));
-	}
-
-	if (gnvs) {
-		acpi_create_gnvs(gnvs);
-
-		/* Set unknown wake source */
-		gnvs->pm1i = -1;
-
-		/* CPU core count */
-		gnvs->pcnt = dev_count_cpu();
-
-#if CONFIG(CONSOLE_CBMEM)
-		/* Update the mem console pointer. */
-		gnvs->cbmc = (u32)cbmem_find(CBMEM_ID_CONSOLE);
-#endif
-
-		if (CONFIG(CHROMEOS)) {
-			/* Initialize Verified Boot data */
-			chromeos_init_chromeos_acpi(&(gnvs->chromeos));
-			if (CONFIG(EC_GOOGLE_CHROMEEC)) {
-				gnvs->chromeos.vbt2 = google_ec_running_ro() ?
-					ACTIVE_ECFW_RO : ACTIVE_ECFW_RW;
-			} else {
-				gnvs->chromeos.vbt2 = ACTIVE_ECFW_RO;
-			}
-		}
-
-		/* And tell SMI about it */
-		apm_control(APM_CNT_GNVS_UPDATE);
-
-		/* Add it to DSDT.  */
-		acpigen_write_scope("\\");
-		acpigen_write_name_dword("NVSA", (u32) gnvs);
-		acpigen_pop_len();
-	}
 }
 
 static unsigned long broadwell_write_acpi_tables(const struct device *device,
@@ -672,7 +616,6 @@ static struct device_operations device_ops = {
 	.read_resources		= &pch_lpc_read_resources,
 	.set_resources		= &pci_dev_set_resources,
 	.enable_resources	= &pci_dev_enable_resources,
-	.acpi_inject_dsdt	= southcluster_inject_dsdt,
 	.write_acpi_tables      = broadwell_write_acpi_tables,
 	.init			= &lpc_init,
 	.scan_bus		= &scan_static_bus,

@@ -11,6 +11,7 @@ DefinitionBlock (
 	0x00010001		/* OEM Revision */
 	)
 {	/* Start of ASL file */
+	#include <acpi/dsdt_top.asl>
 
 	/* Globals for the platform */
 	#include "acpi/mainboard.asl"
@@ -52,7 +53,7 @@ DefinitionBlock (
 				Name(_ADR, 0x00150000)
 				Name(_PRW, Package() {0x18, 4})
 				Method(_PRT,0) {
-					If(PMOD){ Return(ABR0) }   /* APIC mode */
+					If(PICM){ Return(ABR0) }   /* APIC mode */
 					Return (PBR0)              /* PIC mode  */
 				}
 			}
@@ -61,7 +62,7 @@ DefinitionBlock (
 				Name(_ADR, 0x00150001)
 				Name(_PRW, Package() {0x18, 4})
 				Method(_PRT, 0) {
-					If(PMOD){ Return(ABR1) }   /* APIC mode */
+					If(PICM){ Return(ABR1) }   /* APIC mode */
 					Return (PBR1)              /* PIC mode  */
 				}
 			}

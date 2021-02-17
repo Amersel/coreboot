@@ -14,7 +14,6 @@ config CPU_AMD_AGESA
 	select SPI_FLASH if HAVE_ACPI_RESUME
 	select SMM_ASEG
 	select SSE2
-	select ACPI_NO_SMI_GNVS
 
 if CPU_AMD_AGESA
 
@@ -37,10 +36,6 @@ config DCACHE_RAM_SIZE
 config DCACHE_BSP_STACK_SIZE
 	hex
 	default 0x4000
-
-config C_ENV_BOOTBLOCK_SIZE
-	hex
-	default 0x8000
 
 config ENABLE_MRC_CACHE
 	bool "Use cached memory configuration"

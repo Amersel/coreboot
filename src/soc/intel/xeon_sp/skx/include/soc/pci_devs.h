@@ -3,6 +3,7 @@
 #ifndef _SOC_PCI_DEVS_H_
 #define _SOC_PCI_DEVS_H_
 
+#include <console/console.h>
 #include <device/pci_def.h>
 #include <hob_iiouds.h>
 
@@ -76,6 +77,7 @@
 #define UBOX_DECS_DEV			8
 #define UBOX_DECS_FUNC			2
 #define UBOX_DECS_CPUBUSNO_CSR		0xcc
+#define UBOX_DECS_CPUBUSNO1_CSR		0xd0
 
 #define VTD_TOLM_CSR			0xd0
 #define VTD_TSEG_BASE_CSR		0xa8
@@ -92,6 +94,7 @@
 #define VTD_CAP_LOW			0x08
 #define VTD_CAP_HIGH			0x0C
 #define VTD_EXT_CAP_HIGH		0x14
+#define VTD_LTDPR			0x290
 
 #define PCU_CR1_C2C3TT_REG                                 0xdc
 #define PCU_CR1_PCIE_ILTR_OVRD                             0xfc
@@ -126,6 +129,7 @@
 #define HPET0_FUNC_NUM          0x00
 
 #define MMAP_VTD_CFG_REG_DEVID		0x2024
+#define MMAP_VTD_STACK_CFG_REG_DEVID	0x2034
 #define VTD_DEV_NUM			0x5
 #define VTD_FUNC_NUM			0x0
 
@@ -139,10 +143,12 @@
 #define  PCH_DEVFN_LPC          _PCH_DEVFN(LPC, 0)
 #define  PCH_DEVFN_P2SB         _PCH_DEVFN(LPC, 1)
 #define  PCH_DEVFN_PMC          _PCH_DEVFN(LPC, 2)
+#define  PCH_DEVFN_SMBUS        _PCH_DEVFN(LPC, 4)
 #define  PCH_DEVFN_SPI          _PCH_DEVFN(LPC, 5)
 #define  PCH_DEV_LPC            _PCH_DEV(LPC, 0)
 #define  PCH_DEV_P2SB           _PCH_DEV(LPC, 1)
 #define  PCH_DEV_PMC            _PCH_DEV(LPC, 2)
+#define  PCH_DEV_SMBUS          _PCH_DEV(LPC, 4)
 #define  PCH_DEV_SPI            _PCH_DEV(LPC, 5)
 
 #define CBDMA_DEV_NUM           0x04
@@ -161,17 +167,14 @@
 
 // ========== IOAPIC Definitions for DMAR/ACPI ========
 #define PCH_IOAPIC_ID                   0x08
-#define PC00_IOAPIC_ID                  0x09
-#define PC01_IOAPIC_ID                  0x0A
-#define PC02_IOAPIC_ID                  0x0B
-#define PC03_IOAPIC_ID                  0x0C
-#define PC04_IOAPIC_ID                  0x0D
-#define PC05_IOAPIC_ID                  0x0E
-#define PC06_IOAPIC_ID                  0x0F
-#define PC07_IOAPIC_ID                  0x10
-#define PC08_IOAPIC_ID                  0x11
-#define PC09_IOAPIC_ID                  0x12
-#define PC10_IOAPIC_ID                  0x13
-#define PC11_IOAPIC_ID                  0x14
+
+// DMI3 B0D0F0 registers
+#define DMI3_DEVID		0x2020
+#define DMIRCBAR		0x50
+#define ERRINJCON		0x1d8
+
+// IIO DFX Global D7F7 registers
+#define IIO_DFX_TSWCTL0		0x30c
+#define IIO_DFX_LCK_CTL		0x504
 
 #endif /* _SOC_PCI_DEVS_H_ */

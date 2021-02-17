@@ -20,6 +20,7 @@ config BOARD_SPECIFIC_OPTIONS
 	select DRIVERS_GENERIC_GPIO_KEYS
 	select DRIVERS_I2C_GENERIC
 	select DRIVERS_I2C_HID
+	select DRIVERS_I2C_SX9324
 	select EC_GOOGLE_CHROMEEC
 	select EC_GOOGLE_CHROMEEC_AUDIO_CODEC
 	select EC_GOOGLE_CHROMEEC_BOARDID
@@ -29,11 +30,10 @@ config BOARD_SPECIFIC_OPTIONS
 	select ELOG
 	select ELOG_BOOT_COUNT
 	select ELOG_GSMI
-	select HAVE_ACPI_TABLES
 	select GFXUMA
 	select GOOGLE_SMBIOS_MAINBOARD_VERSION
 	select MAINBOARD_HAS_CHROMEOS
-	select PICASSO_CONSOLE_UART
+	select AMD_SOC_CONSOLE_UART
 	select MAINBOARD_HAS_I2C_TPM_CR50
 	select MAINBOARD_HAS_TPM2
 	select PCIEXP_ASPM
@@ -46,6 +46,7 @@ config BOARD_SPECIFIC_OPTIONS
 	select HAVE_ACPI_RESUME
 	select DRIVERS_USB_ACPI
 	select DRIVERS_UART_ACPI
+	select DRIVERS_GENERIC_BAYHUB_LV2
 
 config ELOG_BOOT_COUNT_CMOS_OFFSET
 	int
@@ -72,6 +73,7 @@ config VARIANT_DIR
 	default "woomax" if BOARD_GOOGLE_WOOMAX
 	default "dirinboz" if BOARD_GOOGLE_DIRINBOZ
 	default "shuboz" if BOARD_GOOGLE_SHUBOZ
+	default "gumboz" if BOARD_GOOGLE_GUMBOZ
 
 config MAINBOARD_PART_NUMBER
 	string
@@ -84,6 +86,7 @@ config MAINBOARD_PART_NUMBER
 	default "Woomax" if BOARD_GOOGLE_WOOMAX
 	default "Dirinboz" if BOARD_GOOGLE_DIRINBOZ
 	default "Shuboz" if BOARD_GOOGLE_SHUBOZ
+	default "Gumboz" if BOARD_GOOGLE_GUMBOZ
 
 config DEVICETREE
 	string
@@ -105,6 +108,7 @@ config ONBOARD_VGA_IS_PRIMARY
 config VBOOT
 	select EC_GOOGLE_CHROMEEC_SWITCHES
 	select VBOOT_LID_SWITCH
+	select VBOOT_STARTS_BEFORE_BOOTBLOCK
 
 config VBOOT_VBNV_OFFSET
 	hex
@@ -129,7 +133,7 @@ config DRIVER_TPM_I2C_ADDR
 config PICASSO_FW_A_POSITION
 	hex
 	default 0xFF012040
-	depends on VBOOT_SLOTS_RW_AB && VBOOT_STARTS_BEFORE_BOOTBLOCK
+	depends on VBOOT_SLOTS_RW_AB
 	help
 	  Location of the AMD firmware in the RW_A region. This is the
 	  start of the RW-A region + 64 bytes for the cbfs header.
@@ -137,7 +141,7 @@ config PICASSO_FW_A_POSITION
 config PICASSO_FW_B_POSITION
 	hex
 	default 0xFF312040
-	depends on VBOOT_SLOTS_RW_AB && VBOOT_STARTS_BEFORE_BOOTBLOCK
+	depends on VBOOT_SLOTS_RW_AB
 	help
 	  Location of the AMD firmware in the RW_B region. This is the
 	  start of the RW-A region + 64 bytes for the cbfs header.
@@ -225,21 +229,21 @@ config VARIANT_MIN_BOARD_ID_WIFI_POWER_ACTIVE_LOW
 	  Minimum board version where the variant starts supporting
 	  active low power enable for WiFi.
 
-config VBOOT_STARTS_BEFORE_BOOTBLOCK
-	bool "PSP verstage"
-	default y if VBOOT
+config VARIANT_HAS_FPMCU
+	bool
+	default y if BOARD_GOOGLE_BERKNIP
+	default y if BOARD_GOOGLE_MORPHIUS
+	default n
 	help
-	  Firmware verification happens before the main processor is brought
-	  online.
+	  Select y if any SKU of the board has a fingerprint sensor
 
-config VBOOT_STARTS_IN_BOOTBLOCK
-	bool "X86 verstage (in bootblock)"
-	depends on  VBOOT && ! VBOOT_STARTS_BEFORE_BOOTBLOCK
-	select VBOOT_SEPARATE_VERSTAGE
+config VARIANT_MAX_BOARD_ID_BROKEN_FMPCU_POWER
+	int
+	default 4 if BOARD_GOOGLE_MORPHIUS
+	default 3 if BOARD_GOOGLE_BERKNIP
+	default 0
 	help
-	  Firmware verification happens during the end of or right after the
-	  bootblock. This implies that a static VBOOT2_WORK() buffer must be
-	  allocated in memlayout.
+	  Last board version that needs the extra delay for FPMCU init.
 
 config EFS_SPI_READ_MODE
 	int

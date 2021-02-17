@@ -13,10 +13,9 @@
 #include <device/i2c_simple.h>
 #include <drivers/camera/cros_camera.h>
 #include <ec/google/chromeec/ec.h>
-#include <soc/auxadc.h>
+#include <soc/auxadc_common.h>
 #include <soc/i2c.h>
 #include <soc/pmic_wrap_common.h>
-#include <string.h>
 
 /* For CBI un-provisioned/corrupted Flapjack board. */
 #define FLAPJACK_UNDEF_SKU_ID 0
@@ -69,7 +68,7 @@ static const int *adc_voltages[] = {
 
 static uint32_t get_adc_index(unsigned int channel)
 {
-	int value = auxadc_get_voltage(channel);
+	int value = auxadc_get_voltage_uv(channel);
 
 	assert(channel < ARRAY_SIZE(adc_voltages));
 	const int *voltages = adc_voltages[channel];

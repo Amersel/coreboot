@@ -16,9 +16,7 @@
 #include <device/pci_ids.h>
 #include <intelblocks/mp_init.h>
 #include <soc/bootblock.h>
-#include <soc/pch.h>
 #include <soc/pci_devs.h>
-#include <string.h>
 
 static struct {
 	u32 cpuid;
@@ -79,6 +77,7 @@ static struct {
 	{ PCI_DEVICE_ID_INTEL_ADP_P_ESPI_30, "Alderlake-P SKU" },
 	{ PCI_DEVICE_ID_INTEL_ADP_P_ESPI_31, "Alderlake-P SKU" },
 	{ PCI_DEVICE_ID_INTEL_ADP_P_ESPI_32, "Alderlake-P SKU" },
+	{ PCI_DEVICE_ID_INTEL_ADP_P_ESPI_33, "Alderlake-P SKU" },
 };
 
 static struct {

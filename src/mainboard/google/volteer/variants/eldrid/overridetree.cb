@@ -3,10 +3,12 @@ chip soc/intel/tigerlake
 	register "power_limits_config[POWER_LIMITS_U_2_CORE]" = "{
 		.tdp_pl1_override = 15,
 		.tdp_pl2_override = 51,
+		.tdp_pl4 = 71,
 	}"
 	register "power_limits_config[POWER_LIMITS_U_4_CORE]" = "{
 		.tdp_pl1_override = 15,
 		.tdp_pl2_override = 51,
+		.tdp_pl4 = 105,
 	}"
 
 	register "tcc_offset" = "5"     # TCC of 95
@@ -58,14 +60,36 @@ chip soc/intel/tigerlake
 			},
 		},
 	}"
-	#These settings improve the USB2 Port1 eye diagram
+
+	#Disable Type-A Port A1
+	register "usb2_ports[1]" = "USB2_PORT_EMPTY"
+
+	#Disable M.2 WWAN
+	register "usb2_ports[2]" = "USB2_PORT_EMPTY"
+
+	#improve the USB2 Port1 eye diagram
+	register "usb2_ports[3]" = "{
+		.enable = 1,
+		.ocpin = OC_SKIP,
+		.tx_bias = USB2_BIAS_39P35MV,
+		.tx_emp_enable = USB2_DE_EMP_ON_PRE_EMP_ON,
+		.pre_emp_bias = USB2_BIAS_39P35MV,
+		.pre_emp_bit = USB2_FULL_BIT_PRE_EMP,
+		.type_c = 1,
+	}"
+
+	#lower camera driving
 	register "usb2_ports[4]" = "{
 		.enable = 1,
-		.tx_bias = 7,
-		.tx_emp_enable = 7,
-		.pre_emp_bias = 3,
-		.pre_emp_bit = 0,
+		.ocpin = OC_SKIP,
+		.tx_bias = USB2_BIAS_0MV,
+		.tx_emp_enable = USB2_EMP_OFF,
+		.pre_emp_bias = USB2_BIAS_0MV,
+		.pre_emp_bit = USB2_FULL_BIT_PRE_EMP,
 	}"
+
+	#Type-A / Type-C C0
+	register "usb2_ports[8]" = "USB2_PORT_TYPE_C(OC_SKIP)"
 
 	device domain 0 on
 		device ref dptf on
@@ -76,27 +100,27 @@ chip soc/intel/tigerlake
 				register "policies.active" = "{[0] = {.target=DPTF_NONE}}"
 
 				## Passive Policy
-				register "policies.passive[0]" = "DPTF_PASSIVE(CPU,CPU,95,5000)"
-				register "policies.passive[1]" = "DPTF_PASSIVE(CPU,TEMP_SENSOR_2,60,6000)"
+				register "policies.passive[0]" = "DPTF_PASSIVE(CPU,CPU,87,5000)"
+				register "policies.passive[1]" = "DPTF_PASSIVE(CPU,TEMP_SENSOR_2,60.8,6000)"
 
 				## Critical Policy
 				register "policies.critical[0]" = "DPTF_CRITICAL(CPU,100,SHUTDOWN)"
-				register "policies.critical[1]" = "DPTF_CRITICAL(TEMP_SENSOR_2,80,SHUTDOWN)"
+				register "policies.critical[1]" = "DPTF_CRITICAL(TEMP_SENSOR_2,75,SHUTDOWN)"
 
 				## Power Limits Control
-				# 3-15W PL1 in 200mW increments, avg over 28-32s interval
-				# PL2 is fixed at 51W, avg over 28-32s interval
+				# 3-15W PL1 in 200mW increments, avg over 26-34s interval
+				# PL2 is fixed at 51W, avg over 26-34s interval
 				register "controls.power_limits" = "{
 					.pl1 = {.min_power = 3000,
 						.max_power = 15000,
-						.time_window_min = 28 * MSECS_PER_SEC,
-						.time_window_max = 32 * MSECS_PER_SEC,
-						.granularity = 200,},
-					.pl2 = {.min_power = 15000,
+						.time_window_min = 26 * MSECS_PER_SEC,
+						.time_window_max = 34 * MSECS_PER_SEC,
+						.granularity = 250,},
+					.pl2 = {.min_power = 51000,
 						.max_power = 51000,
-						.time_window_min = 28 * MSECS_PER_SEC,
-						.time_window_max = 32 * MSECS_PER_SEC,
-						.granularity = 1000,}}"
+						.time_window_min = 26 * MSECS_PER_SEC,
+						.time_window_max = 34 * MSECS_PER_SEC,
+						.granularity = 250,}}"
 
 				device generic 0 on end
 			end
@@ -123,7 +147,7 @@ chip soc/intel/tigerlake
 				register "generic.probed" = "1"
 				register "generic.reset_gpio" =
 							"ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPP_C10)"
-				register "generic.reset_delay_ms" = "120"
+				register "generic.reset_delay_ms" = "30"
 				register "generic.reset_off_delay_ms" = "3"
 				register "generic.enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPP_A8)"
 				register "generic.enable_delay_ms" = "12"
@@ -158,6 +182,21 @@ chip soc/intel/tigerlake
 				device i2c 15 on end
 			end
 		end
+		device ref pch_espi on
+			chip ec/google/chromeec
+				use conn0 as mux_conn[0]
+				use conn1 as mux_conn[1]
+				device pnp 0c09.0 on end
+			end
+		end
+		device ref pcie_rp9 on
+			chip soc/intel/common/block/pcie/rtd3
+				register "enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPP_B2)"
+				register "reset_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPP_A11)"
+				register "srcclk_pin" = "0"
+				device generic 0 on end
+			end
+		end
 		device ref hda on
 			chip drivers/generic/max98357a
 				register "hid" = ""MX98357A""
@@ -175,14 +214,14 @@ chip soc/intel/tigerlake
 						register "usb2_port_number" = "9"
 						register "usb3_port_number" = "1"
 						# SBU & HSL follow CC
-						device generic 0 on end
+						device generic 0 alias conn0 on end
 					end
 					chip drivers/intel/pmc_mux/conn
 						register "usb2_port_number" = "4"
 						register "usb3_port_number" = "2"
 						# SBU is fixed, HSL follows CC
 						register "sbu_orientation" = "TYPEC_ORIENTATION_NORMAL"
-						device generic 1 on end
+						device generic 1 alias conn1 on end
 					end
 				end
 			end

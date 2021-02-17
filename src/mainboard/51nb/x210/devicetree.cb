@@ -1,11 +1,13 @@
 chip soc/intel/skylake
 
 	# Enable Panel as eDP and configure power delays
-	register "gpu_pp_up_delay_ms"		  = "210"	# T3
-	register "gpu_pp_down_delay_ms"		  = "500"	# T10
-	register "gpu_pp_cycle_delay_ms"	  = "5000"	# T12
-	register "gpu_pp_backlight_on_delay_ms"	  = "1"		# T7
-	register "gpu_pp_backlight_off_delay_ms"  = "200"	# T9
+	register "panel_cfg" = "{
+		.up_delay_ms		=  210,	// T3
+		.down_delay_ms		=  500,	// T10
+		.cycle_delay_ms		= 5000,	// T12
+		.backlight_on_delay_ms	=    1,	// T7
+		.backlight_off_delay_ms	=  200,	// T9
+	}"
 
 	# Enable deep Sx states
 	register "deep_s3_enable_ac" = "1"
@@ -32,7 +34,6 @@ chip soc/intel/skylake
 	register "dptf_enable" = "0"
 
 	# FSP Configuration
-	register "ProbelessTrace" = "0"
 	register "SataSalpSupport" = "1"
 	register "SataMode" = "0"
 
@@ -47,7 +48,6 @@ chip soc/intel/skylake
 	register "IoBufferOwnership" = "0"
 	register "SsicPortEnable" = "0"
 	register "ScsEmmcHs400Enabled" = "0"
-	register "PttSwitch" = "0"
 	register "SkipExtGfxScan" = "1"
 	register "HeciEnabled" = "1"
 	register "SaGv" = "SaGv_Enabled"
@@ -57,8 +57,6 @@ chip soc/intel/skylake
 	register "PmConfigSlpAMinAssert" = "3"		# 2s
 
 	register "serirq_mode" = "SERIRQ_CONTINUOUS"
-
-	register "PmConfigPciClockRun" = "1"
 
 	# Enable Root Ports 3, 4 and 9
 	register "PcieRpEnable[2]" = "1" # Ethernet controller

@@ -40,6 +40,7 @@ const char *smbios_system_sku(void);
 
 unsigned int smbios_cpu_get_max_speed_mhz(void);
 unsigned int smbios_cpu_get_current_speed_mhz(void);
+unsigned int smbios_cpu_get_voltage(void);
 
 const char *smbios_mainboard_manufacturer(void);
 const char *smbios_mainboard_product_name(void);
@@ -53,9 +54,14 @@ const char *smbios_mainboard_location_in_chassis(void);
 const char *smbios_chassis_version(void);
 const char *smbios_chassis_serial_number(void);
 const char *smbios_processor_serial_number(void);
+u8 smbios_chassis_power_cords(void);
+
+/* This string could be filled late in payload. */
+void smbios_type0_bios_version(uintptr_t address);
 
 void smbios_ec_revision(uint8_t *ec_major_revision, uint8_t *ec_minor_revision);
 
+unsigned int smbios_memory_error_correction_type(struct memory_info *meminfo);
 unsigned int smbios_processor_external_clock(void);
 unsigned int smbios_processor_characteristics(void);
 struct cpuid_result;
@@ -823,6 +829,8 @@ enum {
 	SMBIOS_EVENTLOG_STATUS_VALID = 1, /* Bit 0 */
 	SMBIOS_EVENTLOG_STATUS_FULL  = 2, /* Bit 1 */
 };
+
+#define SMBIOS_USE_EXTENDED_MAX_CAPACITY	(1 << 31)
 
 struct smbios_type16 {
 	u8 type;

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#ifndef __PICASSO_I2C_H__
-#define __PICASSO_I2C_H__
+#ifndef AMD_PICASSO_I2C_H
+#define AMD_PICASSO_I2C_H
 
 #include <types.h>
 #include <soc/gpio.h>
@@ -21,9 +21,16 @@ struct soc_amd_i2c_save {
 #define I2C2_SCL_PIN_IOMUX_GPIOxx	GPIO_113_IOMUX_GPIOxx
 #define I2C3_SCL_PIN_IOMUX_GPIOxx	GPIO_19_IOMUX_GPIOxx
 
+#define I2C4_USB_PD_CTRL_OFFSET	0x600
+#define USB_PD_PORT_CONTROL	(APU_I2C4_BASE + I2C4_USB_PD_CTRL_OFFSET)
+#define PD_PORT_MUX_OFFSET(x)	(0x10 * (x))
+#define DP_REVERSE	BIT(4)
+#define USB_PD_RFMUX_OVERRIDE	BIT(8)
+#define USB_PD_DP_OVERRIDE	BIT(9)
+
 void sb_reset_i2c_slaves(void);
 
 /* Sets the base address for the specific I2C bus. */
 void i2c_set_bar(unsigned int bus, uintptr_t bar);
 
-#endif /* __PICASSO_I2C_H__ */
+#endif /* AMD_PICASSO_I2C_H */

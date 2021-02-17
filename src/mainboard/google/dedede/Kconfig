@@ -7,6 +7,7 @@ config BOARD_GOOGLE_BASEBOARD_DEDEDE
 	select DRIVERS_I2C_GENERIC
 	select DRIVERS_I2C_GPIO_MUX
 	select DRIVERS_I2C_HID
+	select DRIVERS_I2C_SX9324
 	select DRIVERS_INTEL_DPTF
 	select DRIVERS_SPI_ACPI
 	select DRIVERS_USB_ACPI
@@ -37,8 +38,6 @@ config BASEBOARD_DEDEDE_LAPTOP
 	select SYSTEM_TYPE_LAPTOP
 
 config CHROMEOS
-	bool
-	default y
 	select CHROMEOS_CSE_BOARD_RESET_OVERRIDE
 	select CHROMEOS_DRAM_PART_NUMBER_IN_CBI
 	select EC_GOOGLE_CHROMEEC_SWITCHES
@@ -95,6 +94,12 @@ config MAINBOARD_PART_NUMBER
 	default "Wheelie" if BOARD_GOOGLE_WHEELIE
 	default "Magolor" if BOARD_GOOGLE_MAGOLOR
 	default "Metaknight" if BOARD_GOOGLE_METAKNIGHT
+	default "Lantis" if BOARD_GOOGLE_LANTIS
+	default "Galtic" if BOARD_GOOGLE_GALTIC
+	default "Sasuke" if BOARD_GOOGLE_SASUKE
+	default "Storo" if BOARD_GOOGLE_STORO
+	default "Sasukette" if BOARD_GOOGLE_SASUKETTE
+	default "Kracko" if BOARD_GOOGLE_KRACKO
 
 config MAX_CPUS
 	int
@@ -125,5 +130,11 @@ config VARIANT_DIR
 	default "wheelie" if BOARD_GOOGLE_WHEELIE
 	default "magolor" if BOARD_GOOGLE_MAGOLOR
 	default "metaknight" if BOARD_GOOGLE_METAKNIGHT
+	default "lantis" if BOARD_GOOGLE_LANTIS
+	default "galtic" if BOARD_GOOGLE_GALTIC
+	default "sasuke" if BOARD_GOOGLE_SASUKE
+	default "storo" if BOARD_GOOGLE_STORO
+	default "sasukette" if BOARD_GOOGLE_SASUKETTE
+	default "kracko" if BOARD_GOOGLE_KRACKO
 
 endif #BOARD_GOOGLE_BASEBOARD_DEDEDE

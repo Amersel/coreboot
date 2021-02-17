@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+/* SPDX-License-Identifier: GPL-2.0-only */
 
 /*
  * Address sanitizer support.
@@ -8,6 +8,7 @@
  *
  */
 
+#include <console/console.h>
 #include <symbols.h>
 #include <assert.h>
 #include <arch/symbols.h>

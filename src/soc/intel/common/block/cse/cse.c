@@ -555,6 +555,9 @@ int heci_reset(void)
 {
 	uint32_t csr;
 
+	/* Clear post code to prevent eventlog entry from unknown code. */
+	post_code(0);
+
 	/* Send reset request */
 	csr = read_host_csr();
 	csr |= (CSR_RESET | CSR_IG);
@@ -907,6 +910,10 @@ static const unsigned short pci_device_ids[] = {
 	PCI_DEVICE_ID_INTEL_ADP_S_CSE1,
 	PCI_DEVICE_ID_INTEL_ADP_S_CSE2,
 	PCI_DEVICE_ID_INTEL_ADP_S_CSE3,
+	PCI_DEVICE_ID_INTEL_ADP_M_CSE0,
+	PCI_DEVICE_ID_INTEL_ADP_M_CSE1,
+	PCI_DEVICE_ID_INTEL_ADP_M_CSE2,
+	PCI_DEVICE_ID_INTEL_ADP_M_CSE3,
 	0,
 };
 

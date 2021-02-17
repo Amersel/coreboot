@@ -1,9 +1,11 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <acpi/acpi_pm.h>
 #include <arch/io.h>
 #include <bootmode.h>
 #include <device/mmio.h>
 #include <cbmem.h>
+#include <cpu/x86/smm.h>
 #include <console/console.h>
 #include <halt.h>
 #include <intelblocks/pmclib.h>
@@ -55,7 +57,7 @@ struct chipset_power_state *pmc_get_power_state(void)
 	struct chipset_power_state *ptr = NULL;
 
 	if (cbmem_possibly_online())
-		ptr = cbmem_find(CBMEM_ID_POWER_STATE);
+		ptr = acpi_get_pm_state();
 
 	/* cbmem is online but ptr is not populated yet */
 	if (ptr == NULL && !(ENV_RAMSTAGE || ENV_POSTCAR))
@@ -709,3 +711,10 @@ void pmc_disable_acpi_timer(void)
 	setbits8(pmcbase + PCH_PWRM_ACPI_TMR_CTL, ACPI_TIM_DIS);
 }
 #endif /* PMC_LOW_POWER_MODE_PROGRAM */
+
+void pmc_set_acpi_mode(void)
+{
+	if (!CONFIG(NO_SMM) && !acpi_is_wakeup_s3()) {
+		apm_control(APM_CNT_ACPI_DISABLE);
+	}
+}

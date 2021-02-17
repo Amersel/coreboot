@@ -17,7 +17,7 @@
 #endif
 
 /* GFX 00:02.0 */
-#include <soc/intel/common/block/acpi/acpi/gfx.asl>
+#include <drivers/intel/gma/acpi/gfx.asl>
 
 /* LPC 0:1f.0 */
 #include <soc/intel/common/block/acpi/acpi/lpc.asl>
@@ -46,5 +46,5 @@
 /* GbE 0:1f.6 */
 #include <soc/intel/common/block/acpi/acpi/pch_glan.asl>
 
-/* PMC Core */
-#include <soc/intel/common/block/acpi/acpi/pmc.asl>
+/* Intel Power Engine Plug-in */
+#include <soc/intel/common/block/acpi/acpi/pep.asl>

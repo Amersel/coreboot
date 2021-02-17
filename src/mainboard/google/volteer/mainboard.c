@@ -7,6 +7,8 @@
 #include <drivers/spi/tpm/tpm.h>
 #include <ec/ec.h>
 #include <fw_config.h>
+#include <gpio.h>
+#include <intelblocks/gpio.h>
 #include <security/tpm/tss.h>
 #include <soc/gpio.h>
 #include <soc/pci_devs.h>
@@ -21,8 +23,8 @@ extern struct chip_operations drivers_intel_pmc_mux_conn_ops;
 
 static bool is_port1(struct device *dev)
 {
-	return dev->path.type == DEVICE_PATH_GENERIC &&	dev->path.generic.id == 1 &&
-		dev->chip_ops == &drivers_intel_pmc_mux_conn_ops;
+	return dev->path.type == DEVICE_PATH_GENERIC && dev->path.generic.id == 1
+	       && dev->chip_ops == &drivers_intel_pmc_mux_conn_ops;
 }
 
 static void typec_orientation_fixup(void)
@@ -51,14 +53,15 @@ static void typec_orientation_fixup(void)
 	if (!conn)
 		return;
 
-	if (fw_config_probe(FW_CONFIG(DB_USB, USB4_GEN2)) ||
-	    fw_config_probe(FW_CONFIG(DB_USB, USB3_ACTIVE)) ||
-	    fw_config_probe(FW_CONFIG(DB_USB, USB4_GEN3)) ||
-	    fw_config_probe(FW_CONFIG(DB_USB, USB3_NO_A))) {
+	if (fw_config_probe(FW_CONFIG(DB_USB, USB4_GEN2))
+	    || fw_config_probe(FW_CONFIG(DB_USB, USB3_ACTIVE))
+	    || fw_config_probe(FW_CONFIG(DB_USB, USB4_GEN3))
+	    || fw_config_probe(FW_CONFIG(DB_USB, USB3_NO_A))) {
 		struct drivers_intel_pmc_mux_conn_config *config = conn->chip_info;
 
 		if (config) {
-			printk(BIOS_INFO, "Configure Right Type-C port orientation for retimer\n");
+			printk(BIOS_INFO,
+			       "Configure Right Type-C port orientation for retimer\n");
 			config->sbu_orientation = TYPEC_ORIENTATION_NORMAL;
 		}
 	}
@@ -68,6 +71,11 @@ static void mainboard_init(struct device *dev)
 {
 	mainboard_ec_init();
 	typec_orientation_fixup();
+	variant_devtree_update();
+}
+
+void __weak variant_devtree_update(void)
+{
 }
 
 static void add_fw_config_oem_string(const struct fw_config *config, void *arg)
@@ -136,20 +144,25 @@ static void mainboard_chip_init(void *chip_info)
 	override_pads = variant_override_gpio_table(&override_num);
 
 	gpio_configure_pads_with_override(base_pads, base_num, override_pads, override_num);
-}
 
-void mainboard_silicon_init_params(FSP_S_CONFIG *params)
-{
-	bool has_usb4;
-
-	/* If device doesn't have USB4 hardware, disable tbt */
-	has_usb4 = (fw_config_probe(FW_CONFIG(DB_USB, USB4_GEN2))
-		    || fw_config_probe(FW_CONFIG(DB_USB, USB4_GEN3)));
-
-	if (!has_usb4)
-		memset(params->ITbtPcieRootPortEn, 0,
-		       ARRAY_SIZE(params->ITbtPcieRootPortEn)
-			       * sizeof(*params->ITbtPcieRootPortEn));
+	/*
+	 * Check SATAXPCIE1 (GPP_A12) RX status to determine if SSD is NVMe or SATA and set
+	 * the IOSSTATE RX field to drive 0 or 1 back to the internal controller to ensure
+	 * the attached device is not mis-detected on resume from S0ix.
+	 */
+	if (gpio_get(GPP_A12)) {
+		const struct pad_config gpio_pedet_nvme[] = {
+			PAD_CFG_NF_IOSSTATE(GPP_A12, NONE, DEEP, NF1, HIZCRx1),
+		};
+		gpio_configure_pads(gpio_pedet_nvme, ARRAY_SIZE(gpio_pedet_nvme));
+		printk(BIOS_INFO, "SATAXPCIE1 indicates PCIe NVMe is present\n");
+	} else {
+		const struct pad_config gpio_pedet_sata[] = {
+			PAD_CFG_NF_IOSSTATE(GPP_A12, NONE, DEEP, NF1, HIZCRx0),
+		};
+		gpio_configure_pads(gpio_pedet_sata, ARRAY_SIZE(gpio_pedet_sata));
+		printk(BIOS_INFO, "SATAXPCIE1 indicates SATA SSD is present\n");
+	}
 }
 
 struct chip_operations mainboard_ops = {

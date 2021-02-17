@@ -13,11 +13,14 @@
 .text . : {
 	_program = .;
 	_text = .;
+#if !(ENV_X86 && ENV_BOOTBLOCK)
+	*(.init._start);
+	*(.init);
+	*(.init.*);
+#endif
 	*(.text._start);
 	*(.text.stage_entry);
-#if !ENV_X86 && (ENV_DECOMPRESSOR || ENV_BOOTBLOCK && !CONFIG(COMPRESS_BOOTBLOCK))
-	KEEP(*(.id));
-#endif
+	KEEP(*(.metadata_hash_anchor));
 	*(.text);
 	*(.text.*);
 

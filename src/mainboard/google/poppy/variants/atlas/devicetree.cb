@@ -3,12 +3,14 @@ chip soc/intel/skylake
 	# IGD Displays
 	register "gfx" = "GMA_STATIC_DISPLAYS(0)"
 
-	register "gpu_pp_up_delay_ms"		  = "200"
-	register "gpu_pp_down_delay_ms"		  = "50"
-	register "gpu_pp_cycle_delay_ms"	  = "600"
-	register "gpu_pp_backlight_on_delay_ms"	  = "  1"
-	register "gpu_pp_backlight_off_delay_ms"  = "200"
-	register "gpu_pch_backlight_pwm_hz"	  = "200"
+	register "panel_cfg" = "{
+		.up_delay_ms		= 200,
+		.down_delay_ms		=  50,
+		.cycle_delay_ms		= 600,
+		.backlight_on_delay_ms	=   1,
+		.backlight_off_delay_ms	= 200,
+		.backlight_pwm_hz	= 200,
+	}"
 
 	# Deep Sx states
 	register "deep_s3_enable_ac" = "0"
@@ -41,7 +43,6 @@ chip soc/intel/skylake
 	register "CmdTriStateDis" = "1"
 
 	# FSP Configuration
-	register "ProbelessTrace" = "0"
 	register "SataSalpSupport" = "0"
 	register "SataMode" = "0"
 	register "SataPortsEnable[0]" = "0"
@@ -49,7 +50,6 @@ chip soc/intel/skylake
 	register "IoBufferOwnership" = "3"
 	register "SsicPortEnable" = "0"
 	register "ScsEmmcHs400Enabled" = "1"
-	register "PttSwitch" = "0"
 	register "SkipExtGfxScan" = "1"
 	register "HeciEnabled" = "0"
 	register "SaGv" = "3"

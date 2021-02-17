@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#ifndef __PICASSO_SB_H__
-#define __PICASSO_SB_H__
+#ifndef AMD_PICASSO_SOUTHBRIDGE_H
+#define AMD_PICASSO_SOUTHBRIDGE_H
 
 #include <types.h>
 #include <device/device.h>
@@ -13,22 +13,7 @@
  *  - fixed addresses offset from 0xfed80000
  */
 
-/* SMBus controller registers:  0xfed80000 or D14F0 */
-#define SMB_UART_CONFIG			0xfc
-#define   SMB_UART3_1_8M		BIT(31) /* defaults are 0 = 48MHz */
-#define   SMB_UART2_1_8M		BIT(30)
-#define   SMB_UART1_1_8M		BIT(29)
-#define   SMB_UART0_1_8M		BIT(28)
-#define   SMB_UART_1_8M_SHIFT		28
-
 /* Power management registers:  0xfed80300 or index/data at IO 0xcd6/cd7 */
-#define PM_DECODE_EN			0x00
-#define   SMBUS_ASF_IO_EN		BIT(4)
-#define   CF9_IO_EN			BIT(1)
-#define   LEGACY_IO_EN			BIT(0)
-#define SMB_ASF_IO_BASE			0x01 /* part of PM_DECODE_EN in PPR */
-#define PM_ISA_CONTROL			0x04
-#define   MMIO_EN			BIT(1)
 #define PM_PCI_CTRL			0x08
 #define   FORCE_SLPSTATE_RETRY		BIT(25)
 
@@ -85,57 +70,14 @@
 #define   PM_ACPI_RTC_WAKE_EN		BIT(29)
 #define PM_RST_CTRL1			0xbe
 #define   SLPTYPE_CONTROL_EN		BIT(5)
-#define PM_RST_STATUS			0xc0
 #define PM_LPC_GATING			0xec
 #define   PM_LPC_AB_NO_BYPASS_EN	BIT(2)
 #define   PM_LPC_A20_EN			BIT(1)
 #define   PM_LPC_ENABLE			BIT(0)
-#define PM_USB_ENABLE			0xef
-#define   PM_USB_ALL_CONTROLLERS	0x7f
 
-/* SMBUS MMIO offsets 0xfed80a00 */
-#define SMBHSTSTAT			0x0
-#define   SMBHST_STAT_FAILED		BIT(4)
-#define   SMBHST_STAT_COLLISION		BIT(3)
-#define   SMBHST_STAT_ERROR		BIT(2)
-#define   SMBHST_STAT_INTERRUPT		BIT(1)
-#define   SMBHST_STAT_BUSY		BIT(0)
-#define   SMBHST_STAT_CLEAR		0xff
-#define   SMBHST_STAT_NOERROR		BIT(1)
-#define   SMBHST_STAT_VAL_BITS		0x1f
-#define   SMBHST_STAT_ERROR_BITS	0x1c
-
-#define SMBSLVSTAT			0x1
-#define   SMBSLV_STAT_ALERT		0x20
-#define   SMBSLV_STAT_SHADOW2		0x10
-#define   SMBSLV_STAT_SHADOW1		0x08
-#define   SMBSLV_STAT_SLV_STS		0x04
-#define   SMBSLV_STAT_SLV_INIT		0x02
-#define   SMBSLV_STAT_SLV_BUSY		0x01
-#define   SMBSLV_STAT_CLEAR		0x1f
-
-#define SMBHSTCTRL			0x2
-#define   SMBHST_CTRL_RST		0x80
-#define   SMBHST_CTRL_STRT		0x40
-#define   SMBHST_CTRL_QCK_RW		0x00
-#define   SMBHST_CTRL_BTE_RW		0x04
-#define   SMBHST_CTRL_BDT_RW		0x08
-#define   SMBHST_CTRL_WDT_RW		0x0c
-#define   SMBHST_CTRL_BLK_RW		0x14
-#define   SMBHST_CTRL_MODE_BITS		0x1c
-#define   SMBHST_CTRL_KILL		0x02
-#define   SMBHST_CTRL_IEN		0x01
-
-#define SMBHSTCMD			0x3
-#define SMBHSTADDR			0x4
-#define SMBHSTDAT0			0x5
-#define SMBHSTDAT1			0x6
-#define SMBHSTBLKDAT			0x7
-#define SMBSLVCTRL			0x8
-#define SMBSLVCMD_SHADOW		0x9
-#define SMBSLVEVT			0xa
-#define SMBSLVDAT			0xc
-#define SMBTIMING			0xe
+#define PM1_LIMIT			16
+#define GPE0_LIMIT			32
+#define TOTAL_BITS(a)			(8 * sizeof(a))
 
 /* FCH MISC Registers 0xfed80e00 */
 #define GPP_CLK_CNTRL			0x00
@@ -183,10 +125,7 @@
 #define   I2C_PAD_CTRL_SPARE0		BIT(17)
 #define   I2C_PAD_CTRL_SPARE1		BIT(18)
 
-/* FCH AOAC Registers 0xfed81e00 */
-#define AOAC_DEV_D3_CTL(device)		(0x40 + device * 2)
-#define AOAC_DEV_D3_STATE(device)	(AOAC_DEV_D3_CTL(device) + 1)
-
+/* FCH AOAC device offsets for AOAC_DEV_D3_CTL/AOAC_DEV_D3_STATE */
 #define FCH_AOAC_DEV_CLK_GEN		0
 #define FCH_AOAC_DEV_I2C2		7
 #define FCH_AOAC_DEV_I2C3		8
@@ -198,41 +137,7 @@
 #define FCH_AOAC_DEV_UART3		26
 #define FCH_AOAC_DEV_ESPI		27
 
-/* Bit definitions for Device D3 Control AOACx0000[40...7E] step 2 */
-#define   FCH_AOAC_TARGET_DEVICE_STATE (BIT(0) + BIT(1))
-#define     FCH_AOAC_D0_UNINITIALIZED	0
-#define     FCH_AOAC_D0_INITIALIZED	1
-#define     FCH_AOAC_D1_2_3_WARM	2
-#define     FCH_AOAC_D3_COLD		3
-#define   FCH_AOAC_DEVICE_STATE		BIT(2)
-#define   FCH_AOAC_PWR_ON_DEV		BIT(3)
-#define   FCH_AOAC_SW_PWR_ON_RSTB	BIT(4)
-#define   FCH_AOAC_SW_REF_CLK_OK	BIT(5)
-#define   FCH_AOAC_SW_RST_B		BIT(6)
-#define   FCH_AOAC_IS_SW_CONTROL	BIT(7)
-
-/* Bit definitions for Device D3 State AOACx0000[41...7f] step 2 */
-#define   FCH_AOAC_PWR_RST_STATE	BIT(0)
-#define   FCH_AOAC_RST_CLK_OK_STATE	BIT(1)
-#define   FCH_AOAC_RST_B_STATE		BIT(2)
-#define   FCH_AOAC_DEV_OFF_GATING_STATE	BIT(3)
-#define   FCH_AOAC_D3COLD		BIT(4)
-#define   FCH_AOAC_CLK_OK_STATE		BIT(5)
-#define   FCH_AOAC_STAT0		BIT(6)
-#define   FCH_AOAC_STAT1		BIT(7)
-
 #define FCH_LEGACY_UART_DECODE		(ALINK_AHB_ADDRESS + 0x20) /* 0xfedc0020 */
-#define   FCH_LEGACY_UART_MAP_SHIFT	8
-#define   FCH_LEGACY_UART_MAP_SIZE	2
-#define   FCH_LEGACY_UART_MAP_MASK	0x3
-#define   FCH_LEGACY_UART_RANGE_2E8	0
-#define   FCH_LEGACY_UART_RANGE_2F8	1
-#define   FCH_LEGACY_UART_RANGE_3E8	2
-#define   FCH_LEGACY_UART_RANGE_3F8	3
-
-#define PM1_LIMIT			16
-#define GPE0_LIMIT			28
-#define TOTAL_BITS(a)			(8 * sizeof(a))
 
 /* SATA Controller D11F0 */
 #define SATA_MISC_CONTROL_REG		0x40
@@ -240,11 +145,6 @@
 /* Register in AHCIBaseAddress (BAR5 at D11F0x24) */
 #define SATA_CAPABILITIES_REG		0xfc
 #define SATA_CAPABILITY_SPM		BIT(12)
-
-/* IO 0xcf9 - Reset control port*/
-#define   FULL_RST			BIT(3)
-#define   RST_CMD			BIT(2)
-#define   SYS_RST			BIT(1)
 
 /* IO 0xf0 NCP Error */
 #define   NCP_WARM_BOOT			BIT(7) /* Write-once */
@@ -272,18 +172,14 @@ typedef struct aoac_devs {
 	unsigned int :4;
 } __packed aoac_devs_t;
 
-void enable_aoac_devices(void);
-bool is_aoac_device_enabled(unsigned int dev);
-void power_on_aoac_device(unsigned int dev);
-void power_off_aoac_device(unsigned int dev);
-void wait_for_aoac_enabled(unsigned int dev);
-void sb_clk_output_48Mhz(void);
-void sb_enable(struct device *dev);
-void southbridge_final(void *chip_info);
-void southbridge_init(void *chip_info);
 void fch_pre_init(void);
 void fch_early_init(void);
-void set_uart_legacy_config(unsigned int uart_idx, unsigned int range_idx);
+void fch_init(void *chip_info);
+void fch_final(void *chip_info);
+
+void enable_aoac_devices(void);
+void wait_for_aoac_enabled(unsigned int dev);
+void sb_clk_output_48Mhz(void);
 
 /* Initialize all the i2c buses that are marked with early init. */
 void i2c_soc_early_init(void);
@@ -294,4 +190,4 @@ void i2c_soc_init(void);
 /* Allow the board to change the default I2C pad configuration */
 void mainboard_i2c_override(int bus, uint32_t *pad_settings);
 
-#endif /* __PICASSO_SB_H__ */
+#endif /* AMD_PICASSO_SOUTHBRIDGE_H */

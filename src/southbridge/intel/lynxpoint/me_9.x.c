@@ -25,10 +25,7 @@
 #include "me.h"
 #include "pch.h"
 
-#if CONFIG(CHROMEOS)
 #include <vendorcode/google/chromeos/chromeos.h>
-#include <vendorcode/google/chromeos/gnvs.h>
-#endif
 
 /* Path that the BIOS should take based on ME state */
 static const char *const me_bios_path_values[] __unused = {
@@ -755,10 +752,9 @@ static int intel_me_extend_valid(struct device *dev)
 	}
 	printk(BIOS_DEBUG, "\n");
 
-#if CONFIG(CHROMEOS)
 	/* Save hash in NVS for the OS to verify */
-	chromeos_set_me_hash(extend, count);
-#endif
+	if (CONFIG(CHROMEOS))
+		chromeos_set_me_hash(extend, count);
 
 	return 0;
 }
@@ -836,8 +832,8 @@ static struct device_operations device_ops = {
 };
 
 static const unsigned short pci_device_ids[] = {
-	0x8c3a, /* Mobile */
-	0x9c3a, /* Low Power */
+	PCI_DEVICE_ID_INTEL_LPT_H_MEI,
+	PCI_DEVICE_ID_INTEL_LPT_LP_MEI,
 	0
 };
 

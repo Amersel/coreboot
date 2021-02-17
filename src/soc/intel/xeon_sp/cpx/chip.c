@@ -5,14 +5,18 @@
 #include <console/debug.h>
 #include <cpu/x86/lapic.h>
 #include <device/pci.h>
+#include <intelblocks/gpio.h>
 #include <intelblocks/lpc_lib.h>
 #include <intelblocks/p2sb.h>
 #include <soc/acpi.h>
 #include <soc/chip_common.h>
 #include <soc/cpu.h>
+#include <soc/pch.h>
 #include <soc/ramstage.h>
+#include <soc/p2sb.h>
 #include <soc/soc_util.h>
 #include <soc/util.h>
+#include <soc/pci_devs.h>
 
 /* UPD parameters to be initialized before SiliconInit */
 void platform_fsp_silicon_init_params_cb(FSPS_UPD *silupd)
@@ -58,11 +62,27 @@ static void chip_enable_dev(struct device *dev)
 		attach_iio_stacks(dev);
 	} else if (dev->path.type == DEVICE_PATH_CPU_CLUSTER) {
 		dev->ops = &cpu_bus_ops;
+	} else if (dev->path.type == DEVICE_PATH_GPIO) {
+		block_gpio_enable(dev);
 	}
 }
 
 static void chip_final(void *data)
 {
+	/* Lock SBI */
+	pci_or_config32(PCH_DEV_P2SB, P2SBC, SBILOCK);
+
+	/* LOCK PAM */
+	pci_or_config32(pcidev_path_on_root(PCI_DEVFN(0, 0)), 0x80, 1 << 0);
+
+	/*
+	 * LOCK SMRAM
+	 * According to the CedarIsland FSP Integration Guide this needs to
+	 * be done with legacy 0xCF8/0xCFC IO ops.
+	 */
+	uint8_t reg8 = pci_io_read_config8(PCI_DEV(0, 0, 0), 0x88);
+	pci_io_write_config8(PCI_DEV(0, 0, 0), 0x88, reg8 | (1 << 4));
+
 	p2sb_hide();
 
 	set_bios_init_completion();
@@ -71,8 +91,10 @@ static void chip_final(void *data)
 static void chip_init(void *data)
 {
 	printk(BIOS_DEBUG, "coreboot: calling fsp_silicon_init\n");
-	fsp_silicon_init(false);
+	fsp_silicon_init();
+	override_hpet_ioapic_bdf();
 	pch_enable_ioapic();
+	pch_lock_dmictl();
 	setup_lapic();
 	p2sb_unhide();
 }

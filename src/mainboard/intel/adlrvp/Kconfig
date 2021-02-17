@@ -15,10 +15,9 @@ config BOARD_SPECIFIC_OPTIONS
 	select SOC_INTEL_ALDERLAKE
 	select HAVE_SPD_IN_CBFS
 	select DRIVERS_SOUNDWIRE_ALC711
+	select PCIEXP_HOTPLUG
 
 config CHROMEOS
-	bool
-	default y
 	select GBB_FLAG_FORCE_DEV_SWITCH_ON
 	select GBB_FLAG_FORCE_DEV_BOOT_USB
 	select GBB_FLAG_FORCE_DEV_BOOT_LEGACY
@@ -74,13 +73,24 @@ config ADL_CHROME_EC
 config ADL_INTEL_EC
 	bool "Intel EC"
 	select EC_ACPI
-	select GBB_FLAG_DISABLE_EC_SOFTWARE_SYNC
+	select GBB_FLAG_DISABLE_EC_SOFTWARE_SYNC if VBOOT
 endchoice
+
+config PCIEXP_HOTPLUG_BUSES
+	int
+	default 42
+
+config PCIEXP_HOTPLUG_MEM
+	hex
+	default 0xc200000  # 194 MiB
+
+config PCIEXP_HOTPLUG_PREFETCH_MEM
+	hex
+	default 0x1c000000 # 448 MiB
 
 config VBOOT
 	select VBOOT_LID_SWITCH
 	select VBOOT_MOCK_SECDATA
-	select HAS_RECOVERY_MRC_CACHE
 
 config UART_FOR_CONSOLE
 	int

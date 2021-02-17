@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/cpu.h>
 #include <console/console.h>
 #include <device/pci.h>
 #include <cpu/x86/lapic.h>
@@ -10,7 +9,6 @@
 #include <cpu/intel/turbo.h>
 #include <intelblocks/cpulib.h>
 #include <intelblocks/mp_init.h>
-#include <romstage_handoff.h>
 #include <soc/cpu.h>
 #include <soc/msr.h>
 #include <soc/pci_devs.h>
@@ -23,7 +21,7 @@
 
 static void soc_fsp_load(void)
 {
-	fsps_load(romstage_handoff_is_resume());
+	fsps_load();
 }
 
 static void configure_misc(void)
@@ -176,14 +174,6 @@ int soc_skip_ucode_update(u32 current_patch_id, u32 new_patch_id)
 {
 	msr_t msr1;
 	msr_t msr2;
-
-	/*
-	 * CFL and WHL CPU die are based on KBL CPU so we need to
-	 * have this check, where CNL CPU die is not based on KBL CPU
-	 * so skip this check for CNL.
-	 */
-	if (!CONFIG(SOC_INTEL_CANNONLAKE_ALTERNATE_HEADERS))
-		return 0;
 
 	/*
 	 * If PRMRR/SGX is supported the FIT microcode load will set the msr

@@ -101,6 +101,15 @@ static void read128(u32 addr, u64 * out)
 	out[1] = ret.hi;
 }
 
+/*
+ * Ironlake memory I/O timings are located in scan chains, accessible
+ * through MCHBAR register groups. Each channel has a scan chain, and
+ * there's a global scan chain too. Each chain is broken into smaller
+ * sections of N bits, where N <= 32. Each section allows reading and
+ * writing a certain parameter. Each section contains N - 2 data bits
+ * and two additional bits: a Mask bit, and a Halt bit.
+ */
+
 /* OK */
 static void write_1d0(u32 val, u16 addr, int bits, int flag)
 {
@@ -330,8 +339,6 @@ static u32 get_580(int channel, u8 addr)
 	return ret;
 }
 
-const int cached_config = 0;
-
 #define NUM_CHANNELS 2
 #define NUM_SLOTS 2
 #define NUM_RANKS 2
@@ -483,11 +490,11 @@ static void set_334(int zero)
 		;
 }
 
-static void rmw_1d0(u16 addr, u32 and, u32 or, int split, int flag)
+static void rmw_1d0(u16 addr, u32 and, u32 or, int split)
 {
 	u32 v;
 	v = read_1d0(addr, split);
-	write_1d0((v & and) | or, addr, split, flag);
+	write_1d0((v & and) | or, addr, split, 1);
 }
 
 static int find_highest_bit_set(u16 val)
@@ -1200,7 +1207,7 @@ static void program_board_delay(struct raminfo *info)
 		if (info->revision >= 0x10 && info->clock_speed_index <= 1
 		    && (info->silicon_revision == 2
 			|| info->silicon_revision == 3))
-			rmw_1d0(0x116, 5, 2, 4, 1);
+			rmw_1d0(0x116, 5, 2, 4);
 	}
 	MCHBAR32(0x120) = (1 << (info->max_slots_used_in_channel + 28)) |
 		0x188e7f9f;
@@ -1473,10 +1480,14 @@ static void collect_system_info(struct raminfo *info)
 		info->memory_reserved_for_heci_mb = intel_early_me_uma_size();
 	}
 
-	for (i = 0; i < 3; i++)
-		gav(capid0[i] =
-		    pci_read_config32(NORTHBRIDGE, CAPID0 | (i << 2)));
-	gav(info->revision = pci_read_config8(NORTHBRIDGE, PCI_REVISION_ID));
+	for (i = 0; i < 3; i++) {
+		capid0[i] = pci_read_config32(NORTHBRIDGE, CAPID0 | (i << 2));
+		printk(BIOS_DEBUG, "CAPID0[%d] = 0x%08x\n", i, capid0[i]);
+	}
+	info->revision = pci_read_config8(NORTHBRIDGE, PCI_REVISION_ID);
+	printk(BIOS_DEBUG, "Revision ID: 0x%x\n", info->revision);
+	printk(BIOS_DEBUG, "Device ID: 0x%x\n", pci_read_config16(NORTHBRIDGE, PCI_DEVICE_ID));
+
 	info->max_supported_clock_speed_index = (~capid0[1] & 7);
 
 	if ((capid0[1] >> 11) & 1)
@@ -1811,19 +1822,18 @@ static void setup_heci_uma(struct raminfo *info)
 	pci_read_config32(NORTHBRIDGE, DMIBAR);
 	if (info->memory_reserved_for_heci_mb) {
 		DMIBAR32(DMIVC0RCTL) &= ~0x80;
-		write32(DEFAULT_RCBA   + 0x14, read32(DEFAULT_RCBA   + 0x14) & ~0x80);
+		RCBA32(0x14) &= ~0x80;
 		DMIBAR32(DMIVC1RCTL) &= ~0x80;
-		write32(DEFAULT_RCBA   + 0x20, read32(DEFAULT_RCBA   + 0x20) & ~0x80);
+		RCBA32(0x20) &= ~0x80;
 		DMIBAR32(DMIVCPRCTL) &= ~0x80;
-		write32(DEFAULT_RCBA   + 0x30, read32(DEFAULT_RCBA   + 0x30) & ~0x80);
+		RCBA32(0x30) &= ~0x80;
 		DMIBAR32(DMIVCMRCTL) &= ~0x80;
-		write32(DEFAULT_RCBA   + 0x40, read32(DEFAULT_RCBA   + 0x40) & ~0x80);
+		RCBA32(0x40) &= ~0x80;
 
-		write32(DEFAULT_RCBA   + 0x40, 0x87000080);	// OK
+		RCBA32(0x40) = 0x87000080;	// OK
 		DMIBAR32(DMIVCMRCTL) = 0x87000080;	// OK
 
-		while ((read16(DEFAULT_RCBA + 0x46) & 2) &&
-			DMIBAR16(DMIVCMRSTS) & VCMNP)
+		while ((RCBA16(0x46) & 2) && DMIBAR16(DMIVCMRSTS) & VCMNP)
 			;
 	}
 
@@ -3656,17 +3666,17 @@ void chipset_init(const int s3resume)
 		MCHBAR32_AND_OR(0x2c44, 0, 0x1053687);
 		pci_read_config8(GMA, MSAC);	// = 0x2
 		pci_write_config8(GMA, MSAC, 0x2);
-		read8(DEFAULT_RCBA + 0x2318);
-		write8(DEFAULT_RCBA + 0x2318, 0x47);
-		read8(DEFAULT_RCBA + 0x2320);
-		write8(DEFAULT_RCBA + 0x2320, 0xfc);
+		RCBA8(0x2318);
+		RCBA8(0x2318) = 0x47;
+		RCBA8(0x2320);
+		RCBA8(0x2320) = 0xfc;
 	}
 
 	MCHBAR32_AND_OR(0x30, 0, 0x40);
 
 	pci_write_config16(NORTHBRIDGE, GGC, ggc);
-	gav(read32(DEFAULT_RCBA + 0x3428));
-	write32(DEFAULT_RCBA + 0x3428, 0x1d);
+	gav(RCBA32(0x3428));
+	RCBA32(0x3428) = 0x1d;
 }
 
 void raminit(const int s3resume, const u8 *spd_addrmap)
@@ -3760,8 +3770,7 @@ void raminit(const int s3resume, const u8 *spd_addrmap)
 					continue;
 				for (addr = 0;
 				     addr <
-				     sizeof(useful_addresses) /
-				     sizeof(useful_addresses[0]); addr++)
+				     ARRAY_SIZE(useful_addresses); addr++)
 					gav(info.
 					    spd[channel][0][useful_addresses
 							    [addr]] =
@@ -4241,7 +4250,7 @@ void raminit(const int s3resume, const u8 *spd_addrmap)
 	write_500(&info, 1, 1, 0x6b3, 4, 1);
 	write_500(&info, 1, 1, 0x6cf, 4, 1);
 
-	rmw_1d0(0x21c, 0x38, 0, 6, 1);
+	rmw_1d0(0x21c, 0x38, 0, 6);
 
 	write_1d0(((!info.populated_ranks[1][0][0]) << 1) | ((!info.
 							      populated_ranks[0]
@@ -4350,22 +4359,20 @@ void raminit(const int s3resume, const u8 *spd_addrmap)
 		val_a1 = read_1d0(0xa1, 6);	// = 0x1cf4040 // !!!!
 		t = read_1d0(0x2f3, 6);	// = 0x10a4040 // !!!!
 		rmw_1d0(0x320, 0x07,
-			(t & 4) | ((t & 8) >> 2) | ((t & 0x10) >> 4), 6, 1);
+			(t & 4) | ((t & 8) >> 2) | ((t & 0x10) >> 4), 6);
 		rmw_1d0(0x14b, 0x78,
 			((((val_a1 >> 2) & 4) | (val_a1 & 8)) >> 2) | (val_a1 &
-								       4), 7,
-			1);
+								       4), 7);
 		rmw_1d0(0xce, 0x38,
 			((((val_a1 >> 2) & 4) | (val_a1 & 8)) >> 2) | (val_a1 &
-								       4), 6,
-			1);
+								       4), 6);
 	}
 
 	for (channel = 0; channel < NUM_CHANNELS; channel++)
 		set_4cf(&info, channel,
 			info.populated_ranks[channel][0][0] ? 9 : 1);
 
-	rmw_1d0(0x116, 0xe, 1, 4, 1);	// = 0x4040432 // !!!!
+	rmw_1d0(0x116, 0xe, 1, 4);	// = 0x4040432 // !!!!
 	MCHBAR32(0x144);	// !!!!
 	write_1d0(2, 0xae, 6, 1);
 	write_1d0(2, 0x300, 6, 1);
@@ -4701,7 +4708,7 @@ void raminit(const int s3resume, const u8 *spd_addrmap)
 	if (s3resume && cbmem_wasnot_inited) {
 		u32 reg32;
 		printk(BIOS_ERR, "Failed S3 resume.\n");
-		ram_check(0x100000, 0x200000);
+		ram_check_nodie(1 * MiB);
 
 		/* Clear SLP_TYPE.  */
 		reg32 = inl(DEFAULT_PMBASE + 0x04);

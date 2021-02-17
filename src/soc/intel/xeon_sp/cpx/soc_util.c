@@ -9,7 +9,6 @@
 #include <soc/soc_util.h>
 #include <soc/util.h>
 #include <stdlib.h>
-#include <string.h>
 
 const struct SystemMemoryMapHob *get_system_memory_map(void)
 {
@@ -62,4 +61,25 @@ int soc_get_stack_for_port(int port)
 		return PSTACK2;
 	else
 		return -1;
+}
+
+uint8_t soc_get_iio_ioapicid(int socket, int stack)
+{
+	uint8_t ioapic_id = socket ? 0xf : 0x9;
+	switch (stack) {
+	case CSTACK:
+		break;
+	case PSTACK0:
+		ioapic_id += 1;
+		break;
+	case PSTACK1:
+		ioapic_id += 2;
+		break;
+	case PSTACK2:
+		ioapic_id += 3;
+		break;
+	default:
+		return 0xff;
+	}
+	return ioapic_id;
 }

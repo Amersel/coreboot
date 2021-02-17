@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#ifndef PSP_VERSTAGE_PSP_TRANSFER_H
-#define PSP_VERSTAGE_PSP_TRANSFER_H
+#ifndef AMD_PICASSO_PSP_TRANSFER_H
+#define AMD_PICASSO_PSP_TRANSFER_H
 
 # if (CONFIG_CMOS_RECOVERY_BYTE != 0)
 #  define CMOS_RECOVERY_BYTE CONFIG_CMOS_RECOVERY_BYTE
@@ -46,7 +46,9 @@ _Static_assert(sizeof(struct transfer_info_struct) == TRANSFER_INFO_SIZE, \
 void verify_psp_transfer_buf(void);
 /* Display the transfer block's PSP_info data */
 void show_psp_transfer_info(void);
+/* Called by bootblock_c_entry in the VBOOT_STARTS_BEFORE_BOOTBLOCK case */
+void boot_with_psp_timestamp(uint64_t base_timestamp);
 
 #endif
 
-#endif	/* PSP_VERSTAGE_PSP_TRANSFER_H */
+#endif	/* AMD_PICASSO_PSP_TRANSFER_H */

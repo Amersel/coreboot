@@ -15,7 +15,7 @@
 #include "gpio.asl"
 
 /* GFX 00:02.0 */
-#include <soc/intel/common/block/acpi/acpi/gfx.asl>
+#include <drivers/intel/gma/acpi/gfx.asl>
 
 /* ESPI 0:1f.0 */
 #include <soc/intel/common/block/acpi/acpi/lpc.asl>
@@ -41,8 +41,8 @@
 /* PCI _OSC */
 #include <soc/intel/common/acpi/pci_osc.asl>
 
-/* PMC Core*/
-#include <soc/intel/common/block/acpi/acpi/pmc.asl>
+/* Intel Power Engine Plug-in */
+#include <soc/intel/common/block/acpi/acpi/pep.asl>
 
 /* EMMC/SD card */
 #include "scs.asl"

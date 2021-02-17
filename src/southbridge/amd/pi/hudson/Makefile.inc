@@ -83,18 +83,6 @@ FIRMWARE_TYPE=
 
 endif
 
-ifeq ($(CONFIG_CPU_AMD_PI_00660F01), y)
-FIRMWARE_LOCATION=$(dir $(call strip_quotes, $(CONFIG_AMD_PUBKEY_FILE)))
-FIRMWARE_TYPE=CZ
-
-PSPBTLDR_FILE=$(top)/$(FIRMWARE_LOCATION)/PspBootLoader_prod_CZ.sbin
-PSPRCVR_FILE=$(top)/$(FIRMWARE_LOCATION)/PspRecoveryBootLoader_prod_CZ.sbin
-PSPSECUREOS_FILE=$(top)/$(FIRMWARE_LOCATION)/PspSecureOs_prod_CZ.csbin
-PSPTRUSTLETS_FILE=$(top)/$(FIRMWARE_LOCATION)/PspTrustlets_prod_CZ.cbin
-TRUSTLETKEY_FILE=$(top)/$(FIRMWARE_LOCATION)/TrustletKey_prod_CZ.sbin
-SMUFIRMWARE2_FILE=$(top)/$(FIRMWARE_LOCATION)/SmuFirmware2_prod_CZ.sbin
-endif
-
 #PUBSIGNEDKEY_FILE=$(top)/$(FIRMWARE_LOCATION)/RtmPubSigned$(FIRMWARE_TYPE).key
 #PSPNVRAM_FILE=$(top)/$(FIRMWARE_LOCATION)/PspNvram$(FIRMWARE_TYPE).bin
 #PSPSECUREDEBUG_FILE=$(top)/$(FIRMWARE_LOCATION)/PspSecureDebug$(FIRMWARE_TYPE).Key
@@ -169,10 +157,7 @@ $(obj)/amdfw.rom:	$(call strip_quotes, $(CONFIG_HUDSON_XHCI_FWM_FILE)) \
 		--output	$@
 
 ifeq ($(CONFIG_AMDFW_OUTSIDE_CBFS),y)
-PHONY+=add_amdfw
-INTERMEDIATE+=add_amdfw
-
-add_amdfw: $(obj)/coreboot.pre $(obj)/amdfw.rom
+$(call add_intermediate, add_amdfw, $(obj)/amdfw.rom)
 	printf "    DD         Adding AMD Firmware\n"
 	dd if=$(obj)/amdfw.rom \
 		of=$(obj)/coreboot.pre conv=notrunc bs=1 seek=131072 >/dev/null 2>&1

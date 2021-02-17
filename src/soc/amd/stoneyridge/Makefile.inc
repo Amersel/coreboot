@@ -8,19 +8,16 @@ subdirs-y += ../../../cpu/x86/lapic
 subdirs-y += ../../../cpu/x86/cache
 subdirs-y += ../../../cpu/x86/mtrr
 subdirs-y += ../../../cpu/x86/pae
-subdirs-y += ../../../cpu/x86/smm
 
-bootblock-$(CONFIG_STONEYRIDGE_UART) += uart.c
+bootblock-y += uart.c
 bootblock-y += BiosCallOuts.c
-bootblock-y += bootblock/bootblock.c
+bootblock-y += bootblock.c
 bootblock-y += gpio.c
 bootblock-y += i2c.c
 bootblock-y += enable_usbdebug.c
 bootblock-y += monotonic_timer.c
-bootblock-y += pmutil.c
 bootblock-y += tsc_freq.c
 bootblock-y += southbridge.c
-bootblock-$(CONFIG_HAVE_SMI_HANDLER) += smi_util.c
 
 romstage-y += BiosCallOuts.c
 romstage-y += i2c.c
@@ -28,24 +25,21 @@ romstage-y += romstage.c
 romstage-y += enable_usbdebug.c
 romstage-y += gpio.c
 romstage-y += monotonic_timer.c
-romstage-y += pmutil.c
 romstage-y += smbus_spd.c
 romstage-y += memmap.c
-romstage-$(CONFIG_STONEYRIDGE_UART) += uart.c
+romstage-y += uart.c
 romstage-y += tsc_freq.c
 romstage-y += southbridge.c
-romstage-$(CONFIG_HAVE_SMI_HANDLER) += smi_util.c
 romstage-y += psp.c
 
 verstage-y += gpio.c
 verstage-y += i2c.c
 verstage-y += monotonic_timer.c
-verstage-y += pmutil.c
-verstage-$(CONFIG_STONEYRIDGE_UART) += uart.c
+verstage-y += uart.c
 verstage-y += tsc_freq.c
 
 postcar-y += monotonic_timer.c
-postcar-$(CONFIG_STONEYRIDGE_UART) += uart.c
+postcar-y += uart.c
 postcar-y += memmap.c
 postcar-$(CONFIG_VBOOT_MEASURED_BOOT) += i2c.c
 postcar-y += tsc_freq.c
@@ -61,12 +55,9 @@ ramstage-y += gpio.c
 ramstage-y += monotonic_timer.c
 ramstage-y += southbridge.c
 ramstage-y += northbridge.c
-ramstage-y += pmutil.c
 ramstage-y += sata.c
 ramstage-y += memmap.c
-ramstage-$(CONFIG_HAVE_SMI_HANDLER) += smi.c
-ramstage-$(CONFIG_HAVE_SMI_HANDLER) += smi_util.c
-ramstage-$(CONFIG_STONEYRIDGE_UART) += uart.c
+ramstage-y += uart.c
 ramstage-y += usb.c
 ramstage-y += tsc_freq.c
 ramstage-y += finalize.c
@@ -76,7 +67,6 @@ all-y += reset.c
 
 smm-y += monotonic_timer.c
 smm-y += smihandler.c
-smm-y += smi_util.c
 smm-y += tsc_freq.c
 smm-$(CONFIG_DEBUG_SMI) += uart.c
 smm-y += gpio.c
@@ -168,8 +158,6 @@ $(obj)/amdfw.rom:	$(call strip_quotes, $(CONFIG_STONEYRIDGE_XHCI_FWM_FILE)) \
 		--output	$@
 
 ifeq ($(CONFIG_AMDFW_OUTSIDE_CBFS),y)
-PHONY+=add_amdfw
-INTERMEDIATE+=add_amdfw
 
 # Calculate firmware position inside the ROM
 STONEYRIDGE_FWM_ROM_POSITION=$(call int-add, \
@@ -177,7 +165,7 @@ STONEYRIDGE_FWM_ROM_POSITION=$(call int-add, \
 	$(call int-shift-left, \
 	0x80000 $(CONFIG_AMD_FWM_POSITION_INDEX))) 0x20000)
 
-add_amdfw: $(obj)/coreboot.pre $(obj)/amdfw.rom
+$(call add_intermediate, add_amdfw, $(obj)/amdfw.rom)
 	printf "    DD         Adding AMD Firmware at ROM offset 0x%x\n" \
 		"$(STONEYRIDGE_FWM_ROM_POSITION)"
 	dd if=$(obj)/amdfw.rom \

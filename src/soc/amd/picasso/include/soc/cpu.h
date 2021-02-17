@@ -1,9 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#ifndef __PICASSO_CPU_H__
-#define __PICASSO_CPU_H__
+#ifndef AMD_PICASSO_CPU_H
+#define AMD_PICASSO_CPU_H
 
-int get_cpu_count(void);
 void check_mca(void);
 
 #define RAVEN1_B0_CPUID			0x00810f10
@@ -19,4 +18,4 @@ void check_mca(void);
 #define RAVEN2_VBIOS_VID_DID		0x100215dd  /* VID/DID in RV2 VBIOS header */
 #define RAVEN2_VBIOS_REV		0xc4
 
-#endif /* __PICASSO_CPU_H__ */
+#endif /* AMD_PICASSO_CPU_H */

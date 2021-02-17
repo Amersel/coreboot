@@ -2,11 +2,8 @@
 
 #include <assert.h>
 #include <console/console.h>
-#include <bootstate.h>
 #include <drivers/ipmi/ipmi_ops.h>
 #include <drivers/ocp/dmi/ocp_dmi.h>
-#include <gpio.h>
-#include <soc/lewisburg_pch_gpio_defs.h>
 #include <soc/ramstage.h>
 #include <soc/soc_util.h>
 #include <stdio.h>
@@ -25,6 +22,31 @@
 
 extern struct fru_info_str fru_strings;
 static char slot_id_str[SLOT_ID_LEN];
+
+/* Override SMBIOS type 16 error correction type. */
+unsigned int smbios_memory_error_correction_type(struct memory_info *meminfo)
+{
+	const struct SystemMemoryMapHob *hob;
+
+	hob = get_system_memory_map();
+	assert(hob != NULL);
+
+	switch (hob->RasModesEnabled) {
+	case CH_INDEPENDENT:
+		return MEMORY_ARRAY_ECC_SINGLE_BIT;
+	case FULL_MIRROR_1LM:
+	case PARTIAL_MIRROR_1LM:
+	case FULL_MIRROR_2LM:
+	case PARTIAL_MIRROR_2LM:
+		return MEMORY_ARRAY_ECC_MULTI_BIT;
+	case RK_SPARE:
+		return MEMORY_ARRAY_ECC_SINGLE_BIT;
+	case CH_LOCKSTEP:
+		return MEMORY_ARRAY_ECC_SINGLE_BIT;
+	default:
+		return MEMORY_ARRAY_ECC_MULTI_BIT;
+	}
+}
 
 /*
  * Update SMBIOS type 0 ec version.
@@ -57,6 +79,18 @@ const char *smbios_mainboard_location_in_chassis(void)
 	}
 	snprintf(slot_id_str, SLOT_ID_LEN, "%d", slot_id);
 	return slot_id_str;
+}
+
+/*
+ * Override SMBIOS type 4 cpu voltage.
+ * BIT7 will set to 1 after value return. If BIT7 is set to 1, the remaining seven
+ * bits of this field are set to contain the processor's current voltage times 10.
+ */
+unsigned int smbios_cpu_get_voltage(void)
+{
+	/* This will return 1.6V which is expected value for Delta Lake
+	   10h = (1.6 * 10) = 16 */
+	return 0x10;
 }
 
 /* System Slot Socket, Stack, Type and Data bus width Information */
@@ -143,6 +177,30 @@ static void dl_oem_smbios_strings(struct device *dev, struct smbios_type11 *t)
 	}
 }
 
+static const struct port_information smbios_type8_info[] = {
+	{
+		.internal_reference_designator = "JCN18 - CPU MIPI60",
+		.internal_connector_type       = CONN_OTHER,
+		.external_reference_designator = "",
+		.external_connector_type       = CONN_NONE,
+		.port_type                     = TYPE_OTHER_PORT
+	},
+	{
+		.internal_reference_designator = "JCN32 - TPM_CONN",
+		.internal_connector_type       = CONN_OTHER,
+		.external_reference_designator = "",
+		.external_connector_type       = CONN_NONE,
+		.port_type                     = TYPE_OTHER_PORT
+	},
+	{
+		.internal_reference_designator = "JCN7 - USB type C",
+		.internal_connector_type       = CONN_USB_TYPE_C,
+		.external_reference_designator = "",
+		.external_connector_type       = CONN_NONE,
+		.port_type                     = TYPE_USB
+	},
+};
+
 static int create_smbios_type9(int *handle, unsigned long *current)
 {
 	int index;
@@ -154,7 +212,7 @@ static int create_smbios_type9(int *handle, unsigned long *current)
 	uint8_t characteristics_1 = 0;
 	uint8_t characteristics_2 = 0;
 	uint32_t vendor_device_id;
-	uint32_t stack_busnos[6];
+	uint8_t stack_busnos[MAX_IIO_STACK];
 	pci_devfn_t pci_dev;
 	unsigned int cap;
 	uint16_t sltcap;
@@ -162,7 +220,8 @@ static int create_smbios_type9(int *handle, unsigned long *current)
 	if (ipmi_get_pcie_config(&pcie_config) != CB_SUCCESS)
 		printk(BIOS_ERR, "Failed to get IPMI PCIe config\n");
 
-	get_stack_busnos(stack_busnos);
+	for (index = 0; index < ARRAY_SIZE(stack_busnos); index++)
+		stack_busnos[index] = get_stack_busno(index);
 
 	for (index = 0; index < ARRAY_SIZE(slotinfo); index++) {
 		if (pcie_config == PCIE_CONFIG_A) {
@@ -244,6 +303,13 @@ static int mainboard_smbios_data(struct device *dev, int *handle, unsigned long 
 {
 	int len = 0;
 
+	// add port information
+	len += smbios_write_type8(
+		current, handle,
+		smbios_type8_info,
+		ARRAY_SIZE(smbios_type8_info)
+		);
+
 	len += create_smbios_type9(handle, current);
 
 	return len;
@@ -253,7 +319,7 @@ void smbios_fill_dimm_locator(const struct dimm_info *dimm, struct smbios_type17
 {
 	char buf[40];
 
-	snprintf(buf, sizeof(buf), "DIMM %c0", 'A' + dimm->channel_num);
+	snprintf(buf, sizeof(buf), "DIMM_%c0", 'A' + dimm->channel_num);
 	t->device_locator = smbios_add_string(t->eos, buf);
 
 	snprintf(buf, sizeof(buf), "_Node0_Channel%d_Dimm0", dimm->channel_num);
@@ -286,24 +352,9 @@ void mainboard_silicon_init_params(FSPS_UPD *params)
 
 static void mainboard_final(void *chip_info)
 {
-	struct ppin_req req = {0};
-
-	req.cpu0_lo = xeon_sp_ppin[0].lo;
-	req.cpu0_hi = xeon_sp_ppin[0].hi;
-	/* Set PPIN to BMC */
-	if (ipmi_set_ppin(&req) != CB_SUCCESS)
-		printk(BIOS_ERR, "ipmi_set_ppin failed\n");
 }
 
 struct chip_operations mainboard_ops = {
 	.enable_dev = mainboard_enable,
 	.final = mainboard_final,
 };
-
-static void pull_post_complete_pin(void *unused)
-{
-	/* Pull Low post complete pin */
-	gpio_output(GPP_B20, 0);
-}
-
-BOOT_STATE_INIT_ENTRY(BS_PAYLOAD_BOOT, BS_ON_ENTRY, pull_post_complete_pin, NULL);

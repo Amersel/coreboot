@@ -7,8 +7,10 @@
 #include <intelblocks/cfg.h>
 #include <intelblocks/gpio.h>
 #include <intelblocks/gspi.h>
+#include <intelblocks/pcie_rp.h>
 #include <intelblocks/power_limit.h>
 #include <soc/gpe.h>
+#include <soc/gpio.h>
 #include <soc/pch.h>
 #include <soc/pci_devs.h>
 #include <soc/pmc.h>
@@ -113,12 +115,7 @@ struct soc_intel_jasperlake_config {
 	uint8_t PcieRpClkReqDetect[CONFIG_MAX_ROOT_PORTS];
 
 	/* PCIe RP L1 substate */
-	enum L1_substates_control {
-		L1_SS_FSP_DEFAULT,
-		L1_SS_DISABLED,
-		L1_SS_L1_1,
-		L1_SS_L1_2,
-	} PcieRpL1Substates[CONFIG_MAX_ROOT_PORTS];
+	enum L1_substates_control PcieRpL1Substates[CONFIG_MAX_ROOT_PORTS];
 
 	/* SMBus */
 	uint8_t SmbusEnable;
@@ -129,21 +126,12 @@ struct soc_intel_jasperlake_config {
 	/* Enable if SD Card Power Enable Signal is Active High */
 	uint8_t SdCardPowerEnableActiveHigh;
 
-	/* Integrated Sensor */
-	uint8_t PchIshEnable;
-
-	/* Heci related */
-	uint8_t Heci3Enabled;
-
 	/* VR Config Settings for IA Core */
 	uint16_t ImonSlope;
 	uint16_t ImonOffset;
 
 	/* Gfx related */
-	uint8_t IgdDvmt50PreAlloc;
 	uint8_t SkipExtGfxScan;
-
-	uint32_t GraphicsConfigPtr;
 
 	/* HeciEnabled decides the state of Heci1 at end of boot
 	 * Setting to 0 (default) disables Heci1 and hides the device from OS */
@@ -359,6 +347,56 @@ struct soc_intel_jasperlake_config {
 	 * Range: 0.0% to 10.0% (0-100)
 	 */
 	uint8_t FivrSpreadSpectrum;
+
+	/*
+	 * Disable Fast Slew Rate for Deep Package C States for VCCIN VR domain
+	 * Disable Fast Slew Rate for Deep Package C States based on
+	 * Acoustic Noise Mitigation feature enabled.
+	 */
+	uint8_t FastPkgCRampDisable;
+
+	/*
+	 * Slew Rate configuration for Deep Package C States for VCCIN VR domain
+	 * based on Acoustic Noise Mitigation feature enabled.
+	 * 0: Fast/2 ; 1: Fast/4; 2: Fast/8; 3: Fast/16
+	 */
+	enum {
+		SlewRateFastBy2 = 0,
+		SlewRateFastBy4,
+		SlewRateFastBy8,
+		SlewRateFastBy16
+	} SlowSlewRate;
+
+	/*
+	 * Enable or Disable Acoustic Noise Mitigation feature.
+	 * 0: Disabled ; 1: Enabled
+	 */
+	uint8_t AcousticNoiseMitigation;
+
+	/*
+	 * Acoustic Noise Mitigation Range.Defines the maximum Pre-Wake
+	 * randomization time in micro ticks.This can be programmed only
+	 * if AcousticNoiseMitigation is enabled.
+	 * Range 0-255
+	 */
+	uint8_t PreWake;
+
+	/*
+	 * Acoustic Noise Mitigation Range.Defines the maximum Ramp Up
+	 * randomization time in micro ticks.This can be programmed only
+	 * if AcousticNoiseMitigation is enabled.
+	 * Range 0-255
+	 */
+	uint8_t RampUp;
+
+	/*
+	 * Acoustic Noise Mitigation Range.Defines the maximum Ramp Down
+	 * randomization time in micro ticks.This can be programmed only
+	 * if AcousticNoiseMitigation is enabled.
+	 * Range 0-255
+	 */
+	uint8_t RampDown;
+
 };
 
 typedef struct soc_intel_jasperlake_config config_t;

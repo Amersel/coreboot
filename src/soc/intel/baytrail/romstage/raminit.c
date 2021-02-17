@@ -17,8 +17,6 @@
 #include <soc/iosf.h>
 #include <soc/pci_devs.h>
 #include <soc/romstage.h>
-#include <ec/google/chromeec/ec.h>
-#include <ec/google/chromeec/ec_commands.h>
 #include <security/vboot/vboot_common.h>
 
 uintptr_t smbus_base(void)
@@ -153,7 +151,7 @@ void raminit(struct mrc_params *mp, int prev_sleep_state)
 	}
 
 	/* Determine if mrc.bin is in the cbfs. */
-	if (cbfs_boot_map_with_leak("mrc.bin", CBFS_TYPE_MRC, NULL) == NULL) {
+	if (cbfs_map("mrc.bin", NULL) == NULL) {
 		printk(BIOS_DEBUG, "Couldn't find mrc.bin\n");
 		return;
 	}

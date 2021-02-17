@@ -29,7 +29,7 @@ void google_chromeec_init(void);
 int google_chromeec_pd_get_amode(uint16_t svid);
 /* Check for the current mux state in EC
  * in: int port physical port number of the type-c port
- * out: uint8_t flags flags representing the status of the mux such as
+ * out: uint8_t flags representing the status of the mux such as
  *	usb capability, dp capability, cable type, etc
  */
 int google_chromeec_usb_get_pd_mux_info(int port, uint8_t *flags);
@@ -78,7 +78,7 @@ int google_chromeec_reboot(int dev_idx, enum ec_reboot_cmd type, uint8_t flags);
 /**
  * Get data from Cros Board Info
  *
- * @param id/fw_config/buf [OUT] value from from CBI.
+ * @param id/fw_config/buf [OUT] value from CBI.
  * @return 0 on success or negative integer for errors.
  */
 int google_chromeec_cbi_get_oem_id(uint32_t *id);
@@ -89,6 +89,7 @@ int google_chromeec_cbi_get_oem_name(char *buf, size_t bufsize);
 /* version may be stored in CBI as a smaller integer width, but the EC code
    handles it correctly. */
 int google_chromeec_cbi_get_board_version(uint32_t *version);
+int google_chromeec_cbi_get_ssfc(uint32_t *ssfc);
 
 #define CROS_SKU_UNKNOWN	0xFFFFFFFF
 #define CROS_SKU_UNPROVISIONED	0x7FFFFFFF
@@ -354,7 +355,26 @@ int google_chromeec_get_keybd_config(struct ec_response_keybd_config *keybd);
 int google_chromeec_ap_reset(void);
 
 /**
+ * Configure the regulator as enabled / disabled.
+ *
+ * @param index		Regulator ID
+ * @param enable	Set to enable / disable the regulator
+ * @return		0 on success, -1 on error
+ */
+int google_chromeec_regulator_enable(uint32_t index, uint8_t enable);
+
+/**
+ * Query if the regulator is enabled.
+ *
+ * @param index		Regulator ID
+ * @param *enabled	If successful, enabled indicates enable/disable status.
+ * @return		0 on success, -1 on error
+ */
+int google_chromeec_regulator_is_enabled(uint32_t index, uint8_t *enabled);
+
+/**
  * Set voltage for the voltage regulator within the range specified.
+ *
  * @param index		Regulator ID
  * @param min_mv	Minimum voltage
  * @param max_mv	Maximum voltage
@@ -365,6 +385,7 @@ int google_chromeec_regulator_set_voltage(uint32_t index, uint32_t min_mv,
 
 /**
  * Get the currently configured voltage for the voltage regulator.
+ *
  * @param index		Regulator ID
  * @param *voltage_mv	If successful, voltage_mv is filled with current voltage
  * @return		0 on success, -1 on error

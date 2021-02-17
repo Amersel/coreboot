@@ -1,35 +1,30 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <amdblocks/acpimmio_map.h>
+#include <amdblocks/acpimmio.h>
+#include <amdblocks/ioapic.h>
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
 #include <device/smbus.h>
 #include <device/smbus_host.h>
 #include <arch/ioapic.h>
-#include <soc/southbridge.h>
-
-/*
-* The southbridge enables all USB controllers by default in SMBUS Control.
-* The southbridge enables SATA by default in SMBUS Control.
-*/
 
 static void sm_init(struct device *dev)
 {
-	setup_ioapic(VIO_APIC_VADDR, CONFIG_MAX_CPUS);
+	fch_enable_ioapic_decode();
+	setup_ioapic(VIO_APIC_VADDR, FCH_IOAPIC_ID);
+	fch_configure_hpet();
 }
 
 static u32 get_sm_mmio(struct device *dev)
 {
-	struct resource *res;
-	struct bus *pbus;
-
-	pbus = get_pbus_smbus(dev);
-	res = find_resource(pbus->dev, 0x90);
-	if (res->base == SMB_BASE_ADDR)
-		return ACPIMMIO_SMBUS_BASE;
-
-	return ACPIMMIO_ASF_BASE;
+	/*
+	 * Since SMBus and ASF controller are behind the same PCIe device, we don't know behind
+	 * which controller a device is. We assume here that the devices are behind the SMBus
+	 * controller. The proper solution would be to handle those as MMIO devices instead of
+	 * PCI ones.
+	 */
+	return (uintptr_t)acpimmio_smbus;
 }
 
 static int lsmbus_recv_byte(struct device *dev)

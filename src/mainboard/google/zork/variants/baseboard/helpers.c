@@ -40,12 +40,15 @@ enum {
 	/* SD controller type */
 	FW_CONFIG_MASK_SD_CTRLR = 0x7,
 	FW_CONFIG_SHIFT_SD_CTRLR = 20,
-	/* SPI speed value */
-	FW_CONFIG_MASK_SPI_SPEED = 0xf,
-	FW_CONFIG_SHIFT_SPI_SPEED = 23,
+	/* SAR presence */
+	FW_CONFIG_MASK_SAR = 0x7,
+	FW_CONFIG_SHIFT_SAR = 23,
 	/* Fan information */
 	FW_CONFIG_MASK_FAN = 0x3,
 	FW_CONFIG_SHIFT_FAN = 27,
+	/* WWAN presence */
+	FW_CONFIG_MASK_WWAN = 0x1,
+	FW_CONFIG_SHIFT_WWAN = 29,
 };
 
 static int get_fw_config(uint64_t *val)
@@ -78,6 +81,11 @@ static unsigned int extract_field(uint64_t mask, int shift)
 	return (fw_config >> shift) & mask;
 }
 
+int variant_gets_sar_config(void)
+{
+	return extract_field(FW_CONFIG_MASK_SAR, FW_CONFIG_SHIFT_SAR);
+}
+
 int variant_has_emmc(void)
 {
 	return !!extract_field(FW_CONFIG_MASK_EMMC, FW_CONFIG_SHIFT_EMMC);
@@ -86,6 +94,11 @@ int variant_has_emmc(void)
 int variant_has_nvme(void)
 {
 	return !!extract_field(FW_CONFIG_MASK_NVME, FW_CONFIG_SHIFT_NVME);
+}
+
+int variant_has_wwan(void)
+{
+	return !!extract_field(FW_CONFIG_MASK_WWAN, FW_CONFIG_SHIFT_WWAN);
 }
 
 bool variant_uses_v3_schematics(void)
@@ -148,4 +161,32 @@ bool variant_has_active_low_wifi_power(void)
 int variant_get_daughterboard_id(void)
 {
 	return extract_field(FW_CONFIG_MASK_DB_INDEX, FW_CONFIG_DB_INDEX_SHIFT);
+}
+
+bool variant_has_fingerprint(void)
+{
+	if (CONFIG(VARIANT_HAS_FPMCU))
+		return true;
+
+	return false;
+}
+
+bool fpmcu_needs_delay(void)
+{
+	/*
+	 *  Older board versions need an extra delay here to finish resetting
+	 *  the FPMCU.  The resistor value in the glitch prevention circuit was
+	 *  sized so that the FPMCU doesn't turn of for ~1 second.  On newer
+	 *  boards, that's been updated to ~30ms, which allows the FPMCU's
+	 *  reset to be completed in the time between bootblock and finalize.
+	 */
+	uint32_t board_version;
+
+	if (google_chromeec_cbi_get_board_version(&board_version))
+		board_version = 1;
+
+	if (board_version <= CONFIG_VARIANT_MAX_BOARD_ID_BROKEN_FMPCU_POWER)
+		return true;
+
+	return false;
 }

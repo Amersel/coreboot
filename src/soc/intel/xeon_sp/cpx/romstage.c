@@ -60,6 +60,9 @@ void save_dimm_info(void)
 		return;
 	}
 	memset(mem_info, 0, sizeof(*mem_info));
+	/* According to Dear Customer Letter it's 1.12 TB per processor. */
+	mem_info->max_capacity_mib = 1.12 * MiB * CONFIG_MAX_SOCKET;
+	mem_info->number_of_devices = CONFIG_DIMM_MAX;
 	dimm_max = ARRAY_SIZE(mem_info->dimm);
 	vdd_voltage = get_ddr_voltage(hob->DdrVoltage);
 	/* For now only implement for one socket and hard-coded for DDR4 */
@@ -162,6 +165,9 @@ void platform_fsp_memory_init_params_cb(FSPM_UPD *mupd, uint32_t version)
 	/* Enable VT-d according to DTB */
 	m_cfg->VtdSupport = config->vtd_support;
 	m_cfg->X2apic = config->x2apic;
+
+	/* Disable ISOC */
+	m_cfg->isocEn = 0;
 
 	mainboard_memory_init_params(mupd);
 }

@@ -6,9 +6,8 @@
 #include <cpu/x86/msr.h>
 #include <hob_iiouds.h>
 
-void get_cpubusnos(uint32_t *bus0, uint32_t *bus1, uint32_t *bus2, uint32_t *bus3);
 void unlock_pam_regions(void);
-void get_stack_busnos(uint32_t *bus);
+uint8_t get_stack_busno(const uint8_t stack);
 msr_t read_msr_ppin(void);
 int get_threads_per_package(void);
 int get_platform_thread_count(void);
@@ -16,6 +15,7 @@ const IIO_UDS *get_iio_uds(void);
 unsigned int soc_get_num_cpus(void);
 void xeonsp_init_cpu_config(void);
 void set_bios_init_completion(void);
+uint8_t soc_get_iio_ioapicid(int socket, int stack);
 
 struct iiostack_resource {
 	uint8_t     no_of_stacks;

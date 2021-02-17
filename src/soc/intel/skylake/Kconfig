@@ -30,23 +30,25 @@ config CPU_SPECIFIC_OPTIONS
 	select GENERIC_GPIO_LIB
 	select HAVE_FSP_GOP
 	select HAVE_FSP_LOGO_SUPPORT
-	select INTEL_DESCRIPTOR_MODE_CAPABLE
+	select HAVE_INTEL_FSP_REPO
+	select INTEL_CAR_NEM_ENHANCED
 	select HAVE_SMI_HANDLER
+	select INTEL_DESCRIPTOR_MODE_CAPABLE
 	select INTEL_GMA_ACPI
 	select INTEL_GMA_ADD_VBT if RUN_FSP_GOP
-	select HAVE_INTEL_FSP_REPO
 	select IOAPIC
 	select MRC_SETTINGS_PROTECT
 	select PARALLEL_MP
 	select PARALLEL_MP_AP_WORK
 	select PLATFORM_USES_FSP2_0
-	select REG_SCRIPT
-	select SA_ENABLE_DPR
 	select PM_ACPI_TIMER_OPTIONAL
 	select PMC_GLOBAL_RESET_ENABLE_LOCK
+	select REG_SCRIPT
+	select SA_ENABLE_DPR
 	select SOC_INTEL_COMMON
 	select SOC_INTEL_COMMON_ACPI_WAKE_SOURCE
 	select SOC_INTEL_COMMON_BLOCK
+	select SOC_INTEL_COMMON_BLOCK_ACPI_LPIT
 	select SOC_INTEL_COMMON_BLOCK_CAR
 	select SOC_INTEL_COMMON_BLOCK_CHIP_CONFIG
 	select SOC_INTEL_COMMON_BLOCK_CPU
@@ -55,6 +57,7 @@ config CPU_SPECIFIC_OPTIONS
 	select SOC_INTEL_COMMON_BLOCK_GPIO_PADCFG_PADTOL
 	select SOC_INTEL_COMMON_BLOCK_GSPI
 	select SOC_INTEL_COMMON_BLOCK_HDA
+	select SOC_INTEL_COMMON_BLOCK_PMC_DISCOVERABLE
 	select SOC_INTEL_COMMON_BLOCK_SA
 	select SOC_INTEL_COMMON_BLOCK_SCS
 	select SOC_INTEL_COMMON_BLOCK_SGX
@@ -76,7 +79,10 @@ config CPU_SPECIFIC_OPTIONS
 	select TSC_SYNC_MFENCE
 	select UDELAY_TSC
 	select UDK_2015_BINDING
-	select USE_CAR_NEM_ENHANCED_V1
+
+config MAX_CPUS
+	int
+	default 8
 
 config FSP_HYPERTHREADING
 	bool "Enable Hyper-Threading"
@@ -85,9 +91,6 @@ config FSP_HYPERTHREADING
 config CPU_INTEL_NUM_FIT_ENTRIES
 	int
 	default 10
-
-config CHROMEOS
-	select CHROMEOS_RAMOOPS_DYNAMIC
 
 config VBOOT
 	select VBOOT_SEPARATE_VERSTAGE
@@ -117,10 +120,6 @@ config DCACHE_BSP_STACK_SIZE
 	help
 	  The amount of anticipated stack usage in CAR by bootblock and
 	  other stages.
-
-config C_ENV_BOOTBLOCK_SIZE
-	hex
-	default 0xC000
 
 config EXCLUDE_NATIVE_SD_INTERFACE
 	bool
@@ -159,6 +158,12 @@ config SKYLAKE_SOC_PCH_H
 	default n
 	help
 	  Choose this option if you have a PCH-H chipset.
+
+config NHLT_DMIC_1CH
+	bool
+	default n
+	help
+	  Include DSP firmware settings for 1 channel DMIC array.
 
 config NHLT_DMIC_2CH
 	bool
@@ -274,6 +279,10 @@ config SOC_INTEL_COMMON_LPSS_UART_CLK_M_VAL
 config SOC_INTEL_COMMON_LPSS_UART_CLK_N_VAL
 	hex
 	default 0xc35
+
+config CHIPSET_DEVICETREE
+	string
+	default "soc/intel/skylake/chipset.cb"
 
 config IFD_CHIPSET
 	string
