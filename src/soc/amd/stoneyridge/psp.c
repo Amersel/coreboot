@@ -3,6 +3,7 @@
 #include <console/console.h>
 #include <device/pci_ops.h>
 #include <device/pci_def.h>
+#include <cpu/amd/msr.h>
 #include <cpu/x86/msr.h>
 #include <soc/pci_devs.h>
 #include <soc/northbridge.h>
@@ -44,9 +45,9 @@ void *soc_get_mbox_address(void)
 	/* Determine if Bar3Hide has been set, and if hidden get the base from
 	 * the MSR instead. */
 	if (pci_read_config32(SOC_PSP_DEV, PSP_BAR_ENABLES) & BAR3HIDE) {
-		psp_mmio = rdmsr(MSR_PSP_ADDR).lo;
+		psp_mmio = rdmsr(PSP_ADDR_MSR).lo;
 		if (!psp_mmio) {
-			printk(BIOS_WARNING, "PSP: BAR hidden, MSR_PSP_ADDR uninitialized\n");
+			printk(BIOS_WARNING, "PSP: BAR hidden, PSP_ADDR_MSR uninitialized\n");
 			return 0;
 		}
 	} else {

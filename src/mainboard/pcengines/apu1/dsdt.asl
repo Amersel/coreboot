@@ -13,8 +13,6 @@ DefinitionBlock (
 {	/* Start of ASL file */
 	#include <acpi/dsdt_top.asl>
 
-	#include "acpi/mainboard.asl"
-
 	#include <cpu/amd/agesa/family14/acpi/cpu.asl>
 
 	#include "acpi/routing.asl"
@@ -41,6 +39,7 @@ DefinitionBlock (
 	#include "acpi/sleep.asl"
 
 	#include "acpi/gpe.asl"
+	#include "acpi/usb_oc.asl"
 
 	/* Contains the GPIO led and button setup for this board */
 	#include "acpi/buttons.asl"

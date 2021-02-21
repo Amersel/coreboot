@@ -13,8 +13,6 @@ DefinitionBlock (
 {	/* Start of ASL file */
 	#include <acpi/dsdt_top.asl>
 
-	#include "acpi/mainboard.asl"
-
 	#include <cpu/amd/agesa/family14/acpi/cpu.asl>
 
 	#include "acpi/routing.asl"
@@ -43,5 +41,6 @@ DefinitionBlock (
 	#include "acpi/sleep.asl"
 
 	#include "acpi/gpe.asl"
+	#include "acpi/usb_oc.asl"
 }
 /* End of ASL file */

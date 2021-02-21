@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <assert.h>
 #include <device/pci_ops.h>
+#include <delay.h>
 #include <console/console.h>
 #include <crc_byte.h>
 #include <device/smbus_host.h>
@@ -68,6 +70,35 @@ struct eeprom_board_settings *get_board_settings(void)
 	return checked_valid > 0 ? &board_cfg : NULL;
 }
 
+struct eeprom_bmc_settings *get_bmc_settings(void)
+{
+	const size_t bmc_settings_offset = offsetof(struct eeprom_layout, BMCSettings);
+	static struct eeprom_bmc_settings bmc_cfg = {0};
+
+	/* 0: uninitialized, 1: settings are valid */
+	static int valid = 0;
+
+	if (valid == 0) {
+		if (read_write_config(&bmc_cfg, bmc_settings_offset, 0, sizeof(bmc_cfg))) {
+			printk(BIOS_ERR, "CFG EEPROM: Failed to read BMC settings\n");
+			return NULL;
+		}
+		valid = 1;
+	}
+	return &bmc_cfg;
+}
+
+uint8_t get_bmc_hsi(void)
+{
+	uint8_t hsi = 0;
+	struct eeprom_bmc_settings *s = get_bmc_settings();
+	if (s)
+		hsi = s->hsi;
+	printk(BIOS_DEBUG, "CFG EEPROM: HSI 0x%x\n", hsi);
+
+	return hsi;
+}
+
 /* Read data from offset and write it to offset in UPD */
 bool read_write_config(void *blob, size_t read_offset, size_t write_offset, size_t size)
 {
@@ -105,4 +136,81 @@ bool read_write_config(void *blob, size_t read_offset, size_t write_offset, size
 void report_eeprom_error(const size_t off)
 {
 	printk(BIOS_ERR, "MB: Failed to read from EEPROM at addr. 0x%zx\n", off);
+}
+
+/*
+ * Write a single byte into the EEPROM at specified offset.
+ * Returns true on error, false on success.
+ */
+static bool write_byte_eeprom(const uint8_t data, const uint16_t write_offset)
+{
+	int ret = 0;
+
+	printk(BIOS_SPEW, "CFG EEPROM: Writing %x at %x\n", data, write_offset);
+
+	const uint32_t smb_ctrl_reg = pci_read_config32(PCH_DEV_SMBUS, HOSTC);
+	pci_write_config32(PCH_DEV_SMBUS, HOSTC, smb_ctrl_reg | I2C_EN);
+
+	/*
+	 * The EEPROM expects two address bytes.
+	 * Use the first byte of the block data as second address byte.
+	 */
+	uint8_t buffer[2] = {
+		write_offset & 0xff,
+		data,
+	};
+
+	for (size_t retry = 3; retry > 0; retry--) {
+		/* The EEPROM NACKs request when busy writing */
+		ret = do_smbus_block_write(SMBUS_IO_BASE, I2C_ADDR_EEPROM,
+					   (write_offset >> 8) & 0xff,
+					   sizeof(buffer), buffer);
+		if (ret == sizeof(buffer))
+			break;
+		/* Maximum of 5 milliseconds write duration */
+		mdelay(5);
+	}
+
+	/* Restore I2C_EN bit */
+	pci_write_config32(PCH_DEV_SMBUS, HOSTC, smb_ctrl_reg);
+
+	return ret != sizeof(buffer);
+}
+
+/*
+ * Write board layout if it has changed into EEPROM.
+ * Return true on error, false on success.
+ */
+bool write_board_settings(const struct eeprom_board_layout *new_layout)
+{
+	const size_t off = offsetof(struct eeprom_layout, BoardLayout);
+	struct eeprom_board_layout old_layout = {0};
+	bool ret = false;
+	bool changed = false;
+
+	/* Read old settings */
+	if (read_write_config(&old_layout, off, 0, sizeof(old_layout))) {
+		printk(BIOS_ERR, "CFG EEPROM: Read operation failed\n");
+		return true;
+	}
+
+	assert(sizeof(old_layout) == sizeof(*new_layout));
+	const uint8_t *const old = (const uint8_t *)&old_layout;
+	const uint8_t *const new = (const uint8_t *)new_layout;
+
+	/* Compare with new settings and only write changed bytes */
+	for (size_t i = 0; i < sizeof(old_layout); i++) {
+		if (old[i] != new[i]) {
+			changed = true;
+			if (write_byte_eeprom(new[i], off + i)) {
+				printk(BIOS_ERR, "CFG EEPROM: Write operation failed\n");
+				ret = true;
+				break;
+			}
+		}
+	}
+
+	printk(BIOS_DEBUG, "CFG EEPROM: Board Layout up%s\n", changed ? "dated" : " to date");
+
+	return ret;
 }

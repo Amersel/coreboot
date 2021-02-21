@@ -13,9 +13,6 @@ DefinitionBlock (
 {	/* Start of ASL file */
 	#include <acpi/dsdt_top.asl>
 
-	/* Globals for the platform */
-	#include "acpi/mainboard.asl"
-
 	/* Describe the USB Overcurrent pins */
 	#include "acpi/usb_oc.asl"
 
@@ -81,9 +78,5 @@ DefinitionBlock (
 
 	/* Define the Thermal zones and methods for the platform */
 	#include "acpi/thermal.asl"
-
-	/* Define the System Indicators for the platform */
-	#include "acpi/si.asl"
-
 }
 /* End of ASL file */

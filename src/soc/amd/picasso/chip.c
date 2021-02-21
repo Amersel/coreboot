@@ -25,30 +25,13 @@ struct device_operations cpu_bus_ops = {
 	.acpi_fill_ssdt   = generate_cpu_entries,
 };
 
-const char *soc_acpi_name(const struct device *dev)
+static const char *soc_acpi_name(const struct device *dev)
 {
 	if (dev->path.type == DEVICE_PATH_DOMAIN)
 		return "PCI0";
 
 	if (dev->path.type != DEVICE_PATH_PCI)
 		return NULL;
-
-	if (dev->bus->dev->path.type == DEVICE_PATH_DOMAIN) {
-		switch (dev->path.pci.devfn) {
-		case GNB_DEVFN:
-			return "GNB";
-		case IOMMU_DEVFN:
-			return "IOMM";
-		case LPC_DEVFN:
-			return "LPCB";
-		case SMBUS_DEVFN:
-			return "SBUS";
-		default:
-			printk(BIOS_WARNING, "Unknown root PCI device: dev: %d, fn: %d\n",
-			       PCI_SLOT(dev->path.pci.devfn), PCI_FUNC(dev->path.pci.devfn));
-			return NULL;
-		}
-	}
 
 	printk(BIOS_WARNING, "Unknown PCI device: dev: %d, fn: %d\n",
 	       PCI_SLOT(dev->path.pci.devfn), PCI_FUNC(dev->path.pci.devfn));
