@@ -16,6 +16,7 @@ This section contains documentation about coreboot on specific mainboards.
 
 ## ASUS
 
+- [A88XM-E](asus/a88xm-e.md)
 - [F2A85-M](asus/f2a85-m.md)
 - [P5Q](asus/p5q.md)
 - [P8H61-M LX](asus/p8h61-m_lx.md)
@@ -76,6 +77,10 @@ The boards in this section are not real mainboards, but emulators.
 - [IceLake RVP](intel/icelake_rvp.md)
 - [KBLRVP11](intel/kblrvp11.md)
 
+## Kontron
+
+- [mAL-10](kontron/mal10.md)
+
 ## Lenovo
 
 - [Mainboard codenames](lenovo/codenames.md)
@@ -85,14 +90,14 @@ The boards in this section are not real mainboards, but emulators.
 - [X2xx common](lenovo/x2xx_series.md)
 - [vboot](lenovo/vboot.md)
 
-### Arrandale series
-
-- [T410](lenovo/t410.md)
-
 ### GM45 series
 
 - [X200 / T400 / T500 / X301 common](lenovo/montevina_series.md)
 - [X301](lenovo/x301.md)
+
+### Arrandale series
+
+- [T410](lenovo/t410.md)
 
 ### Sandy Bridge series
 
@@ -171,6 +176,11 @@ The boards in this section are not real mainboards, but emulators.
 ## System76
 
 - [Lemur Pro](system76/lemp9.md)
+- [Oryx Pro 5](system76/oryp5.md)
+
+## Texas Instruments
+
+- [Beaglebone Black](ti/beaglebone-black.md)
 
 ## UP
 

@@ -26,20 +26,20 @@ config CPU_SPECIFIC_OPTIONS
 	select INTEL_GMA_ACPI
 	select INTEL_GMA_ADD_VBT if RUN_FSP_GOP
 	select IOAPIC
+	select MP_SERVICES_PPI_V1
 	select MRC_SETTINGS_PROTECT
 	select PARALLEL_MP
 	select PARALLEL_MP_AP_WORK
 	select MICROCODE_BLOB_UNDISCLOSED
-	select PLATFORM_USES_FSP2_2
-	select FSP_PEIM_TO_PEIM_INTERFACE
+	select PLATFORM_USES_FSP2_1
 	select REG_SCRIPT
 	select PMC_GLOBAL_RESET_ENABLE_LOCK
 	select PMC_LOW_POWER_MODE_PROGRAM
-	select CPU_INTEL_COMMON_SMM
 	select SOC_INTEL_COMMON
 	select SOC_INTEL_COMMON_ACPI_WAKE_SOURCE
 	select SOC_INTEL_COMMON_BLOCK
 	select SOC_INTEL_COMMON_BLOCK_ACPI
+	select SOC_INTEL_COMMON_BLOCK_ACPI_LPIT
 	select SOC_INTEL_COMMON_BLOCK_CAR
 	select SOC_INTEL_COMMON_BLOCK_CHIP_CONFIG
 	select SOC_INTEL_COMMON_BLOCK_CPU
@@ -61,29 +61,31 @@ config CPU_SPECIFIC_OPTIONS
 	select UDELAY_TSC
 	select UDK_202005_BINDING
 	select DISPLAY_FSP_VERSION_INFO
-	select HECI_DISABLE_USING_SMM
+
+config MAX_CPUS
+	int
+	default 4
 
 config DCACHE_RAM_BASE
 	default 0xfef00000
 
 config DCACHE_RAM_SIZE
-	default 0x80000
+	default 0xc0000
 	help
 	  The size of the cache-as-ram region required during bootblock
 	  and/or romstage.
 
 config DCACHE_BSP_STACK_SIZE
 	hex
-	default 0x30400
+	default 0x30000
 	help
 	  The amount of anticipated stack usage in CAR by bootblock and
-	  other stages. In the case of FSP_USES_CB_STACK default value
-	  will be sum of FSP-M stack requirement(192 KiB) and CB romstage
-	  stack requirement(~1KiB).
+	  other stages. In the case of FSP_USES_CB_STACK default value will be
+	  sum of FSP-M stack requirement (192KiB) and CB romstage stack requirement (~1KiB).
 
 config FSP_TEMP_RAM_SIZE
 	hex
-	default 0x20000
+	default 0x40000
 	help
 	  The amount of anticipated heap usage in CAR by FSP.
 	  Refer to Platform FSP integration guide document to know
@@ -95,7 +97,7 @@ config IFD_CHIPSET
 
 config IED_REGION_SIZE
 	hex
-	default 0x400000
+	default 0x0
 
 config HEAP_SIZE
 	hex
@@ -103,7 +105,7 @@ config HEAP_SIZE
 
 config MAX_ROOT_PORTS
 	int
-	default 8
+	default 7
 
 config MAX_PCIE_CLOCKS
 	int
@@ -111,7 +113,7 @@ config MAX_PCIE_CLOCKS
 
 config SMM_TSEG_SIZE
 	hex
-	default 0x800000
+	default 0x1000000
 
 config SMM_RESERVED_SIZE
 	hex
@@ -124,7 +126,6 @@ config PCR_BASE_ADDRESS
 	  This option allows you to select MMIO Base Address of sideband bus.
 
 config MMCONF_BASE_ADDRESS
-	hex
 	default 0xc0000000
 
 config CPU_BCLK_MHZ
@@ -148,7 +149,7 @@ config SOC_INTEL_COMMON_BLOCK_GSPI_MAX
 
 config SOC_INTEL_I2C_DEV_MAX
 	int
-	default 6
+	default 8
 
 config SOC_INTEL_UART_DEV_MAX
 	int
@@ -156,7 +157,7 @@ config SOC_INTEL_UART_DEV_MAX
 
 config CONSOLE_UART_BASE_ADDRESS
 	hex
-	default 0xfe032000
+	default 0xfe042000
 	depends on INTEL_LPSS_UART_FOR_CONSOLE
 
 # Clock divider parameters for 115200 baud rate
@@ -170,19 +171,12 @@ config SOC_INTEL_COMMON_LPSS_UART_CLK_N_VAL
 	hex
 	default 0xc35
 
-config CHROMEOS
-	select CHROMEOS_RAMOOPS_DYNAMIC
-
 config VBOOT
 	select VBOOT_SEPARATE_VERSTAGE
 	select VBOOT_MUST_REQUEST_DISPLAY
 	select VBOOT_STARTS_IN_BOOTBLOCK
 	select VBOOT_VBNV_CMOS
 	select VBOOT_VBNV_CMOS_BACKUP_TO_FLASH
-
-config C_ENV_BOOTBLOCK_SIZE
-	hex
-	default 0xC000
 
 config CBFS_SIZE
 	hex

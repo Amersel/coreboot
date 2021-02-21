@@ -304,7 +304,7 @@ static void southbridge_smi_store(
 	reg_ebx = save_state_ops->get_reg(io_smi, RBX);
 
 	/* drivers/smmstore/smi.c */
-	ret = smmstore_exec(sub_command, (void *)reg_ebx);
+	ret = smmstore_exec(sub_command, (void *)(uintptr_t)reg_ebx);
 	save_state_ops->set_reg(io_smi, RAX, ret);
 }
 
@@ -330,55 +330,14 @@ void smihandler_southbridge_apmc(
 	const struct smm_save_state_ops *save_state_ops)
 {
 	uint8_t reg8;
-	void *state = NULL;
-	static int smm_initialized = 0;
 
-	/* Emulate B2 register as the FADT / Linux expects it */
-
-	reg8 = inb(APM_CNT);
+	reg8 = apm_get_apmc();
 	switch (reg8) {
-	case APM_CNT_CST_CONTROL:
-		/*
-		 * Calling this function seems to cause
-		 * some kind of race condition in Linux
-		 * and causes a kernel oops
-		 */
-		printk(BIOS_DEBUG, "C-state control\n");
-		break;
-	case APM_CNT_PST_CONTROL:
-		/*
-		 * Calling this function seems to cause
-		 * some kind of race condition in Linux
-		 * and causes a kernel oops
-		 */
-		printk(BIOS_DEBUG, "P-state control\n");
-		break;
 	case APM_CNT_ACPI_DISABLE:
 		pmc_disable_pm1_control(SCI_EN);
-		printk(BIOS_DEBUG, "SMI#: ACPI disabled.\n");
 		break;
 	case APM_CNT_ACPI_ENABLE:
 		pmc_enable_pm1_control(SCI_EN);
-		printk(BIOS_DEBUG, "SMI#: ACPI enabled.\n");
-		break;
-	case APM_CNT_GNVS_UPDATE:
-		if (smm_initialized) {
-			printk(BIOS_DEBUG,
-			       "SMI#: SMM structures already initialized!\n");
-			return;
-		}
-		state = find_save_state(save_state_ops, reg8);
-		if (state) {
-			/* EBX in the state save contains the GNVS pointer */
-			uint32_t reg_ebx = save_state_ops->get_reg(state, RBX);
-			gnvs = (struct global_nvs *)(uintptr_t)reg_ebx;
-			if (smm_points_to_smram(gnvs, sizeof(*gnvs))) {
-				printk(BIOS_ERR, "SMI#: ERROR: GNVS overlaps SMM\n");
-				return;
-			}
-			smm_initialized = 1;
-			printk(BIOS_DEBUG, "SMI#: Setting GNVS to %p\n", gnvs);
-		}
 		break;
 	case APM_CNT_ELOG_GSMI:
 		if (CONFIG(ELOG_GSMI))
@@ -409,7 +368,7 @@ void smihandler_southbridge_pm1(
 	if ((pm1_sts & PWRBTN_STS) && (pm1_en & PWRBTN_EN)) {
 		/* power button pressed */
 		elog_gsmi_add_event(ELOG_TYPE_POWER_BUTTON);
-		pmc_disable_pm1_control(-1UL);
+		pmc_disable_pm1_control(~0);
 		pmc_enable_pm1_control(SLP_EN | (SLP_TYP_S5 << SLP_TYP_SHIFT));
 	}
 }

@@ -1,5 +1,5 @@
 /**
-Copyright (c) 2019-2020, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2019-2021, Intel Corporation. All rights reserved.<BR>
 
 Redistribution and use in source and binary forms, with or without modification,
 are permitted provided that the following conditions are met:
@@ -127,6 +127,7 @@ typedef struct DimmDevice {
 	UINT8    EnergyType;
 	UINT8    reserved10[1];
 	UINT16   SPDRegVen;				    // Register Vendor ID in SPD
+	UINT8    CidBitMap;          // SubRankPer CS for DIMM device
 } MEMMAP_DIMM_DEVICE_INFO_STRUCT;
 
 struct ChannelDevice {
@@ -159,7 +160,7 @@ typedef struct SystemMemoryMapHob {
   UINT8    NumChPerMC;
   UINT8    numberEntries;                         // Number of Memory Map Elements
   SYSTEM_MEMORY_MAP_ELEMENT Element[(MAX_SOCKET * MAX_DRAM_CLUSTERS * MAX_SAD_RULES) + MAX_FPGA_REMOTE_SAD_RULES];
-  UINT8    reserved5[2216];
+  UINT8    reserved5[2249];
   MEMMAP_SOCKET Socket[MAX_SOCKET];
   UINT8    reserved6[1603];
 

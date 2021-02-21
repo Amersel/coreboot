@@ -9,7 +9,6 @@
 #include <arch/smp/mpspec.h>
 #include <assert.h>
 #include <device/pci_ops.h>
-#include <cbmem.h>
 #include <gpio.h>
 #include <intelblocks/acpi.h>
 #include <intelblocks/pmclib.h>
@@ -20,7 +19,6 @@
 #include <soc/nvs.h>
 #include <soc/pci_devs.h>
 #include <soc/systemagent.h>
-#include <string.h>
 
 #include "chip.h"
 
@@ -72,28 +70,10 @@ acpi_cstate_t *soc_get_cstate_map(size_t *entries)
 	return cstate_map;
 }
 
-void acpi_create_gnvs(struct global_nvs *gnvs)
+void soc_fill_gnvs(struct global_nvs *gnvs)
 {
 	struct soc_intel_apollolake_config *cfg;
 	cfg = config_of_soc();
-
-	/* Clear out GNVS. */
-	memset(gnvs, 0, sizeof(*gnvs));
-
-	if (CONFIG(CONSOLE_CBMEM))
-		gnvs->cbmc = (uintptr_t) cbmem_find(CBMEM_ID_CONSOLE);
-
-	if (CONFIG(CHROMEOS)) {
-		/* Initialize Verified Boot data */
-		chromeos_init_chromeos_acpi(&gnvs->chromeos);
-		gnvs->chromeos.vbt2 = ACTIVE_ECFW_RO;
-	}
-
-	/* Set unknown wake source */
-	gnvs->pm1i = ~0ULL;
-
-	/* CPU core count */
-	gnvs->pcnt = dev_count_cpu();
 
 	/* Enable DPTF based on mainboard configuration */
 	gnvs->dpte = cfg->dptf_enable;

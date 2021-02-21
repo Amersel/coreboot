@@ -16,6 +16,7 @@ fw_config
 		option MAX98373_ALC5682_SNDW 3
 		option MAX98373_ALC5682I_I2S_UP4 4
 		option MAX98360_ALC5682I_I2S 5
+		option RT1011_ALC5682I_I2S 6
 	end
 	field TABLETMODE 11
 		option TABLETMODE_DISABLED 0
@@ -37,10 +38,29 @@ fw_config
 		option SD_ABSENT 0
 		option SD_GL9755S 1
 		option SD_RTS5261 2
+		option SD_RTS5227S 3
+		option SD_GL9750 4
+		option SD_OZ711LV2LN 5
 	end
 	field KB_LAYOUT 20 21
 		option KB_LAYOUT_DEFAULT 0
 		option KB_LAYOUT_1 1
+	end
+	field BOOT_DEVICE_EMMC 22
+		option BOOT_EMMC_DISABLED 0
+		option BOOT_EMMC_ENABLED 1
+	end
+	field BOOT_DEVICE_NVME 23
+		option BOOT_NVME_DISABLED 0
+		option BOOT_NVME_ENABLED 1
+	end
+	field BOOT_DEVICE_SATA 24
+		option BOOT_SATA_DISABLED 0
+		option BOOT_SATA_ENABLED 1
+	end
+	field TOUCHPAD 25
+		option REGULAR_TOUCHPAD 0
+		option NUMPAD_TOUCHPAD 1
 	end
 end
 
@@ -205,16 +225,9 @@ chip soc/intel/tigerlake
 	register "PchHdaAudioLinkSndwEnable[1]" = "0"
 
 	# TCSS USB3
+	register "UsbTcPortEn" = "0x3"
 	register "TcssXhciEn" = "1"
 	register "TcssAuxOri" = "0"
-	register "IomTypeCPortPadCfg[0]" = "0x09000000"
-	register "IomTypeCPortPadCfg[1]" = "0x09000000"
-	register "IomTypeCPortPadCfg[2]" = "0x09000000"
-	register "IomTypeCPortPadCfg[3]" = "0x09000000"
-	register "IomTypeCPortPadCfg[4]" = "0x09000000"
-	register "IomTypeCPortPadCfg[5]" = "0x09000000"
-	register "IomTypeCPortPadCfg[6]" = "0x09000000"
-	register "IomTypeCPortPadCfg[7]" = "0x09000000"
 
 	# DP port
 	register "DdiPortAConfig" = "1"	# eDP
@@ -241,6 +254,15 @@ chip soc/intel/tigerlake
 
 	# Enable DPTF
 	register "dptf_enable" = "1"
+
+	# Enable External Bypass
+	register "external_bypass" = "1"
+
+	# Enable External Clk Gate
+	register "external_clk_gated" = "1"
+
+	# Enable External Phy Gate
+	register "external_phy_gated" = "1"
 
 	register "power_limits_config[POWER_LIMITS_U_2_CORE]" = "{
 		.tdp_pl1_override = 15,
@@ -385,7 +407,7 @@ chip soc/intel/tigerlake
 						.time_window_min = 28 * MSECS_PER_SEC,
 						.time_window_max = 32 * MSECS_PER_SEC,
 						.granularity = 200,},
-					.pl2 = {.min_power = 15000,
+					.pl2 = {.min_power = 60000,
 						.max_power = 60000,
 						.time_window_min = 28 * MSECS_PER_SEC,
 						.time_window_max = 32 * MSECS_PER_SEC,
@@ -448,6 +470,9 @@ chip soc/intel/tigerlake
 				device generic 0 on end
 			end
 		end
+		# MIPI camera devices are on I2C buses 2 and 3
+		device ref i2c2 on end
+		device ref i2c3 on end
 		device ref heci1 on end
 		device ref sata on end
 		device ref pcie_rp1 on end
@@ -455,12 +480,18 @@ chip soc/intel/tigerlake
 		device ref pcie_rp8 on
 			probe DB_SD SD_GL9755S
 			probe DB_SD SD_RTS5261
+			probe DB_SD SD_RTS5227S
+			probe DB_SD SD_GL9750
+			probe DB_SD SD_OZ711LV2LN
 			chip soc/intel/common/block/pcie/rtd3
 				register "enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPP_D16)"
 				register "reset_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPP_H3)"
 				register "srcclk_pin" = "3"
 				device generic 0 on
 					probe DB_SD SD_GL9755S
+					probe DB_SD SD_RTS5227S
+					probe DB_SD SD_GL9750
+					probe DB_SD SD_OZ711LV2LN
 				end
 			end
 			chip soc/intel/common/block/pcie/rtd3
@@ -498,6 +529,12 @@ chip soc/intel/tigerlake
 				device pnp 0c09.0 on end
 			end
 		end
-		device ref hda on end
+		device ref hda on
+			probe AUDIO MAX98357_ALC5682I_I2S
+			probe AUDIO MAX98373_ALC5682I_I2S
+			probe AUDIO MAX98373_ALC5682_SNDW
+			probe AUDIO MAX98373_ALC5682I_I2S_UP4
+			probe AUDIO MAX98360_ALC5682I_I2S
+		end
 	end
 end

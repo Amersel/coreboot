@@ -8,7 +8,6 @@
 #include <soc/gpio.h>
 #include <soc/smi.h>
 #include <stdlib.h>
-#include <boardid.h>
 #include <variant/gpio.h>
 
 static const struct soc_amd_gpio gpio_set_stage_ram[] = {
@@ -32,8 +31,8 @@ static const struct soc_amd_gpio gpio_set_stage_ram[] = {
 	PAD_NF(GPIO_8, ACP_I2S_LRCLK, PULL_NONE),
 	/* TOUCHPAD_INT_ODL */
 	PAD_SCI(GPIO_9, PULL_NONE, EDGE_LOW),
-	/* S0iX SLP - (unused - goes to EC & FPMCU */
-	PAD_NC(GPIO_10),
+	/* S0iX SLP - goes to EC & FPMCU */
+	PAD_GPO(GPIO_10, HIGH),
 	/* USI_INT_ODL */
 	PAD_GPI(GPIO_12, PULL_NONE),
 	/* EN_PWR_TOUCHPAD_PS2 */
@@ -99,8 +98,8 @@ static const struct soc_amd_gpio gpio_set_stage_ram[] = {
 	/* GPIO_77 - GPIO_83: Not available */
 	/* RAM_ID_4 */
 	PAD_GPI(GPIO_84, PULL_NONE),
-	/* APU_EDP_BL_DISABLE TODP: Set low in depthcharge */
-	PAD_GPO(GPIO_85, HIGH),
+	/* APU_EDP_BL_DISABLE */
+	PAD_GPO(GPIO_85, LOW),
 	/* WIFI_AUX_RESET_L */
 	PAD_GPO(GPIO_86, HIGH),
 	/* EMMC_DATA7 */
@@ -181,26 +180,14 @@ struct soc_amd_gpio *variant_base_gpio_table(size_t *size)
 	return gpio_set_stage_ram;
 }
 
-/*
- * This function is still needed for boards that sets gevents above 23
- * that will generate SCI or SMI. Normally this function
- * points to a table of gevents and what needs to be set. The code that
- * calls it was modified so that when this function returns NULL then the
- * caller does nothing.
- */
-const __weak struct sci_source *variant_gpe_table(size_t *num)
-{
-	return NULL;
-}
-
 static void wifi_power_reset_configure_active_low_power(void)
 {
 	/*
 	 * Configure WiFi GPIOs such that:
 	 * - WIFI_AUX_RESET_L is configured first to assert PERST# to WiFi device.
 	 * - Enable power to WiFi using EN_PWR_WIFI_L.
-	 * - Wait for 50ms after power to WiFi is enabled.
-	 * - Deassert WIFI_AUX_RESET_L.
+	 * - Wait for >50ms after power to WiFi is enabled. (Time between bootblock & ramstage)
+	 * - WIFI_AUX_RESET_L gets deasserted later in mainboard_configure_gpios in ramstage
 	 */
 	static const struct soc_amd_gpio v3_wifi_table[] = {
 		/* WIFI_AUX_RESET_L */
@@ -210,8 +197,6 @@ static void wifi_power_reset_configure_active_low_power(void)
 	};
 	program_gpios(v3_wifi_table, ARRAY_SIZE(v3_wifi_table));
 
-	mdelay(50);
-	gpio_set(GPIO_86, 1);
 }
 
 static void wifi_power_reset_configure_active_high_power(void)
@@ -344,6 +329,8 @@ const __weak struct soc_amd_gpio *variant_bootblock_gpio_table(size_t *size, int
 }
 
 static const struct soc_amd_gpio gpio_sleep_table[] = {
+	/* S0iX SLP */
+	PAD_GPO(GPIO_10, LOW),
 	/* NVME_AUX_RESET_L */
 	PAD_GPO(GPIO_40, LOW),
 	/* EN_PWR_CAMERA */

@@ -53,6 +53,7 @@
 #define UBOX_DECS_DEV			8
 #define UBOX_DECS_FUNC			2
 #define UBOX_DECS_CPUBUSNO_CSR		0xcc
+#define UBOX_DECS_CPUBUSNO1_CSR		0xd0
 
 #define VTD_TOLM_CSR			0xd0
 #define VTD_TSEG_BASE_CSR		0xa8
@@ -78,6 +79,7 @@
 #define VMD_FUNC_NUM            0x05
 
 #define MMAP_VTD_CFG_REG_DEVID		0x2024
+#define MMAP_VTD_STACK_CFG_REG_DEVID	0x2034
 #define VTD_DEV_NUM			0x5
 #define VTD_FUNC_NUM			0x0
 
@@ -96,16 +98,29 @@
 #define  XHCI_BUS_NUMBER        0x0
 #define  PCH_DEV_SLOT_XHCI      0x14
 #define  XHCI_FUNC_NUM          0x0
+#define  PCH_DEVFN_XHCI		_PCH_DEVFN(XHCI, 0)
+#define  PCH_DEV_XHCI		_PCH_DEV(XHCI, 0)
 #define   PCH_DEVFN_THERMAL	_PCH_DEVFN(XHCI, 2)
+
+
+#define PCH_DEV_SLOT_CSE	0x16
+#define  PCH_DEVFN_CSE		_PCH_DEVFN(CSE, 0)
+#define  PCH_DEVFN_CSE_2	_PCH_DEVFN(CSE, 1)
+#define  PCH_DEVFN_CSE_3	_PCH_DEVFN(CSE, 4)
+#define  PCH_DEV_CSE		_PCH_DEV(CSE, 0)
+#define  PCH_DEV_CSE_2		_PCH_DEV(CSE, 1)
+#define  PCH_DEV_CSE_3		_PCH_DEV(CSE, 4)
 
 #define PCH_DEV_SLOT_LPC        0x1f
 #define  PCH_DEVFN_LPC          _PCH_DEVFN(LPC, 0)
 #define  PCH_DEVFN_P2SB         _PCH_DEVFN(LPC, 1)
 #define  PCH_DEVFN_PMC          _PCH_DEVFN(LPC, 2)
+#define  PCH_DEVFN_SMBUS        _PCH_DEVFN(LPC, 4)
 #define  PCH_DEVFN_SPI          _PCH_DEVFN(LPC, 5)
 #define  PCH_DEV_LPC            _PCH_DEV(LPC, 0)
 #define  PCH_DEV_P2SB           _PCH_DEV(LPC, 1)
 #define  PCH_DEV_PMC            _PCH_DEV(LPC, 2)
+#define  PCH_DEV_SMBUS          _PCH_DEV(LPC, 4)
 #define  PCH_DEV_SPI            _PCH_DEV(LPC, 5)
 
 #define HPET_BUS_NUM            0x0
@@ -118,5 +133,14 @@
 
 // ========== IOAPIC Definitions for DMAR/ACPI ========
 #define PCH_IOAPIC_ID                   0x08
+
+// DMI3 B0D0F0 registers
+#define DMI3_DEVID		0x2020
+#define DMIRCBAR		0x50
+#define ERRINJCON		0x1d8
+
+// IIO DFX Global D7F7 registers
+#define IIO_DFX_TSWCTL0		0x30c
+#define IIO_DFX_LCK_CTL		0x504
 
 #endif /* _SOC_PCI_DEVS_H_ */

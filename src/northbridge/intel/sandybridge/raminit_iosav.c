@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <commonlib/helpers.h>
-#include <console/console.h>
 #include <delay.h>
 #include <types.h>
 
@@ -36,17 +35,18 @@ void iosav_run_queue(const int ch, const u8 loops, const u8 as_timer)
 	MCHBAR32(IOSAV_SEQ_CTL_ch(ch)) = loops | ((ssq_count - 1) << 18) | (as_timer << 22);
 }
 
-void iosav_run_once(const int ch)
-{
-	iosav_run_queue(ch, 1, 0);
-}
-
 void wait_for_iosav(int channel)
 {
 	while (1) {
 		if (MCHBAR32(IOSAV_STATUS_ch(channel)) & 0x50)
 			return;
 	}
+}
+
+void iosav_run_once_and_wait(const int ch)
+{
+	iosav_run_queue(ch, 1, 0);
+	wait_for_iosav(ch);
 }
 
 void iosav_write_zqcs_sequence(int channel, int slotrank, u32 gap, u32 post, u32 wrap)
@@ -93,7 +93,7 @@ void iosav_write_prea_sequence(int channel, int slotrank, u32 post, u32 wrap)
 				.data_direction = SSQ_NA,
 			},
 			.sp_cmd_addr = {
-				.address = 1024,
+				.address = 1 << 10,
 				.rowbits = 6,
 				.bank    = 0,
 				.rank    = slotrank,
@@ -192,6 +192,190 @@ void iosav_write_read_mpr_sequence(
 				.address = 0,
 				.rowbits = 6,
 				.bank    = 3,
+				.rank    = slotrank,
+			},
+		},
+	};
+	iosav_write_sequence(channel, sequence, ARRAY_SIZE(sequence));
+}
+
+void iosav_write_prea_act_read_sequence(ramctr_timing *ctrl, int channel, int slotrank)
+{
+	const struct iosav_ssq sequence[] = {
+		/* DRAM command PREA */
+		[0] = {
+			.sp_cmd_ctrl = {
+				.command    = IOSAV_PRE,
+				.ranksel_ap = 1,
+			},
+			.subseq_ctrl = {
+				.cmd_executions = 1,
+				.cmd_delay_gap  = 3,
+				.post_ssq_wait  = ctrl->tRP,
+				.data_direction = SSQ_NA,
+			},
+			.sp_cmd_addr = {
+				.address = 1 << 10,
+				.rowbits = 6,
+				.bank    = 0,
+				.rank    = slotrank,
+			},
+			.addr_update = {
+				.addr_wrap = 18,
+			},
+		},
+		/* DRAM command ACT */
+		[1] = {
+			.sp_cmd_ctrl = {
+				.command    = IOSAV_ACT,
+				.ranksel_ap = 1,
+			},
+			.subseq_ctrl = {
+				.cmd_executions = 8,
+				.cmd_delay_gap  = MAX(ctrl->tRRD, (ctrl->tFAW >> 2) + 1),
+				.post_ssq_wait  = ctrl->CAS,
+				.data_direction = SSQ_NA,
+			},
+			.sp_cmd_addr = {
+				.address = 0,
+				.rowbits = 6,
+				.bank    = 0,
+				.rank    = slotrank,
+			},
+			.addr_update = {
+				.inc_bank  = 1,
+				.addr_wrap = 18,
+			},
+		},
+		/* DRAM command RD */
+		[2] = {
+			.sp_cmd_ctrl = {
+				.command    = IOSAV_RD,
+				.ranksel_ap = 1,
+			},
+			.subseq_ctrl = {
+				.cmd_executions = 500,
+				.cmd_delay_gap  = 4,
+				.post_ssq_wait  = MAX(ctrl->tRTP, 8),
+				.data_direction = SSQ_RD,
+			},
+			.sp_cmd_addr = {
+				.address = 0,
+				.rowbits = 0,
+				.bank    = 0,
+				.rank    = slotrank,
+			},
+			.addr_update = {
+				.inc_addr_8 = 1,
+				.addr_wrap  = 18,
+			},
+		},
+		/* DRAM command PREA */
+		[3] = {
+			.sp_cmd_ctrl = {
+				.command    = IOSAV_PRE,
+				.ranksel_ap = 1,
+			},
+			.subseq_ctrl = {
+				.cmd_executions = 1,
+				.cmd_delay_gap  = 3,
+				.post_ssq_wait  = ctrl->tRP,
+				.data_direction = SSQ_NA,
+			},
+			.sp_cmd_addr = {
+				.address = 1 << 10,
+				.rowbits = 6,
+				.bank    = 0,
+				.rank    = slotrank,
+			},
+			.addr_update = {
+				.addr_wrap = 18,
+			},
+		},
+	};
+	iosav_write_sequence(channel, sequence, ARRAY_SIZE(sequence));
+}
+
+void iosav_write_jedec_write_leveling_sequence(
+	ramctr_timing *ctrl, int channel, int slotrank, int bank, u32 mr1reg)
+{
+	/* First DQS/DQS# rising edge after write leveling mode is programmed */
+	const u32 tWLMRD = 40;
+
+	const struct iosav_ssq sequence[] = {
+		/* DRAM command MRS: enable DQs on this slotrank */
+		[0] = {
+			.sp_cmd_ctrl = {
+				.command    = IOSAV_MRS,
+				.ranksel_ap = 1,
+			},
+			.subseq_ctrl = {
+				.cmd_executions = 1,
+				.cmd_delay_gap  = 3,
+				.post_ssq_wait  = tWLMRD,
+				.data_direction = SSQ_NA,
+			},
+			.sp_cmd_addr = {
+				.address = mr1reg,
+				.rowbits = 6,
+				.bank    = bank,
+				.rank    = slotrank,
+			},
+		},
+		/* DRAM command NOP */
+		[1] = {
+			.sp_cmd_ctrl = {
+				.command    = IOSAV_NOP,
+				.ranksel_ap = 1,
+			},
+			.subseq_ctrl = {
+				.cmd_executions = 1,
+				.cmd_delay_gap  = 3,
+				.post_ssq_wait  = ctrl->CWL + ctrl->tWLO,
+				.data_direction = SSQ_WR,
+			},
+			.sp_cmd_addr = {
+				.address = 8,
+				.rowbits = 0,
+				.bank    = 0,
+				.rank    = slotrank,
+			},
+		},
+		/* DRAM command NOP */
+		[2] = {
+			.sp_cmd_ctrl = {
+				.command    = IOSAV_NOP_ALT,
+				.ranksel_ap = 1,
+			},
+			.subseq_ctrl = {
+				.cmd_executions = 1,
+				.cmd_delay_gap  = 3,
+				.post_ssq_wait  = ctrl->CAS + 38,
+				.data_direction = SSQ_RD,
+			},
+			.sp_cmd_addr = {
+				.address = 4,
+				.rowbits = 0,
+				.bank    = 0,
+				.rank    = slotrank,
+			},
+		},
+		/* DRAM command MRS: disable DQs on this slotrank */
+		[3] = {
+			.sp_cmd_ctrl = {
+				.command    = IOSAV_MRS,
+				.ranksel_ap = 1,
+			},
+			.subseq_ctrl = {
+				.cmd_executions = 1,
+				.cmd_delay_gap  = 3,
+				.post_ssq_wait  = ctrl->tMOD,
+				.data_direction = SSQ_NA,
+			},
+			.sp_cmd_addr = {
+				.address = mr1reg | 1 << 12,
+				.rowbits = 6,
+				.bank    = bank,
 				.rank    = slotrank,
 			},
 		},
@@ -387,7 +571,7 @@ void iosav_write_command_training_sequence(
 				.data_direction = SSQ_NA,
 			},
 			.sp_cmd_addr = {
-				.address = 1024,
+				.address = 1 << 10,
 				.rowbits = 6,
 				.bank    = 0,
 				.rank    = slotrank,
@@ -485,7 +669,7 @@ void iosav_write_data_write_sequence(ramctr_timing *ctrl, int channel, int slotr
 				.data_direction = SSQ_NA,
 			},
 			.sp_cmd_addr = {
-				.address = 1024,
+				.address = 1 << 10,
 				.rowbits = 6,
 				.bank    = 0,
 				.rank    = slotrank,
@@ -580,7 +764,7 @@ void iosav_write_aggressive_write_read_sequence(ramctr_timing *ctrl, int channel
 				.data_direction = SSQ_NA,
 			},
 			.sp_cmd_addr = {
-				.address = 1024,
+				.address = 1 << 10,
 				.rowbits = 6,
 				.bank    = 0,
 				.rank    = slotrank,
@@ -675,7 +859,7 @@ void iosav_write_memory_test_sequence(ramctr_timing *ctrl, int channel, int slot
 				.data_direction = SSQ_NA,
 			},
 			.sp_cmd_addr = {
-				.address = 1024,
+				.address = 1 << 10,
 				.rowbits = 6,
 				.bank    = 0,
 				.rank    = slotrank,

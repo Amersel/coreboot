@@ -44,7 +44,6 @@ config CPU_SPECIFIC_OPTIONS
 	select SUPPORT_CPU_UCODE_IN_CBFS
 
 config MMCONF_BASE_ADDRESS
-	hex
 	default 0xe0000000
 
 config FSP_T_ADDR
@@ -157,10 +156,6 @@ config CONSOLE_UART_BASE_ADDRESS
 	hex "MMIO base address for UART"
 	default 0xd4000000
 
-config C_ENV_BOOTBLOCK_SIZE
-	hex
-	default 0x8000
-
 choice
 	prompt "Cache-as-ram implementation"
 	default USE_DENVERTON_NS_CAR_NEM_ENHANCED
@@ -170,7 +165,7 @@ choice
 config USE_DENVERTON_NS_CAR_NEM_ENHANCED
 	bool "Enhanced Non-evict mode"
 	select SOC_INTEL_COMMON_BLOCK_CAR
-	select USE_CAR_NEM_ENHANCED_V1
+	select INTEL_CAR_NEM_ENHANCED
 	help
 	  A current limitation of NEM (Non-Evict mode) is that code and data sizes
 	  are derived from the requirement to not write out any modified cache line.

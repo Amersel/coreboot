@@ -11,12 +11,15 @@
 #include <string.h>
 #include <delay.h>
 #include <halt.h>
+#include <timer.h>
 
 #include "me.h"
 #include "pch.h"
 
+#include <vendorcode/google/chromeos/chromeos.h>
+
 /* Path that the BIOS should take based on ME state */
-static const char *me_bios_path_values[] __unused = {
+static const char *const me_bios_path_values[] = {
 	[ME_NORMAL_BIOS_PATH]		= "Normal",
 	[ME_S3WAKE_BIOS_PATH]		= "S3 Wake",
 	[ME_ERROR_BIOS_PATH]		= "Error",
@@ -25,7 +28,7 @@ static const char *me_bios_path_values[] __unused = {
 	[ME_FIRMWARE_UPDATE_BIOS_PATH]	= "Firmware Update",
 };
 
-static inline const char *const me_get_bios_path_string(int path)
+const char *const me_get_bios_path_string(int path)
 {
 	return me_bios_path_values[path];
 }
@@ -70,14 +73,14 @@ static void mei_dump(void *ptr, int dword, int offset, const char *type)
  * ME/MEI access helpers using memcpy to avoid aliasing.
  */
 
-static inline void mei_read_dword_ptr(void *ptr, int offset)
+void mei_read_dword_ptr(void *ptr, int offset)
 {
 	u32 dword = read32(mei_base_address + (offset / sizeof(u32)));
 	memcpy(ptr, &dword, sizeof(dword));
 	mei_dump(ptr, dword, offset, "READ");
 }
 
-static inline void mei_write_dword_ptr(void *ptr, int offset)
+void mei_write_dword_ptr(void *ptr, int offset)
 {
 	u32 dword = 0;
 	memcpy(&dword, ptr, sizeof(dword));
@@ -86,7 +89,7 @@ static inline void mei_write_dword_ptr(void *ptr, int offset)
 }
 
 #ifndef __SIMPLE_DEVICE__
-static inline void pci_read_dword_ptr(struct device *dev, void *ptr, int offset)
+void pci_read_dword_ptr(struct device *dev, void *ptr, int offset)
 {
 	u32 dword = pci_read_config32(dev, offset);
 	memcpy(ptr, &dword, sizeof(dword));
@@ -94,28 +97,28 @@ static inline void pci_read_dword_ptr(struct device *dev, void *ptr, int offset)
 }
 #endif
 
-static inline void read_host_csr(struct mei_csr *csr)
+void read_host_csr(struct mei_csr *csr)
 {
 	mei_read_dword_ptr(csr, MEI_H_CSR);
 }
 
-static inline void write_host_csr(struct mei_csr *csr)
+void write_host_csr(struct mei_csr *csr)
 {
 	mei_write_dword_ptr(csr, MEI_H_CSR);
 }
 
-static inline void read_me_csr(struct mei_csr *csr)
+void read_me_csr(struct mei_csr *csr)
 {
 	mei_read_dword_ptr(csr, MEI_ME_CSR_HA);
 }
 
-static inline void write_cb(u32 dword)
+void write_cb(u32 dword)
 {
 	write32(mei_base_address + (MEI_H_CB_WW / sizeof(u32)), dword);
 	mei_dump(NULL, dword, MEI_H_CB_WW, "WRITE");
 }
 
-static inline u32 read_cb(void)
+u32 read_cb(void)
 {
 	u32 dword = read32(mei_base_address + (MEI_ME_CB_RW / sizeof(u32)));
 	mei_dump(NULL, dword, MEI_ME_CB_RW, "READ");
@@ -175,6 +178,7 @@ static int mei_send_msg(struct mei_header *mei, struct mkhi_header *mkhi, void *
 	/* Pad non-dword aligned request message length */
 	if (mei->length & 3)
 		ndata++;
+
 	if (!ndata) {
 		printk(BIOS_DEBUG, "ME: request does not include MKHI\n");
 		return -1;
@@ -250,6 +254,7 @@ static int mei_recv_msg(struct mkhi_header *mkhi, void *rsp_data, int rsp_bytes)
 			break;
 		udelay(ME_DELAY);
 	}
+
 	if (!n) {
 		printk(BIOS_ERR, "ME: timeout waiting for data: expected %u, available %u\n",
 		       expected, me.buffer_write_ptr - me.buffer_read_ptr);
@@ -267,6 +272,7 @@ static int mei_recv_msg(struct mkhi_header *mkhi, void *rsp_data, int rsp_bytes)
 	ndata = mei_rsp.length >> 2;
 	if (mei_rsp.length & 3)
 		ndata++;
+
 	if (ndata != (expected - 1)) {
 		printk(BIOS_ERR, "ME: response is missing data %d != %d\n",
 		       ndata, (expected - 1));
@@ -307,8 +313,8 @@ static int mei_recv_msg(struct mkhi_header *mkhi, void *rsp_data, int rsp_bytes)
 	return mei_wait_for_me_ready();
 }
 
-static inline int mei_sendrecv(struct mei_header *mei, struct mkhi_header *mkhi,
-			       void *req_data, void *rsp_data, int rsp_bytes)
+int mei_sendrecv(struct mei_header *mei, struct mkhi_header *mkhi,
+		 void *req_data, void *rsp_data, int rsp_bytes)
 {
 	if (mei_send_msg(mei, mkhi, req_data) < 0)
 		return -1;
@@ -319,13 +325,13 @@ static inline int mei_sendrecv(struct mei_header *mei, struct mkhi_header *mkhi,
 
 #ifdef __SIMPLE_DEVICE__
 
-static inline void update_mei_base_address(void)
+void update_mei_base_address(void)
 {
 	uint32_t reg32 = pci_read_config32(PCH_ME_DEV, PCI_BASE_ADDRESS_0) & ~0xf;
 	mei_base_address = (u32 *)(uintptr_t)reg32;
 }
 
-static inline bool is_mei_base_address_valid(void)
+bool is_mei_base_address_valid(void)
 {
 	return mei_base_address && mei_base_address != (u32 *)0xfffffff0;
 }
@@ -333,7 +339,7 @@ static inline bool is_mei_base_address_valid(void)
 #else
 
 /* Prepare ME for MEI messages */
-static int intel_mei_setup(struct device *dev)
+int intel_mei_setup(struct device *dev)
 {
 	struct resource *res;
 	struct mei_csr host;
@@ -359,12 +365,8 @@ static int intel_mei_setup(struct device *dev)
 	return 0;
 }
 
-#if CONFIG(CHROMEOS)
-#include <vendorcode/google/chromeos/chromeos.h>
-#endif
-
 /* Read the Extend register hash of ME firmware */
-static int intel_me_extend_valid(struct device *dev)
+int intel_me_extend_valid(struct device *dev)
 {
 	struct me_heres status;
 	u32 extend[8] = {0};
@@ -402,19 +404,92 @@ static int intel_me_extend_valid(struct device *dev)
 	}
 	printk(BIOS_DEBUG, "\n");
 
-#if CONFIG(CHROMEOS)
 	/* Save hash in NVS for the OS to verify */
-	chromeos_set_me_hash(extend, count);
-#endif
+	if (CONFIG(CHROMEOS))
+		chromeos_set_me_hash(extend, count);
 
 	return 0;
 }
 
 /* Hide the ME virtual PCI devices */
-static void intel_me_hide(struct device *dev)
+void intel_me_hide(struct device *dev)
 {
 	dev->enabled = 0;
 	pch_enable(dev);
+}
+
+bool enter_soft_temp_disable(void)
+{
+	/* The binary sequence for the disable command was found by PT in some vendor BIOS */
+	struct me_disable message = {
+		.rule_id = MKHI_DISABLE_RULE_ID,
+		.data = 0x01,
+	};
+	struct mkhi_header mkhi = {
+		.group_id	= MKHI_GROUP_ID_FWCAPS,
+		.command	= MKHI_FWCAPS_SET_RULE,
+	};
+	struct mei_header mei = {
+		.is_complete	= 1,
+		.length		= sizeof(mkhi) + sizeof(message),
+		.host_address	= MEI_HOST_ADDRESS,
+		.client_address	= MEI_ADDRESS_MKHI,
+	};
+	u32 resp;
+
+	if (mei_sendrecv(&mei, &mkhi, &message, &resp, sizeof(resp)) < 0
+	    || resp != MKHI_DISABLE_RULE_ID) {
+		printk(BIOS_WARNING, "ME: disable command failed\n");
+		return false;
+	}
+
+	return true;
+}
+
+void enter_soft_temp_disable_wait(void)
+{
+	/*
+	 * TODO: Find smarter way to determine when we're ready to reboot.
+	 *
+	 * There has to be some bit in some register, or something, that indicates that ME has
+	 * finished doing its thing and we're ready to reboot.
+	 *
+	 * It was not found yet, though, and waiting for a response after the disable command is
+	 * not enough. If we reboot too early, ME will not be disabled on next boot. For now,
+	 * let's just wait for 1 second here.
+	 */
+	mdelay(1000);
+}
+
+void exit_soft_temp_disable(struct device *dev)
+{
+	/* To bring ME out of Soft Temporary Disable Mode, host writes 0x20000000 to H_GS */
+	pci_write_config32(dev, PCI_ME_H_GS, 0x2 << 28);
+}
+
+void exit_soft_temp_disable_wait(struct device *dev)
+{
+	struct me_hfs hfs;
+	struct stopwatch sw;
+
+	stopwatch_init_msecs_expire(&sw, ME_ENABLE_TIMEOUT);
+
+	/**
+	 * Wait for fw_init_complete. Check every 50 ms, give up after 20 sec.
+	 * This is what vendor BIOS does. Usually it takes 1.5 seconds or so.
+	 */
+	do {
+		mdelay(50);
+		pci_read_dword_ptr(dev, &hfs, PCI_ME_HFS);
+		if (hfs.fw_init_complete)
+			break;
+	} while (!stopwatch_expired(&sw));
+
+	if (!hfs.fw_init_complete)
+		printk(BIOS_ERR, "ME: giving up on waiting for fw_init_complete\n");
+	else
+		printk(BIOS_NOTICE, "ME: took %lums to complete initialization\n",
+		       stopwatch_duration_msecs(&sw));
 }
 
 #endif

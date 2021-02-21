@@ -3,6 +3,8 @@
 #ifndef AMD_PICASSO_IOMAP_H
 #define AMD_PICASSO_IOMAP_H
 
+#if ENV_X86
+
 /* MMIO Ranges */
 /* IO_APIC_ADDR defined in arch/x86	0xfec00000 */
 #define GNB_IO_APIC_ADDR		0xfec01000
@@ -22,6 +24,8 @@
 
 /* Reserved				0xfecd1000-0xfedc3fff */
 
+#endif /* ENV_X86 */
+
 /*
  * Picasso/Dali have I2C0 and I2C1 wired to the Sensor Fusion Hub (SFH/MP2).
  * The controllers are not directly accessible via the x86.
@@ -36,6 +40,8 @@
 #define I2C_MASTER_DEV_COUNT		4
 #define I2C_MASTER_START_INDEX		2
 #define I2C_SLAVE_DEV_COUNT		1
+
+#if ENV_X86
 
 #define APU_I2C2_BASE			0xfedc4000
 #define APU_I2C3_BASE			0xfedc5000
@@ -62,17 +68,18 @@
 
 #define FLASH_BASE_ADDR			((0xffffffff - CONFIG_ROM_SIZE) + 1)
 
+#endif /* ENV_X86 */
+
 /* I/O Ranges */
-#define ACPI_SMI_CTL_PORT		0xb2
-#define PICASSO_ACPI_IO_BASE	CONFIG_PICASSO_ACPI_IO_BASE
-#define  ACPI_PM_EVT_BLK	(PICASSO_ACPI_IO_BASE + 0x00)     /* 4 bytes */
+#define ACPI_IO_BASE			0x400
+#define  ACPI_PM_EVT_BLK	(ACPI_IO_BASE + 0x00)     /* 4 bytes */
 #define  ACPI_PM1_STS		(ACPI_PM_EVT_BLK + 0x00)	  /* 2 bytes */
 #define  ACPI_PM1_EN		(ACPI_PM_EVT_BLK + 0x02)	  /* 2 bytes */
-#define  ACPI_PM1_CNT_BLK	(PICASSO_ACPI_IO_BASE + 0x04)     /* 2 bytes */
-#define  ACPI_PM_TMR_BLK	(PICASSO_ACPI_IO_BASE + 0x08)     /* 4 bytes */
-#define  ACPI_CPU_CONTROL	(PICASSO_ACPI_IO_BASE + 0x13)
+#define  ACPI_PM1_CNT_BLK	(ACPI_IO_BASE + 0x04)     /* 2 bytes */
+#define  ACPI_PM_TMR_BLK	(ACPI_IO_BASE + 0x08)     /* 4 bytes */
+#define  ACPI_CPU_CONTROL	(ACPI_IO_BASE + 0x10)
 /* doc says 0x14 for GPE0_BLK but FT5 only works with 0x20 */
-#define  ACPI_GPE0_BLK		(PICASSO_ACPI_IO_BASE + 0x20)     /* 8 bytes */
+#define  ACPI_GPE0_BLK		(ACPI_IO_BASE + 0x20)     /* 8 bytes */
 #define  ACPI_GPE0_STS		(ACPI_GPE0_BLK + 0x00)		  /* 4 bytes */
 #define  ACPI_GPE0_EN		(ACPI_GPE0_BLK + 0x04)		  /* 4 bytes */
 #define NCP_ERR				0xf0
@@ -83,11 +90,5 @@
 #define BIOSRAM_DATA			0xcd5
 #define AB_INDX				0xcd8
 #define AB_DATA				(AB_INDX+4)
-#define SYS_RESET			0xcf9
-
-/* BiosRam Ranges at 0xfed80500 or I/O 0xcd4/0xcd5 */
-#define BIOSRAM_CBMEM_TOP		0xf0 /* 4 bytes */
-#define BIOSRAM_UMA_SIZE		0xf4 /* 4 bytes */
-#define BIOSRAM_UMA_BASE		0xf8 /* 8 bytes */
 
 #endif /* AMD_PICASSO_IOMAP_H */

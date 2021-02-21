@@ -13,6 +13,7 @@ DefinitionBlock(
 	0x20110725	// OEM revision
 )
 {
+	#include <acpi/dsdt_top.asl>
 	/* global NVS and variables */
 	#include <soc/intel/apollolake/acpi/globalnvs.asl>
 
@@ -25,11 +26,9 @@ DefinitionBlock(
 			#include <soc/intel/apollolake/acpi/northbridge.asl>
 			#include <soc/intel/apollolake/acpi/southbridge.asl>
 			#include <soc/intel/apollolake/acpi/pch_hda.asl>
+			#include <drivers/intel/gma/acpi/default_brightness_levels.asl>
 		}
 	}
-
-	/* Chrome OS specific */
-	#include <vendorcode/google/chromeos/acpi/chromeos.asl>
 
 	#include <southbridge/intel/common/acpi/sleepstates.asl>
 

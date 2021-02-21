@@ -21,6 +21,7 @@
 #include <device/pci_def.h>
 #include <device/pci_type.h>
 #include <device/soundwire.h>
+#include <types.h>
 
 static char *gencurrent;
 
@@ -151,18 +152,6 @@ void acpigen_write_integer(uint64_t data)
 		acpigen_write_qword(data);
 }
 
-void acpigen_write_name_zero(const char *name)
-{
-	acpigen_write_name(name);
-	acpigen_write_one();
-}
-
-void acpigen_write_name_one(const char *name)
-{
-	acpigen_write_name(name);
-	acpigen_write_zero();
-}
-
 void acpigen_write_name_byte(const char *name, uint8_t val)
 {
 	acpigen_write_name(name);
@@ -290,6 +279,10 @@ void acpigen_emit_namestring(const char *namepath)
 {
 	int dotcount = 0, i;
 	int dotpos = 0;
+
+	/* Check for NULL pointer */
+	if (!namepath)
+		return;
 
 	/* We can start with a '\'. */
 	if (namepath[0] == '\\') {

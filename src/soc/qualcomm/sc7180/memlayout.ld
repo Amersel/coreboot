@@ -4,16 +4,16 @@
 #include <arch/header.ld>
 
 /* SYSTEM_IMEM : 0x14680000 - 0x146AE000 */
-#define SSRAM_START(addr) SYMBOL(ssram, addr)
-#define SSRAM_END(addr) SYMBOL(essram, addr)
+#define SSRAM_START(addr) REGION_START(ssram, addr)
+#define SSRAM_END(addr) REGION_END(ssram, addr)
 
 /* BOOT_IMEM   : 0x14800000 - 0x14980000 */
-#define BSRAM_START(addr) SYMBOL(bsram, addr)
-#define BSRAM_END(addr) SYMBOL(ebsram, addr)
+#define BSRAM_START(addr) REGION_START(bsram, addr)
+#define BSRAM_END(addr) REGION_END(bsram, addr)
 
 /* AOP : 0x0B000000 - 0x0B100000 */
-#define AOPSRAM_START(addr) SYMBOL(aopsram, addr)
-#define AOPSRAM_END(addr) SYMBOL(eaopsram, addr)
+#define AOPSRAM_START(addr) REGION_START(aopsram, addr)
+#define AOPSRAM_END(addr) REGION_END(aopsram, addr)
 
 SECTIONS
 {
@@ -43,6 +43,7 @@ SECTIONS
 	REGION(qclib_serial_log, 0x14852000, 4K, 4K)
 	REGION(ddr_information, 0x14853000, 1K, 1K)
 	FMAP_CACHE(0x14853400, 2K)
+	CBFS_MCACHE(0x14853C00, 8K)
 	REGION(dcb, 0x1485b000, 16K, 4K)
 	REGION(pmic, 0x1485f000, 48K, 4K)
 	REGION(qclib, 0x1486b000, 596K, 4K)

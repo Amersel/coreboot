@@ -11,6 +11,7 @@
 #include <version.h>
 #include <boardid.h>
 #include <device/device.h>
+#include <drivers/tpm/tpm_ppi.h>
 #include <fmap.h>
 #include <fw_config.h>
 #include <stdlib.h>
@@ -19,19 +20,10 @@
 #include <bootmem.h>
 #include <bootsplash.h>
 #include <spi_flash.h>
-#include <security/vboot/misc.h>
-#include <security/vboot/vbnv_layout.h>
 #include <smmstore.h>
 
 #if CONFIG(USE_OPTION_TABLE)
 #include <option_table.h>
-#endif
-#if CONFIG(CHROMEOS)
-#if CONFIG(HAVE_ACPI_TABLES)
-#include <acpi/acpi.h>
-#endif
-#include <vendorcode/google/chromeos/chromeos.h>
-#include <vendorcode/google/chromeos/gnvs.h>
 #endif
 #if CONFIG(PLATFORM_USES_FSP2_0)
 #include <fsp/util.h>
@@ -158,7 +150,6 @@ void lb_add_gpios(struct lb_gpios *gpios, const struct lb_gpio *gpio_table,
 	gpios->size += table_size;
 }
 
-#if CONFIG(CHROMEOS)
 static void lb_gpios(struct lb_header *header)
 {
 	struct lb_gpios *gpios;
@@ -174,7 +165,7 @@ static void lb_gpios(struct lb_header *header)
 		"            NAME |       PORT | POLARITY |     VALUE\n",
 		gpios->count);
 	for (g = &gpios->gpios[0]; g < &gpios->gpios[gpios->count]; g++) {
-		printk(BIOS_INFO, "%16s | ", g->name);
+		printk(BIOS_INFO, "%16.16s | ", g->name);
 		if (g->port == -1)
 			printk(BIOS_INFO, " undefined | ");
 		else
@@ -197,20 +188,6 @@ static void lb_gpios(struct lb_header *header)
 	}
 }
 
-static void lb_vbnv(struct lb_header *header)
-{
-#if CONFIG(PC80_SYSTEM)
-	struct lb_range *vbnv;
-
-	vbnv = (struct lb_range *)lb_new_record(header);
-	vbnv->tag = LB_TAG_VBNV;
-	vbnv->size = sizeof(*vbnv);
-	vbnv->range_start = CONFIG_VBOOT_VBNV_OFFSET + 14;
-	vbnv->range_size = VBOOT_VBNV_BLOCK_SIZE;
-#endif
-}
-#endif /* CONFIG_CHROMEOS */
-
 __weak uint32_t board_id(void) { return UNDEFINED_STRAPPING_ID; }
 __weak uint32_t ram_code(void) { return UNDEFINED_STRAPPING_ID; }
 __weak uint32_t sku_id(void) { return UNDEFINED_STRAPPING_ID; }
@@ -220,11 +197,8 @@ static void lb_boot_media_params(struct lb_header *header)
 {
 	struct lb_boot_media_params *bmp;
 	const struct region_device *boot_dev;
-	struct region_device cbfs_dev;
-
-	boot_device_init();
-
-	if (cbfs_boot_region_device(&cbfs_dev))
+	const struct cbfs_boot_device *cbd = cbfs_get_boot_device(false);
+	if (!cbd)
 		return;
 
 	boot_dev = boot_device_ro();
@@ -235,8 +209,8 @@ static void lb_boot_media_params(struct lb_header *header)
 	bmp->tag = LB_TAG_BOOT_MEDIA_PARAMS;
 	bmp->size = sizeof(*bmp);
 
-	bmp->cbfs_offset = region_device_offset(&cbfs_dev);
-	bmp->cbfs_size = region_device_sz(&cbfs_dev);
+	bmp->cbfs_offset = region_device_offset(&cbd->rdev);
+	bmp->cbfs_size = region_device_sz(&cbd->rdev);
 	bmp->boot_media_size = region_device_sz(boot_dev);
 
 	bmp->fmap_offset = get_fmap_flash_offset();
@@ -458,8 +432,7 @@ static uintptr_t write_coreboot_table(uintptr_t rom_table_end)
 #if CONFIG(USE_OPTION_TABLE)
 	{
 		struct cmos_option_table *option_table =
-			cbfs_boot_map_with_leak("cmos_layout.bin",
-				CBFS_COMPONENT_CMOS_LAYOUT, NULL);
+			cbfs_map("cmos_layout.bin", NULL);
 		if (option_table) {
 			struct lb_record *rec_dest = lb_new_record(head);
 			/* Copy the option config table, it's already a
@@ -497,13 +470,13 @@ static uintptr_t write_coreboot_table(uintptr_t rom_table_end)
 	/* Record our framebuffer */
 	lb_framebuffer(head);
 
-#if CONFIG(CHROMEOS)
 	/* Record our GPIO settings (ChromeOS specific) */
-	lb_gpios(head);
+	if (CONFIG(CHROMEOS))
+		lb_gpios(head);
 
 	/* pass along VBNV offsets in CMOS */
-	lb_vbnv(head);
-#endif
+	if (CONFIG(VBOOT_VBNV_CMOS))
+		lb_table_add_vbnv_cmos(head);
 
 	/* Pass mmc early init status */
 	lb_mmc_info(head);
@@ -521,14 +494,16 @@ static uintptr_t write_coreboot_table(uintptr_t rom_table_end)
 	/* Add board-specific table entries, if any. */
 	lb_board(head);
 
-#if CONFIG(CHROMEOS_RAMOOPS)
-	lb_ramoops(head);
-#endif
+	if (CONFIG(CHROMEOS_RAMOOPS))
+		lb_ramoops(head);
 
 	lb_boot_media_params(head);
 
 	/* Board configuration information (including straps) */
 	lb_board_config(head);
+
+	if (CONFIG(TPM_PPI))
+		lb_tpm_ppi(head);
 
 	/* Add architecture records. */
 	lb_arch_add_records(head);

@@ -6,6 +6,7 @@
 #include <device/path.h>
 #include <device/pci_type.h>
 #include <smbios.h>
+#include <static.h>
 #include <types.h>
 
 struct fw_config;
@@ -16,6 +17,7 @@ struct smbus_bus_operations;
 struct pnp_mode_ops;
 struct spi_bus_operations;
 struct usb_bus_operations;
+struct gpio_operations;
 
 /* Chip operations */
 struct chip_operations {
@@ -62,6 +64,7 @@ struct device_operations {
 	const struct spi_bus_operations *ops_spi_bus;
 	const struct smbus_bus_operations *ops_smbus_bus;
 	const struct pnp_mode_ops *ops_pnp_mode;
+	const struct gpio_operations *ops_gpio;
 };
 
 /**
@@ -310,7 +313,6 @@ void fixed_io_resource(struct device *dev, unsigned long index,
 void fixed_mem_resource(struct device *dev, unsigned long index,
 		  unsigned long basek, unsigned long sizek, unsigned long type);
 
-void mmconf_resource_init(struct resource *res, resource_t base, int buses);
 void mmconf_resource(struct device *dev, unsigned long index);
 
 /* It is the caller's responsibility to adjust regions such that ram_resource()
@@ -385,10 +387,11 @@ static inline DEVTREE_CONST void *config_of(const struct device *dev)
 	devtree_die();
 }
 
-static inline DEVTREE_CONST void *config_of_soc(void)
-{
-	return config_of(pcidev_on_root(0, 0));
-}
+/*
+ * Returns pointer to config structure of root device (B:D:F = 0:00:0) defined by
+ * sconfig in static.{h/c}.
+ */
+#define config_of_soc()		__pci_0_00_0_config
 
 void enable_static_device(struct device *dev);
 void enable_static_devices(struct device *bus);

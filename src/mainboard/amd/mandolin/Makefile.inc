@@ -6,7 +6,7 @@ bootblock-y += variants/$(VARIANT_DIR)/early_gpio.c
 ramstage-y += variants/$(VARIANT_DIR)/gpio.c
 ramstage-y += variants/$(VARIANT_DIR)/port_descriptors.c
 
-ifneq ($(CONFIG_PICASSO_LPC_IOMUX),y)
+ifneq ($(CONFIG_MANDOLIN_LPC),y)
 ramstage-y += emmc_gpio.c
 endif
 
@@ -16,13 +16,9 @@ else # CONFIG_BOARD_AMD_CEREME
 APCB_SOURCES = $(MAINBOARD_BLOBS_DIR)/APCB_cereme.bin
 endif
 
-PHONY+=add_mchp_fw
-INTERMEDIATE+=add_mchp_fw
-
 ifeq ($(CONFIG_MANDOLIN_HAVE_MCHP_FW),y)
 
-MANDOLIN_MICROCHIP_FW_OFFSET=0
-add_mchp_fw: $(obj)/coreboot.pre
+$(call add_intermediate, add_mchp_fw)
 	$(CBFSTOOL) $(obj)/coreboot.pre write -r EC -f $(CONFIG_MANDOLIN_MCHP_FW_FILE) --fill-upward
 
 else

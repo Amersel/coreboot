@@ -7,8 +7,10 @@
 #include <intelblocks/cfg.h>
 #include <intelblocks/gpio.h>
 #include <intelblocks/gspi.h>
+#include <intelblocks/pcie_rp.h>
 #include <intelblocks/power_limit.h>
 #include <soc/gpe.h>
+#include <soc/gpio.h>
 #include <soc/pch.h>
 #include <soc/pci_devs.h>
 #include <soc/pmc.h>
@@ -102,6 +104,9 @@ struct soc_intel_tigerlake_config {
 
 	/* Common struct containing power limits configuration information */
 	struct soc_power_limits_config power_limits_config[POWER_LIMITS_MAX];
+
+	/* Configuration for boot TDP selection; */
+	uint8_t ConfigTdpLevel;
 
 	/* Gpio group routed to each dword of the GPE0 block. Values are
 	 * of the form PMC_GPP_[A:U] or GPD. */
@@ -246,12 +251,7 @@ struct soc_intel_tigerlake_config {
 	uint8_t PciePtm[CONFIG_MAX_ROOT_PORTS];
 
 	/* PCIe RP L1 substate */
-	enum L1_substates_control {
-		L1_SS_FSP_DEFAULT,
-		L1_SS_DISABLED,
-		L1_SS_L1_1,
-		L1_SS_L1_2,
-	} PcieRpL1Substates[CONFIG_MAX_ROOT_PORTS];
+	enum L1_substates_control PcieRpL1Substates[CONFIG_MAX_ROOT_PORTS];
 
 	/* PCIe LTR: Enable (1) / Disable (0) */
 	uint8_t PcieRpLtrEnable[CONFIG_MAX_ROOT_PORTS];
@@ -263,10 +263,8 @@ struct soc_intel_tigerlake_config {
 	uint8_t SmbusEnable;
 
 	/* Gfx related */
-	uint8_t IgdDvmt50PreAlloc;
 	uint8_t SkipExtGfxScan;
 
-	uint32_t GraphicsConfigPtr;
 	uint8_t Device4Enable;
 
 	/* HeciEnabled decides the state of Heci1 at end of boot
@@ -327,6 +325,13 @@ struct soc_intel_tigerlake_config {
 	/* TCSS USB */
 	uint8_t TcssXhciEn;
 	uint8_t TcssXdciEn;
+
+	/*
+	 * Specifies which Type-C Ports are enabled on the system
+	 * each bit represents a port starting at 0
+	 * Example: set value to 0x3 for ports 0 and 1 to be enabled
+	 */
+	uint8_t UsbTcPortEn;
 
 	/*
 	 * IOM Port Config
@@ -494,6 +499,30 @@ struct soc_intel_tigerlake_config {
 	 *  - PM_CFG.SLP_LAN_MIN_ASST_WDTH
 	 */
 	uint8_t PchPmPwrCycDur;
+
+	/*
+	 * External Clock Gate
+	 * true = Mainboard design uses external clock gating
+	 * false = Mainboard design does not use external clock gating
+	 *
+	 */
+	bool external_clk_gated;
+
+	/*
+	 * External PHY Gate
+	 * true = Mainboard design uses external phy gating
+	 * false = Mainboard design does not use external phy gating
+	 *
+	 */
+	bool external_phy_gated;
+
+	/*
+	 * External Bypass Enable
+	 * true = Mainboard design uses external bypass rail
+	 * false = Mainboard design does not use external bypass rail
+	 *
+	 */
+	bool external_bypass;
 };
 
 typedef struct soc_intel_tigerlake_config config_t;

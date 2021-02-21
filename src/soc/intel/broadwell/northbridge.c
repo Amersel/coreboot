@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
+#include <cpu/intel/haswell/haswell.h>
 #include <acpi/acpi.h>
 #include <device/pci_ops.h>
 #include <stdint.h>
@@ -8,9 +9,7 @@
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
-#include <vendorcode/google/chromeos/chromeos.h>
 #include <soc/acpi.h>
-#include <soc/cpu.h>
 #include <soc/iomap.h>
 #include <soc/pci_devs.h>
 #include <soc/ramstage.h>
@@ -280,7 +279,6 @@ static void mc_add_dram_resources(struct device *dev, int *resource_cnt)
 	uint64_t mc_values[NUM_MAP_ENTRIES];
 	unsigned long dpr_size = 0;
 	u32 dpr_reg;
-	struct device *sa_dev = pcidev_path_on_root(SA_DEVFN_ROOT);
 
 	/* Read in the MAP registers and report their values. */
 	mc_read_map_entries(dev, &mc_values[0]);
@@ -292,7 +290,7 @@ static void mc_add_dram_resources(struct device *dev, int *resource_cnt)
 	 * the DPR register reports the TOP of the region, which is the same
 	 * as TSEG base.  The region size is reported in MiB in bits 11:4.
 	 */
-	dpr_reg = pci_read_config32(sa_dev, DPR);
+	dpr_reg = pci_read_config32(dev, DPR);
 	if (dpr_reg & DPR_EPM) {
 		dpr_size = (dpr_reg & DPR_SIZE_MASK) << 16;
 		printk(BIOS_INFO, "DPR SIZE: 0x%lx\n", dpr_size);
@@ -372,9 +370,6 @@ static void mc_add_dram_resources(struct device *dev, int *resource_cnt)
 	mmio_resource(dev, index++, (0xa0000 >> 10), (0xc0000 - 0xa0000) >> 10);
 	reserved_ram_resource(dev, index++, (0xc0000 >> 10),
 				(0x100000 - 0xc0000) >> 10);
-
-	if (CONFIG(CHROMEOS))
-		chromeos_reserve_ram_oops(dev, index++);
 
 	*resource_cnt = index;
 }
@@ -462,7 +457,7 @@ static struct device_operations pci_domain_ops = {
 static struct device_operations cpu_bus_ops = {
 	.read_resources   = noop_read_resources,
 	.set_resources    = noop_set_resources,
-	.init             = &broadwell_init_cpus,
+	.init             = mp_cpu_bus_init,
 };
 
 static void broadwell_enable(struct device *dev)
@@ -473,6 +468,11 @@ static void broadwell_enable(struct device *dev)
 	} else if (dev->path.type == DEVICE_PATH_CPU_CLUSTER) {
 		dev->ops = &cpu_bus_ops;
 	}
+}
+
+static void broadwell_init_pre_device(void *chip_info)
+{
+	broadwell_run_reference_code();
 }
 
 struct chip_operations soc_intel_broadwell_ops = {

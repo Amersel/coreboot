@@ -1,6 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <acpi/acpigen.h>
+#include <amdblocks/memmap.h>
+#include <amdblocks/ioapic.h>
+#include <arch/ioapic.h>
 #include <assert.h>
 #include <cbmem.h>
 #include <console/console.h>
@@ -11,7 +14,6 @@
 #include <device/pci_ids.h>
 #include <fsp/util.h>
 #include <stdint.h>
-#include <soc/memmap.h>
 #include <soc/iomap.h>
 #include "chip.h"
 
@@ -75,13 +77,13 @@ struct dptc_input {
  *                     |            FSP-M               |
  *                     |         (FSP_M_SIZE)           |
  *                     +--------------------------------+ FSP_M_ADDR
- *                     |                                |X86_RESET_VECTOR = ROMSTAGE_ADDR + ROMSTAGE_SIZE - 0x10
  *                     |           romstage             |
  *                     |        (ROMSTAGE_SIZE)         |
- *                     +--------------------------------+ ROMSTAGE_ADDR
+ *                     +--------------------------------+ ROMSTAGE_ADDR = BOOTBLOCK_END
+ *                     |                                | X86_RESET_VECTOR = BOOTBLOCK_END  - 0x10
  *                     |           bootblock            |
  *                     |     (C_ENV_BOOTBLOCK_SIZE)     |
- *                     +--------------------------------+ BOOTBLOCK_ADDR
+ *                     +--------------------------------+ BOOTBLOCK_ADDR = BOOTBLOCK_END - C_ENV_BOOTBLOCK_SIZE
  *                     |          Unused hole           |
  *                     |            (86KiB)             |
  *                     +--------------------------------+
@@ -181,6 +183,11 @@ static void read_resources(struct device *dev)
 	gnb_apic->flags = IORESOURCE_MEM | IORESOURCE_ASSIGNED | IORESOURCE_FIXED;
 }
 
+static void root_complex_init(struct device *dev)
+{
+	setup_ioapic((u8 *)GNB_IO_APIC_ADDR, GNB_IOAPIC_ID);
+}
+
 static void dptc_call_alib(const char *buf_name, uint8_t *buffer, size_t size)
 {
 	/* Name (buf_name, Buffer(size) {...} */
@@ -195,7 +202,7 @@ static void dptc_call_alib(const char *buf_name, uint8_t *buffer, size_t size)
 
 static void acipgen_dptci(void)
 {
-	const config_t *config = config_of_soc();
+	const struct soc_amd_picasso_config *config = config_of_soc();
 
 	if (!config->dptc_enable)
 		return;
@@ -262,9 +269,17 @@ static void root_complex_fill_ssdt(const struct device *device)
 	acipgen_dptci();
 }
 
+static const char *gnb_acpi_name(const struct device *dev)
+{
+	return "GNB";
+}
+
 static struct device_operations root_complex_operations = {
 	.read_resources		= read_resources,
+	.set_resources		= noop_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
+	.init			= root_complex_init,
+	.acpi_name		= gnb_acpi_name,
 	.acpi_fill_ssdt		= root_complex_fill_ssdt,
 };
 

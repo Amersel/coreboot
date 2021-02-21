@@ -9,17 +9,23 @@
 #include <memory_info.h>
 #include <mrc_cache.h>
 #include <string.h>
-#if CONFIG(EC_GOOGLE_CHROMEEC)
-#include <ec/google/chromeec/ec.h>
-#include <ec/google/chromeec/ec_commands.h>
-#endif
-#include <vendorcode/google/chromeos/chromeos.h>
 #include <soc/iomap.h>
 #include <soc/pei_data.h>
 #include <soc/pei_wrapper.h>
 #include <soc/pm.h>
 #include <soc/romstage.h>
 #include <soc/systemagent.h>
+
+void save_mrc_data(struct pei_data *pei_data)
+{
+	printk(BIOS_DEBUG, "MRC data at %p %d bytes\n", pei_data->data_to_save,
+	       pei_data->data_to_save_size);
+
+	if (pei_data->data_to_save != NULL && pei_data->data_to_save_size > 0)
+		mrc_cache_stash_data(MRC_TRAINING_DATA, 0,
+					pei_data->data_to_save,
+					pei_data->data_to_save_size);
+}
 
 static const char *const ecc_decoder[] = {
 	"inactive",
@@ -74,14 +80,11 @@ static void report_memory_config(void)
 /*
  * Find PEI executable in coreboot filesystem and execute it.
  */
-void raminit(struct pei_data *pei_data)
+void sdram_initialize(struct pei_data *pei_data)
 {
 	size_t mrc_size;
-	struct memory_info *mem_info;
 	pei_wrapper_entry_t entry;
 	int ret;
-	struct cbfsf f;
-	uint32_t type = CBFS_TYPE_MRC;
 
 	broadwell_fill_pei_data(pei_data);
 
@@ -114,15 +117,10 @@ void raminit(struct pei_data *pei_data)
 		pei_data->saved_data_size = 0;
 	}
 
-	/* Determine if mrc.bin is in the cbfs. */
-	if (cbfs_locate_file_in_region(&f, "COREBOOT", "mrc.bin", &type) < 0)
-		die("mrc.bin not found!");
 	/* We don't care about leaking the mapping */
-	entry = (pei_wrapper_entry_t)rdev_mmap_full(&f.data);
-	if (entry == NULL) {
-		printk(BIOS_DEBUG, "Couldn't find mrc.bin\n");
-		return;
-	}
+	entry = cbfs_ro_map("mrc.bin", NULL);
+	if (entry == NULL)
+		die("mrc.bin not found!");
 
 	printk(BIOS_DEBUG, "Starting Memory Reference Code\n");
 
@@ -137,22 +135,11 @@ void raminit(struct pei_data *pei_data)
 		(version >>  8) & 0xff, (version >>  0) & 0xff);
 
 	report_memory_config();
+}
 
-	if (pei_data->boot_mode != ACPI_S3) {
-		cbmem_initialize_empty();
-	} else if (cbmem_initialize()) {
-		printk(BIOS_DEBUG, "Failed to recover CBMEM in S3 resume.\n");
-		/* Failed S3 resume, reset to come up cleanly */
-		system_reset();
-	}
-
-	printk(BIOS_DEBUG, "MRC data at %p %d bytes\n", pei_data->data_to_save,
-	       pei_data->data_to_save_size);
-
-	if (pei_data->data_to_save != NULL && pei_data->data_to_save_size > 0)
-		mrc_cache_stash_data(MRC_TRAINING_DATA, 0,
-					pei_data->data_to_save,
-					pei_data->data_to_save_size);
+void setup_sdram_meminfo(struct pei_data *pei_data)
+{
+	struct memory_info *mem_info;
 
 	printk(BIOS_DEBUG, "create cbmem for dimm information\n");
 	mem_info = cbmem_add(CBMEM_ID_MEMINFO, sizeof(struct memory_info));

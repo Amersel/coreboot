@@ -19,7 +19,6 @@
 #include <device/pci_ids.h>
 #include <device/pcix.h>
 #include <device/pciexp.h>
-#include <device/hypertransport.h>
 #include <pc80/i8259.h>
 #include <security/vboot/vbnv.h>
 #include <timestamp.h>
@@ -733,6 +732,12 @@ static int should_load_oprom(struct device *dev)
 	return 0;
 }
 
+static void oprom_pre_graphics_stall(void)
+{
+	if (CONFIG_PRE_GRAPHICS_DELAY_MS)
+		mdelay(CONFIG_PRE_GRAPHICS_DELAY_MS);
+}
+
 /** Default handler: only runs the relevant PCI BIOS. */
 void pci_dev_init(struct device *dev)
 {
@@ -760,6 +765,9 @@ void pci_dev_init(struct device *dev)
 
 	if (!should_run_oprom(dev, rom))
 		return;
+
+	/* Wait for any configured pre-graphics delay */
+	oprom_pre_graphics_stall();
 
 	run_bios(dev, (unsigned long)ram);
 
@@ -860,19 +868,6 @@ static struct device_operations *get_pci_bridge_ops(struct device *dev)
 	if (pcixpos) {
 		printk(BIOS_DEBUG, "%s subordinate bus PCI-X\n", dev_path(dev));
 		return &default_pcix_ops_bus;
-	}
-#endif
-#if CONFIG(HYPERTRANSPORT_PLUGIN_SUPPORT)
-	unsigned int htpos = 0;
-	while ((htpos = pci_find_next_capability(dev, PCI_CAP_ID_HT, htpos))) {
-		u16 flags;
-		flags = pci_read_config16(dev, htpos + PCI_CAP_FLAGS);
-		if ((flags >> 13) == 1) {
-			/* Host or Secondary Interface */
-			printk(BIOS_DEBUG, "%s subordinate bus HT\n",
-			       dev_path(dev));
-			return &default_ht_ops_bus;
-		}
 	}
 #endif
 #if CONFIG(PCIEXP_PLUGIN_SUPPORT)
@@ -981,7 +976,7 @@ static void set_pci_ops(struct device *dev)
 		dev->ops = &default_cardbus_ops_bus;
 		break;
 #endif
-default:
+	default:
 bad:
 		if (dev->enabled) {
 			printk(BIOS_ERR, "%s [%04x/%04x/%06x] has unknown "
@@ -1225,14 +1220,13 @@ void pci_scan_bus(struct bus *bus, unsigned int min_devfn,
 	struct device *dev, **prev;
 	int once = 0;
 
-	printk(BIOS_DEBUG, "PCI: pci_scan_bus for bus %02x\n", bus->secondary);
+	printk(BIOS_DEBUG, "PCI: %s for bus %02x\n", __func__, bus->secondary);
 
 	/* Maximum sane devfn is 0xFF. */
 	if (max_devfn > 0xff) {
-		printk(BIOS_ERR, "PCI: pci_scan_bus limits devfn %x - "
-		       "devfn %x\n", min_devfn, max_devfn);
-		printk(BIOS_ERR, "PCI: pci_scan_bus upper limit too big. "
-		       "Using 0xff.\n");
+		printk(BIOS_ERR, "PCI: %s limits devfn %x - devfn %x\n",
+		       __func__, min_devfn, max_devfn);
+		printk(BIOS_ERR, "PCI: %s upper limit too big. Using 0xff.\n", __func__);
 		max_devfn=0xff;
 	}
 
@@ -1277,7 +1271,7 @@ void pci_scan_bus(struct bus *bus, unsigned int min_devfn,
 	post_code(0x25);
 
 	/*
-	 * Warn if any leftover static devices are are found.
+	 * Warn if any leftover static devices are found.
 	 * There's probably a problem in devicetree.cb.
 	 */
 

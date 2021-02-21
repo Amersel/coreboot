@@ -33,6 +33,7 @@ static bool use_ddr4_params(int dram_type)
 	/* Below DDR type share the same attributes */
 	case SPD_DRAM_LPDDR3_JEDEC:
 	case SPD_DRAM_DDR4:
+	case SPD_DRAM_DDR5:
 	case SPD_DRAM_LPDDR4:
 	case SPD_DRAM_LPDDR4X:
 		return true;
@@ -163,6 +164,7 @@ static void spd_get_name(const uint8_t spd[], int type, const char **spd_name, s
 	/* LPDDR3, LPDDR4 and DDR4 have same part number offset and length */
 	case SPD_DRAM_LPDDR3_JEDEC:
 	case SPD_DRAM_DDR4:
+	case SPD_DRAM_DDR5:
 	case SPD_DRAM_LPDDR4:
 	case SPD_DRAM_LPDDR4X:
 		*spd_name = (const char *) &spd[DDR4_SPD_PART_OFF];
@@ -227,12 +229,11 @@ int read_ddr3_spd_from_cbfs(u8 *buf, int idx)
 	const int SPD_CRC_HI = 127;
 	const int SPD_CRC_LO = 126;
 
-	const char *spd_file;
+	char *spd_file;
 	size_t spd_file_len = 0;
 	size_t min_len = (idx + 1) * CONFIG_DIMM_SPD_SIZE;
 
-	spd_file = cbfs_boot_map_with_leak("spd.bin", CBFS_TYPE_SPD,
-						&spd_file_len);
+	spd_file = cbfs_map("spd.bin", &spd_file_len);
 	if (!spd_file)
 		printk(BIOS_EMERG, "file [spd.bin] not found in CBFS");
 	if (spd_file_len < min_len)
@@ -242,6 +243,7 @@ int read_ddr3_spd_from_cbfs(u8 *buf, int idx)
 
 	memcpy(buf, spd_file + (idx * CONFIG_DIMM_SPD_SIZE),
 		CONFIG_DIMM_SPD_SIZE);
+	cbfs_unmap(spd_file);
 
 	u16 crc = spd_ddr3_calc_crc(buf, CONFIG_DIMM_SPD_SIZE);
 

@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <bootsplash.h>
 #include <cbmem.h>
 #include <console/console.h>
 #include <device/device.h>
@@ -143,7 +144,7 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 	/* Load VBT before devicetree-specific config. */
 	params->GraphicsConfigPtr = (uintptr_t)vbt_get();
 
-	mainboard_silicon_init_params(params);
+	mainboard_silicon_init_params(supd);
 
 	const struct soc_power_limits_config *soc_config;
 	soc_config = &config->power_limits_config;
@@ -349,6 +350,8 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 	for (i = 0; i < ARRAY_SIZE(config->PcieClkSrcUsage); i++) {
 		if (config->PcieClkSrcUsage[i] == 0)
 			config->PcieClkSrcUsage[i] = PCIE_CLK_NOTUSED;
+		else if (config->PcieClkSrcUsage[i] == PCIE_CLK_RP0)
+			config->PcieClkSrcUsage[i] = 0;
 	}
 	memcpy(params->PcieClkSrcUsage, config->PcieClkSrcUsage,
 	       sizeof(config->PcieClkSrcUsage));
@@ -524,10 +527,57 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 		params->PeiGraphicsPeimInit = 0;
 
 	params->PavpEnable = CONFIG(PAVP);
+
+	/*
+	 * Prevent FSP from programming write-once subsystem IDs by providing
+	 * a custom SSID table. Must have at least one entry for the FSP to
+	 * use the table.
+	 */
+	struct svid_ssid_init_entry {
+		union {
+			struct {
+				uint64_t reg:12;	/* Register offset */
+				uint64_t function:3;
+				uint64_t device:5;
+				uint64_t bus:8;
+				uint64_t :4;
+				uint64_t segment:16;
+				uint64_t :16;
+			};
+			uint64_t segbusdevfuncregister;
+		};
+		struct {
+			uint16_t svid;
+			uint16_t ssid;
+		};
+		uint32_t reserved;
+	};
+
+	/*
+	 * The xHCI and HDA devices have RW/L rather than RW/O registers for
+	 * subsystem IDs and so must be written before FspSiliconInit locks
+	 * them with their default values.
+	 */
+	const pci_devfn_t devfn_table[] = { PCH_DEVFN_XHCI, PCH_DEVFN_HDA };
+	static struct svid_ssid_init_entry ssid_table[ARRAY_SIZE(devfn_table)];
+
+	for (i = 0; i < ARRAY_SIZE(devfn_table); i++) {
+		ssid_table[i].reg	= PCI_SUBSYSTEM_VENDOR_ID;
+		ssid_table[i].device	= PCI_SLOT(devfn_table[i]);
+		ssid_table[i].function	= PCI_FUNC(devfn_table[i]);
+		dev = pcidev_path_on_root(devfn_table[i]);
+		if (dev) {
+			ssid_table[i].svid = dev->subsystem_vendor;
+			ssid_table[i].ssid = dev->subsystem_device;
+		}
+	}
+
+	params->SiSsidTablePtr = (uintptr_t)ssid_table;
+	params->SiNumberOfSsidTableEntry = ARRAY_SIZE(ssid_table);
 }
 
 /* Mainboard GPIO Configuration */
-__weak void mainboard_silicon_init_params(FSP_S_CONFIG *params)
+__weak void mainboard_silicon_init_params(FSPS_UPD *supd)
 {
 	printk(BIOS_DEBUG, "WEAK: %s/%s called\n", __FILE__, __func__);
 }
@@ -540,7 +590,7 @@ const pci_devfn_t *soc_lpss_controllers_list(size_t *size)
 }
 
 /* Handle FSP logo params */
-const struct cbmem_entry *soc_load_logo(FSPS_UPD *supd)
+void soc_load_logo(FSPS_UPD *supd)
 {
-	return fsp_load_logo(&supd->FspsConfig.LogoPtr, &supd->FspsConfig.LogoSize);
+	bmp_load_logo(&supd->FspsConfig.LogoPtr, &supd->FspsConfig.LogoSize);
 }

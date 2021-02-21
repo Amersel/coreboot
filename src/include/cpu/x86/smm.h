@@ -18,15 +18,12 @@
 
 #define APM_CNT		0xb2
 #define APM_CNT_NOOP_SMI	0x00
-#define APM_CNT_CST_CONTROL	0x85
-#define APM_CNT_PST_CONTROL	0x80
 #define APM_CNT_ACPI_DISABLE	0x1e
 #define APM_CNT_ACPI_ENABLE	0xe1
-#define APM_CNT_MBI_UPDATE	0xeb
-#define APM_CNT_GNVS_UPDATE	0xea
 #define APM_CNT_ROUTE_ALL_XHCI	0xca
 #define APM_CNT_FINALIZE	0xcb
 #define APM_CNT_LEGACY		0xcc
+#define APM_CNT_MBI_UPDATE	0xeb
 #define APM_CNT_SMMINFO		0xec
 #define APM_CNT_SMMSTORE	0xed
 #define APM_CNT_ELOG_GSMI	0xef
@@ -34,6 +31,7 @@
 
 /* Send cmd to APM_CNT with HAVE_SMI_HANDLER checking. */
 int apm_control(u8 cmd);
+u8 apm_get_apmc(void);
 
 void io_trap_handler(int smif);
 int southbridge_io_trap_handler(int smif);
@@ -150,10 +148,10 @@ struct smm_loader_params {
 
 	/* The following are only used by X86_SMM_LOADER_VERSION2 */
 #if CONFIG(X86_SMM_LOADER_VERSION2)
-	unsigned int smm_entry;
-	unsigned int smm_main_entry_offset;
-	unsigned int smram_start;
-	unsigned int smram_end;
+	uintptr_t smm_entry;
+	uintptr_t smm_main_entry_offset;
+	uintptr_t smram_start;
+	uintptr_t smram_end;
 #endif
 };
 

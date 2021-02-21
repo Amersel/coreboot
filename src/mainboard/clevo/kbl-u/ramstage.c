@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <mainboard/gpio.h>
-#include <soc/ramstage.h>
+#include <device/device.h>
+#include <variant/gpio.h>
 
 /*
  * TODO:
@@ -12,7 +12,11 @@
  * - Make TBT port configurable (TBT <> DisplayPort)
  */
 
-void mainboard_silicon_init_params(FSP_SIL_UPD *params)
+static void init_mainboard(void *chip_info)
 {
-	mainboard_configure_gpios();
+	variant_configure_gpios();
 }
+
+struct chip_operations mainboard_ops = {
+	.init = init_mainboard,
+};

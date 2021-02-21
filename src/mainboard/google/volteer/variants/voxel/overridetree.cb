@@ -1,7 +1,6 @@
 chip soc/intel/tigerlake
 	register "DdiPort1Hpd" = "0"
 	register "DdiPort2Hpd" = "0"
-	register "tcc_offset" = "5"     # TCC of 95
 
 	register "power_limits_config[POWER_LIMITS_U_2_CORE]" = "{
 		.tdp_pl1_override = 18,
@@ -14,8 +13,22 @@ chip soc/intel/tigerlake
 		.tdp_pl4 = 105,
 	}"
 
+	register "usb2_ports[3]" = "USB2_PORT_TYPE_C(OC_SKIP)"     # Type-A / Type-C Cl
+	register "usb2_ports[8]" = "USB2_PORT_TYPE_C(OC_SKIP)"     # Type-A / Type-C C0
+
 	# Disable SRCCLKREQ1#
 	register "PcieClkSrcUsage[1]" = "PCIE_CLK_NOTUSED"
+
+	# Acoustic settings
+	register "AcousticNoiseMitigation" = "1"
+	register "SlowSlewRate[VR_DOMAIN_IA]" = "SLEW_FAST_8"
+	register "SlowSlewRate[VR_DOMAIN_GT]" = "SLEW_FAST_8"
+	register "SlowSlewRate[VR_DOMAIN_SA]" = "SLEW_FAST_8"
+	register "SlowSlewRate[VR_DOMAIN_VLCC]" = "SLEW_FAST_8"
+	register "FastPkgCRampDisable[VR_DOMAIN_IA]" = "1"
+	register "FastPkgCRampDisable[VR_DOMAIN_GT]" = "1"
+	register "FastPkgCRampDisable[VR_DOMAIN_SA]" = "1"
+	register "FastPkgCRampDisable[VR_DOMAIN_VLCC]" = "1"
 
 	device domain 0 on
 		device ref dptf on
@@ -23,22 +36,22 @@ chip soc/intel/tigerlake
 				## Active Policy
 				register "policies.active" = "{
 					[0] = {.target = DPTF_CPU,
-					       .thresholds = {TEMP_PCT(94, 100),}},
+					       .thresholds = {TEMP_PCT(98, 100),}},
 					[1] = {.target = DPTF_TEMP_SENSOR_2,
 					       .thresholds = {TEMP_PCT(64, 100),
 							      TEMP_PCT(60, 90),
 							      TEMP_PCT(56, 80),
 							      TEMP_PCT(52, 70),
-							      TEMP_PCT(48, 60),
-							      TEMP_PCT(44, 50),
-							      TEMP_PCT(40, 40),}}}"
+							      TEMP_PCT(47, 60),
+							      TEMP_PCT(42, 50),
+							      TEMP_PCT(35, 40),}}}"
 
 				## Passive Policy
 				register "policies.passive" = "{
 					[0] = DPTF_PASSIVE(CPU,	CPU,	       95, 5000),
 					[1] = DPTF_PASSIVE(CPU,	TEMP_SENSOR_1, 65, 6000),
 					[2] = DPTF_PASSIVE(CHARGER,	TEMP_SENSOR_0, 65, 6000),
-					[3] = DPTF_PASSIVE(CPU,	TEMP_SENSOR_2, 54, 6000),
+					[3] = DPTF_PASSIVE(CPU,	TEMP_SENSOR_2, 52, 6000),
 					[4] = DPTF_PASSIVE(CPU,	TEMP_SENSOR_3, 65, 6000)}"
 
 				## Critical Policy
@@ -58,7 +71,7 @@ chip soc/intel/tigerlake
 						.time_window_min = 28 * MSECS_PER_SEC,
 						.time_window_max = 32 * MSECS_PER_SEC,
 						.granularity = 200,},
-					.pl2 = {.min_power = 15000,
+					.pl2 = {.min_power = 51000,
 						.max_power = 51000,
 						.time_window_min = 28 * MSECS_PER_SEC,
 						.time_window_max = 32 * MSECS_PER_SEC,
@@ -144,6 +157,19 @@ chip soc/intel/tigerlake
 				register "has_power_resource" = "1"
 				device i2c 39 on end
 			end
+			chip drivers/generic/gpio_keys
+				register "name" = ""PENH""
+				# GPP_B3 is the IRQ source, and GPP_E1 is the wake source
+				register "gpio" = "ACPI_GPIO_INPUT_ACTIVE_LOW(GPP_B3)"
+				register "key.wake_gpe" = "GPE0_DW2_01"
+				register "key.wakeup_route" = "WAKEUP_ROUTE_SCI"
+				register "key.wakeup_event_action" = "EV_ACT_DEASSERTED"
+				register "key.dev_name" = ""EJCT""
+				register "key.linux_code" = "SW_PEN_INSERTED"
+				register "key.linux_input_type" = "EV_SW"
+				register "key.label" = ""pen_eject""
+				device generic 0 on end
+			end
 		end
 		device ref i2c2 on
 			chip drivers/i2c/sx9310
@@ -185,6 +211,15 @@ chip soc/intel/tigerlake
 				register "wake" = "GPE0_DW2_15"
 				register "probed" = "1"
 				device i2c 15 on end
+			end
+			chip drivers/i2c/hid
+				register "generic.hid" = ""PNP0C50""
+				register "generic.desc" = ""Synaptics Touchpad""
+				register "generic.irq" = "ACPI_IRQ_WAKE_LEVEL_LOW(GPP_E15_IRQ)"
+				register "generic.wake" = "GPE0_DW2_15"
+				register "generic.probed" = "1"
+				register "hid_desc_reg_offset" = "0x20"
+				device i2c 0x2c on end
 			end
 		end
 		device ref pch_espi on

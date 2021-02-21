@@ -10,6 +10,7 @@ DefinitionBlock(
 	0x20110725	// OEM revision
 )
 {
+	#include <acpi/dsdt_top.asl>
 	#include <soc/intel/common/block/acpi/acpi/platform.asl>
 	#include <soc/intel/common/block/acpi/acpi/globalnvs.asl>
 	#include <cpu/intel/common/acpi/cpu.asl>
@@ -18,6 +19,7 @@ DefinitionBlock(
 	{
 		#include <soc/intel/common/block/acpi/acpi/northbridge.asl>
 		#include <soc/intel/cannonlake/acpi/southbridge.asl>
+		#include <drivers/intel/gma/acpi/default_brightness_levels.asl>
 	}
 
 	#include <southbridge/intel/common/acpi/sleepstates.asl>

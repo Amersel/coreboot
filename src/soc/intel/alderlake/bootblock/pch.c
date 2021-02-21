@@ -9,6 +9,7 @@
 #include <device/mmio.h>
 #include <device/device.h>
 #include <device/pci_ops.h>
+#include <intelblocks/dmi.h>
 #include <intelblocks/fast_spi.h>
 #include <intelblocks/gspi.h>
 #include <intelblocks/lpc_lib.h>
@@ -20,7 +21,6 @@
 #include <soc/espi.h>
 #include <soc/iomap.h>
 #include <soc/p2sb.h>
-#include <soc/pch.h>
 #include <soc/pci_devs.h>
 #include <soc/pcr_ids.h>
 #include <soc/pm.h>
@@ -34,16 +34,10 @@
 #define PCR_PSFX_TO_SHDW_PCIEN_IOEN         0x01
 #define PCR_PSFX_T0_SHDW_PCIEN              0x1C
 
-#define PCR_DMI_DMICTL                      0x2234
-#define  PCR_DMI_DMICTL_SRLOCK              (1 << 31)
-
 #define PCR_DMI_ACPIBA                      0x27B4
 #define PCR_DMI_ACPIBDID                    0x27B8
 #define PCR_DMI_PMBASEA                     0x27AC
 #define PCR_DMI_PMBASEC                     0x27B0
-
-#define PCR_DMI_LPCIOD                      0x2770
-#define PCR_DMI_LPCIOE                      0x2774
 
 static void soc_config_pwrmbase(void)
 {
@@ -65,10 +59,15 @@ static void soc_config_pwrmbase(void)
 
 void bootblock_pch_early_init(void)
 {
-	fast_spi_early_init(SPI_BASE_ADDRESS);
-	gspi_early_bar_init();
+	/*
+	 * Perform P2SB configuration before any another controller initialization as the
+	 * controller might want to perform PCR settings.
+	 */
 	p2sb_enable_bar();
 	p2sb_configure_hpet();
+
+	fast_spi_early_init(SPI_BASE_ADDRESS);
+	gspi_early_bar_init();
 
 	/*
 	 * Enabling PWRM Base for accessing
@@ -97,19 +96,6 @@ static void soc_config_acpibase(void)
 	}
 }
 
-static int pch_check_decode_enable(void)
-{
-	const uint32_t dmi_control = pcr_read32(PID_DMI, PCR_DMI_DMICTL);
-
-	/*
-	 * This cycle decoding is only allowed to set when
-	 * DMICTL.SRLOCK is 0.
-	 */
-	if (dmi_control & PCR_DMI_DMICTL_SRLOCK)
-		return -1;
-	return 0;
-}
-
 void pch_early_iorange_init(void)
 {
 	uint16_t io_enables = LPC_IOE_SUPERIO_2E_2F | LPC_IOE_KBC_60_64 |
@@ -120,19 +106,7 @@ void pch_early_iorange_init(void)
 		lpc_io_setup_comm_a_b();
 
 	/* IO Decode Enable */
-	if (pch_check_decode_enable() == 0) {
-		io_enables = lpc_enable_fixed_io_ranges(io_enables);
-		/*
-		 * Set ESPI IO Enables PCR[DMI] + 2774h [15:0] to the same
-		 * value programmed in ESPI PCI offset 82h.
-		 */
-		pcr_write16(PID_DMI, PCR_DMI_LPCIOE, io_enables);
-		/*
-		 * Set LPC IO Decode Ranges PCR[DMI] + 2770h [15:0] to the same
-		 * value programmed in LPC PCI offset 80h.
-		 */
-		pcr_write16(PID_DMI, PCR_DMI_LPCIOD, lpc_get_fixed_io_decode());
-	}
+	lpc_enable_fixed_io_ranges(io_enables);
 
 	/* Program generic IO Decode Range */
 	pch_enable_lpc();
