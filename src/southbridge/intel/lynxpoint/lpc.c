@@ -11,18 +11,15 @@
 #include <arch/io.h>
 #include <arch/ioapic.h>
 #include <acpi/acpi.h>
-#include <acpi/acpi_gnvs.h>
 #include <cpu/x86/smm.h>
-#include <cbmem.h>
-#include <string.h>
 #include "chip.h"
 #include "iobp.h"
-#include "nvs.h"
 #include "pch.h"
 #include <acpi/acpigen.h>
 #include <southbridge/intel/common/acpi_pirq_gen.h>
 #include <southbridge/intel/common/rtc.h>
 #include <southbridge/intel/common/spi.h>
+#include <types.h>
 
 #define NMI_OFF	0
 
@@ -478,13 +475,6 @@ static void pch_set_acpi_mode(void)
 		apm_control(APM_CNT_ACPI_DISABLE);
 }
 
-static void pch_disable_smm_only_flashing(struct device *dev)
-{
-	printk(BIOS_SPEW, "Enabling BIOS updates outside of SMM... ");
-
-	pci_and_config8(dev, BIOS_CNTL, ~(1 << 5));
-}
-
 static void pch_fixups(struct device *dev)
 {
 	/* Indicate DRAM init done for MRC S3 to know it can resume */
@@ -536,8 +526,6 @@ static void lpc_init(struct device *dev)
 	/* Interrupt 9 should be level triggered (SCI) */
 	i8259_configure_irq_trigger(9, 1);
 
-	pch_disable_smm_only_flashing(dev);
-
 	pch_set_acpi_mode();
 
 	pch_fixups(dev);
@@ -560,10 +548,10 @@ static void pch_lpc_add_mmio_resources(struct device *dev)
 	res->flags = IORESOURCE_MEM | IORESOURCE_ASSIGNED | IORESOURCE_FIXED;
 
 	/* RCBA */
-	if ((uintptr_t)DEFAULT_RCBA < default_decode_base) {
+	if (CONFIG_FIXED_RCBA_MMIO_BASE < default_decode_base) {
 		res = new_resource(dev, RCBA);
-		res->base = (resource_t)(uintptr_t)DEFAULT_RCBA;
-		res->size = 16 * 1024;
+		res->base = (resource_t)CONFIG_FIXED_RCBA_MMIO_BASE;
+		res->size = CONFIG_RCBA_LENGTH;
 		res->flags = IORESOURCE_MEM | IORESOURCE_ASSIGNED |
 			     IORESOURCE_FIXED | IORESOURCE_RESERVE;
 	}
@@ -661,8 +649,6 @@ static void pch_lpc_add_io_resources(struct device *dev)
 
 static void pch_lpc_read_resources(struct device *dev)
 {
-	struct global_nvs *gnvs;
-
 	/* Get the normal PCI resources of this device. */
 	pci_dev_read_resources(dev);
 
@@ -671,11 +657,6 @@ static void pch_lpc_read_resources(struct device *dev)
 
 	/* Add IO resources. */
 	pch_lpc_add_io_resources(dev);
-
-	/* Allocate ACPI NVS in CBMEM */
-	gnvs = cbmem_add(CBMEM_ID_ACPI_GNVS, sizeof(struct global_nvs));
-	if (!acpi_is_wakeup_s3() && gnvs)
-		memset(gnvs, 0, sizeof(struct global_nvs));
 }
 
 static void pch_lpc_enable(struct device *dev)
@@ -685,41 +666,6 @@ static void pch_lpc_enable(struct device *dev)
 	RCBA32_OR(FD2, PCH_ENABLE_DBDF);
 
 	pch_enable(dev);
-}
-
-void southbridge_inject_dsdt(const struct device *dev)
-{
-	struct global_nvs *gnvs;
-
-	gnvs = cbmem_find(CBMEM_ID_ACPI_GNVS);
-	if (!gnvs) {
-		gnvs = cbmem_add(CBMEM_ID_ACPI_GNVS, sizeof(*gnvs));
-		if (gnvs)
-			memset(gnvs, 0, sizeof(*gnvs));
-	}
-
-	if (gnvs) {
-		acpi_create_gnvs(gnvs);
-
-		gnvs->apic = 1;
-		gnvs->mpen = 1; /* Enable Multi Processing */
-		gnvs->pcnt = dev_count_cpu();
-
-#if CONFIG(CHROMEOS)
-		chromeos_init_chromeos_acpi(&(gnvs->chromeos));
-#endif
-
-		/* Update the mem console pointer. */
-		gnvs->cbmc = (u32)cbmem_find(CBMEM_ID_CONSOLE);
-
-		/* And tell SMI about it */
-		apm_control(APM_CNT_GNVS_UPDATE);
-
-		/* Add it to DSDT.  */
-		acpigen_write_scope("\\");
-		acpigen_write_name_dword("NVSA", (u32)gnvs);
-		acpigen_pop_len();
-	}
 }
 
 static const char *lpc_acpi_name(const struct device *dev)
@@ -737,7 +683,6 @@ static unsigned long southbridge_write_acpi_tables(const struct device *device,
 						   struct acpi_rsdp *rsdp)
 {
 	unsigned long current;
-	acpi_header_t *ssdt;
 
 	current = start;
 
@@ -751,12 +696,14 @@ static unsigned long southbridge_write_acpi_tables(const struct device *device,
 
 	current = acpi_align_current(current);
 
-	printk(BIOS_DEBUG, "ACPI:     * SSDT2\n");
-	ssdt = (acpi_header_t *)current;
-	acpi_create_serialio_ssdt(ssdt);
-	current += ssdt->length;
-	acpi_add_table(rsdp, ssdt);
-	current = acpi_align_current(current);
+	if (pch_is_lp()) {
+		printk(BIOS_DEBUG, "ACPI:     * SSDT2\n");
+		acpi_header_t *ssdt = (acpi_header_t *)current;
+		acpi_create_serialio_ssdt(ssdt);
+		current += ssdt->length;
+		acpi_add_table(rsdp, ssdt);
+		current = acpi_align_current(current);
+	}
 
 	printk(BIOS_DEBUG, "current = %lx\n", current);
 	return current;
@@ -775,7 +722,6 @@ static struct device_operations device_ops = {
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
 	.acpi_fill_ssdt		= southbridge_fill_ssdt,
-	.acpi_inject_dsdt	= southbridge_inject_dsdt,
 	.acpi_name		= lpc_acpi_name,
 	.write_acpi_tables      = southbridge_write_acpi_tables,
 	.init			= lpc_init,
@@ -787,26 +733,27 @@ static struct device_operations device_ops = {
 
 /* IDs for LPC device of Intel 8 Series Chipset (Lynx Point) */
 static const unsigned short pci_device_ids[] = {
-	0x8c41, /* Mobile Full Featured Engineering Sample. */
-	0x8c42, /* Desktop Full Featured Engineering Sample. */
-	0x8c44, /* Z87 SKU */
-	0x8c46, /* Z85 SKU */
-	0x8c49, /* HM86 SKU */
-	0x8c4a, /* H87 SKU */
-	0x8c4b, /* HM87 SKU */
-	0x8c4c, /* Q85 SKU */
-	0x8c4e, /* Q87 SKU */
-	0x8c4f, /* QM87 SKU */
-	0x8c50, /* B85 SKU */
-	0x8c52, /* C222 SKU */
-	0x8c54, /* C224 SKU */
-	0x8c56, /* C226 SKU */
-	0x8c5c, /* H81 SKU */
-	0x9c41, /* LP Full Featured Engineering Sample */
-	0x9c43, /* LP Premium SKU */
-	0x9c45, /* LP Mainstream SKU */
-	0x9c47, /* LP Value SKU */
-	0 };
+	PCI_DEVICE_ID_INTEL_LPT_MOBILE_SAMPLE,
+	PCI_DEVICE_ID_INTEL_LPT_DESKTOP_SAMPLE,
+	PCI_DEVICE_ID_INTEL_LPT_Z87,
+	PCI_DEVICE_ID_INTEL_LPT_Z85,
+	PCI_DEVICE_ID_INTEL_LPT_HM86,
+	PCI_DEVICE_ID_INTEL_LPT_H87,
+	PCI_DEVICE_ID_INTEL_LPT_HM87,
+	PCI_DEVICE_ID_INTEL_LPT_Q85,
+	PCI_DEVICE_ID_INTEL_LPT_Q87,
+	PCI_DEVICE_ID_INTEL_LPT_QM87,
+	PCI_DEVICE_ID_INTEL_LPT_B85,
+	PCI_DEVICE_ID_INTEL_LPT_C222,
+	PCI_DEVICE_ID_INTEL_LPT_C224,
+	PCI_DEVICE_ID_INTEL_LPT_C226,
+	PCI_DEVICE_ID_INTEL_LPT_H81,
+	PCI_DEVICE_ID_INTEL_LPT_LP_SAMPLE,
+	PCI_DEVICE_ID_INTEL_LPT_LP_PREMIUM,
+	PCI_DEVICE_ID_INTEL_LPT_LP_MAINSTREAM,
+	PCI_DEVICE_ID_INTEL_LPT_LP_VALUE,
+	0
+};
 
 static const struct pci_driver pch_lpc __pci_driver = {
 	.ops	 = &device_ops,

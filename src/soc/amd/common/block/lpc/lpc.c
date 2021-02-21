@@ -1,7 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <acpi/acpi_gnvs.h>
-#include <cbmem.h>
 #include <console/console.h>
 #include <device/device.h>
 #include <device/pci.h>
@@ -14,13 +12,13 @@
 #include <arch/ioapic.h>
 #include <pc80/i8254.h>
 #include <pc80/i8259.h>
+#include <amdblocks/acpi.h>
 #include <amdblocks/acpimmio.h>
 #include <amdblocks/espi.h>
 #include <amdblocks/lpc.h>
-#include <soc/acpi.h>
-#include <soc/southbridge.h>
-#include <soc/nvs.h>
 #include <soc/iomap.h>
+#include <soc/lpc.h>
+#include <soc/southbridge.h>
 
 /* Most systems should have already enabled the bridge */
 void __weak soc_late_lpc_bridge_enable(void) { }
@@ -100,7 +98,6 @@ static void lpc_init(struct device *dev)
 static void lpc_read_resources(struct device *dev)
 {
 	struct resource *res;
-	struct global_nvs *gnvs;
 
 	/* Get the normal pci resources of this device */
 	pci_dev_read_resources(dev);
@@ -127,17 +124,15 @@ static void lpc_read_resources(struct device *dev)
 	res->size = 0x00001000;
 	res->flags = IORESOURCE_MEM | IORESOURCE_ASSIGNED | IORESOURCE_FIXED;
 
+#ifdef I2C_BASE_ADDRESS
 	/* I2C devices */
 	res = new_resource(dev, 4);
 	res->base = I2C_BASE_ADDRESS;
 	res->size = I2C_DEVICE_SIZE * I2C_DEVICE_COUNT;
 	res->flags = IORESOURCE_MEM | IORESOURCE_ASSIGNED | IORESOURCE_FIXED;
+#endif
 
 	compact_resources(dev);
-
-	/* Allocate ACPI NVS in CBMEM */
-	gnvs = cbmem_add(CBMEM_ID_ACPI_GNVS, sizeof(struct global_nvs));
-	printk(BIOS_DEBUG, "ACPI GNVS at %p\n", gnvs);
 }
 
 static void lpc_set_resources(struct device *dev)
@@ -324,12 +319,21 @@ static void lpc_enable_resources(struct device *dev)
 	lpc_enable_children_resources(dev);
 }
 
+#if CONFIG(HAVE_ACPI_TABLES)
+static const char *lpc_acpi_name(const struct device *dev)
+{
+	return "LPCB";
+}
+#endif
+
 static struct device_operations lpc_ops = {
 	.read_resources = lpc_read_resources,
 	.set_resources = lpc_set_resources,
 	.enable_resources = lpc_enable_resources,
-	.acpi_inject_dsdt = southbridge_inject_dsdt,
+#if CONFIG(HAVE_ACPI_TABLES)
+	.acpi_name = lpc_acpi_name,
 	.write_acpi_tables = southbridge_write_acpi_tables,
+#endif
 	.init = lpc_init,
 	.scan_bus = scan_static_bus,
 	.ops_pci = &pci_dev_ops_pci,

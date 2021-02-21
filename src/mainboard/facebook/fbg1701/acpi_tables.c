@@ -5,11 +5,10 @@
 #include <arch/ioapic.h>
 #include <soc/acpi.h>
 #include <soc/nvs.h>
+#include <soc/device_nvs.h>
 
-void acpi_create_gnvs(struct global_nvs *gnvs)
+void mainboard_fill_gnvs(struct global_nvs *gnvs)
 {
-	acpi_init_gnvs(gnvs);
-
 	/* Enable USB ports in S3 */
 	gnvs->s3u0 = 1;
 	gnvs->s3u1 = 1;
@@ -22,7 +21,8 @@ void acpi_create_gnvs(struct global_nvs *gnvs)
 	gnvs->dpte = 0;
 
 	/* PMIC is configured in I2C1, hide it for the OS */
-	gnvs->dev.lpss_en[LPSS_NVS_I2C2] = 0;
+	struct device_nvs *dev_nvs = acpi_get_device_nvs();
+	dev_nvs->lpss_en[LPSS_NVS_I2C2] = 0;
 }
 
 unsigned long acpi_fill_madt(unsigned long current)

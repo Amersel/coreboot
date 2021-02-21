@@ -3,6 +3,7 @@
 #include <console/console.h>
 #include <cpu/cpu.h>
 #include <cpu/x86/lapic_def.h>
+#include <cpu/x86/mp.h>
 #include <arch/io.h>
 #include <device/pci_def.h>
 #include <device/pci_ops.h>
@@ -244,9 +245,22 @@ static struct device_operations pci_domain_ops = {
 #endif
 };
 
+static const struct mp_ops mp_ops_no_smm = {
+	.get_cpu_count = fw_cfg_max_cpus,
+};
+
+void mp_init_cpus(struct bus *cpu_bus)
+{
+	if (mp_init_with_smm(cpu_bus, &mp_ops_no_smm))
+		printk(BIOS_ERR, "MP initialization failure.\n");
+}
+
 static void cpu_bus_init(struct device *dev)
 {
-	initialize_cpus(dev->link_list);
+	if (CONFIG(PARALLEL_MP))
+		mp_cpu_bus_init(dev);
+	else
+		initialize_cpus(dev->link_list);
 }
 
 static void cpu_bus_scan(struct device *bus)
@@ -257,6 +271,12 @@ static void cpu_bus_scan(struct device *bus)
 
 	if (max_cpus < 0)
 		return;
+	/*
+	 * Do not install more CPUs than supported by coreboot.
+	 * This will cause a buffer overflow where fixed arrays of CONFIG_MAX_CPUS
+	 * are used and might result in a boot failure.
+	 */
+	max_cpus = MIN(max_cpus, CONFIG_MAX_CPUS);
 
 	/*
 	 * TODO: This only handles the simple "qemu -smp $nr" case

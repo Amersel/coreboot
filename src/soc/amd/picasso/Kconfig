@@ -16,32 +16,37 @@ config CPU_SPECIFIC_OPTIONS
 	select RESET_VECTOR_IN_RAM
 	select X86_AMD_FIXED_MTRRS
 	select X86_AMD_INIT_SIPI
-	select ACPI_AMD_HARDWARE_SLEEP_VALUES
+	select ACPI_SOC_NVS
 	select DRIVERS_I2C_DESIGNWARE
 	select DRIVERS_USB_PCI_XHCI
 	select GENERIC_GPIO_LIB
 	select IDT_IN_EVERY_STAGE
 	select IOAPIC
+	select HAVE_ACPI_TABLES
 	select HAVE_EM100_SUPPORT
-	select HAVE_USBDEBUG_OPTIONS
-	select COLLECT_TIMESTAMPS_NO_TSC
-	select SOC_AMD_COMMON_BLOCK_SPI
-	select TSC_SYNC_LFENCE
-	select UDELAY_TSC
 	select SOC_AMD_COMMON
-	select SOC_AMD_COMMON_BLOCK
-	select SOC_AMD_COMMON_BLOCK_HAS_ESPI
-	select SOC_AMD_COMMON_BLOCK_IOMMU
-	select SOC_AMD_COMMON_BLOCK_ACPIMMIO
-	select SOC_AMD_COMMON_BLOCK_BANKED_GPIOS
 	select SOC_AMD_COMMON_BLOCK_ACPI
+	select SOC_AMD_COMMON_BLOCK_ACPIMMIO
+	select SOC_AMD_COMMON_BLOCK_AOAC
+	select SOC_AMD_COMMON_BLOCK_BANKED_GPIOS
+	select SOC_AMD_COMMON_BLOCK_DATA_FABRIC
 	select SOC_AMD_COMMON_BLOCK_GRAPHICS
-	select SOC_AMD_COMMON_BLOCK_LPC
-	select SOC_AMD_COMMON_BLOCK_PCI
+	select SOC_AMD_COMMON_BLOCK_HAS_ESPI
 	select SOC_AMD_COMMON_BLOCK_HDA
+	select SOC_AMD_COMMON_BLOCK_IOMMU
+	select SOC_AMD_COMMON_BLOCK_LPC
+	select SOC_AMD_COMMON_BLOCK_NONCAR
+	select SOC_AMD_COMMON_BLOCK_PCI
+	select SOC_AMD_COMMON_BLOCK_PSP_GEN2
 	select SOC_AMD_COMMON_BLOCK_SATA
 	select SOC_AMD_COMMON_BLOCK_SMBUS
-	select SOC_AMD_COMMON_BLOCK_PSP_GEN2
+	select SOC_AMD_COMMON_BLOCK_SMI
+	select SOC_AMD_COMMON_BLOCK_SMM
+	select SOC_AMD_COMMON_BLOCK_SMU
+	select SOC_AMD_COMMON_BLOCK_SPI
+	select SOC_AMD_COMMON_BLOCK_TSC_FAM17H_19H
+	select SOC_AMD_COMMON_BLOCK_UART
+	select SOC_AMD_COMMON_BLOCK_UCODE
 	select PROVIDES_ROM_SHARING
 	select BOOT_DEVICE_SUPPORTS_WRITES if BOOT_DEVICE_SPI_FLASH
 	select PARALLEL_MP
@@ -54,12 +59,23 @@ config CPU_SPECIFIC_OPTIONS
 	select FSP_COMPRESS_FSP_S_LZMA
 	select UDK_2017_BINDING
 	select HAVE_CF9_RESET
-	select SUPPORT_CPU_UCODE_IN_CBFS
-	select ACPI_NO_SMI_GNVS
 
-config MEMLAYOUT_LD_FILE
-	string
-	default "src/soc/amd/picasso/memlayout.ld"
+config SOC_AMD_COMMON_BLOCK_UCODE_SIZE
+	default 3200
+
+config FSP_M_FILE
+	string "FSP-M (memory init) binary path and filename"
+	depends on ADD_FSP_BINARIES
+	default "3rdparty/amd_blobs/picasso/PICASSO_M.fd"
+	help
+	  The path and filename of the FSP-M binary for this platform.
+
+config FSP_S_FILE
+	string "FSP-S (silicon init) binary path and filename"
+	depends on ADD_FSP_BINARIES
+	default "3rdparty/amd_blobs/picasso/PICASSO_S.fd"
+	help
+	  The path and filename of the FSP-S binary for this platform.
 
 config EARLY_RESERVED_DRAM_BASE
 	hex
@@ -109,12 +125,6 @@ config PRERAM_CBMEM_CONSOLE_SIZE
 	help
 	  Increase this value if preram cbmem console is getting truncated
 
-config BOOTBLOCK_ADDR
-	hex
-	default 0x2030000
-	help
-	  Sets the address in DRAM where bootblock should be loaded.
-
 config C_ENV_BOOTBLOCK_SIZE
 	hex
 	default 0x10000
@@ -122,15 +132,6 @@ config C_ENV_BOOTBLOCK_SIZE
 	  Sets the size of the bootblock stage that should be loaded in DRAM.
 	  This variable controls the DRAM allocation size in linker script
 	  for bootblock stage.
-
-config X86_RESET_VECTOR
-	hex
-	depends on ARCH_X86
-	default 0x203fff0
-	help
-	  Sets the reset vector within bootblock where x86 starts execution.
-	  Reset vector is supposed to live at offset -0x10 from end of
-	  bootblock i.e. BOOTBLOCK_ADDR + C_ENV_BOOTBLOCK_SIZE - 0x10.
 
 config ROMSTAGE_ADDR
 	hex
@@ -182,11 +183,9 @@ config CPU_ADDR_BITS
 	default 48
 
 config MMCONF_BASE_ADDRESS
-	hex
 	default 0xF8000000
 
 config MMCONF_BUS_NUMBER
-	int
 	default 64
 
 config VERSTAGE_ADDR
@@ -242,28 +241,6 @@ config HEAP_SIZE
 	hex
 	default 0xc0000
 
-config EHCI_BAR
-	hex
-	default 0xfef00000
-
-config PICASSO_FCH_IOAPIC_ID
-	hex
-	default 0x8
-	help
-	  The Picasso APU has two IOAPICs, one in the FCH and one in the
-	  northbridge.  Set this value for the intended ID to assign to the
-	  FCH IOAPIC.  The value should be >= MAX_CPUS and different from
-	  the GNB's IOAPIC_ID.
-
-config PICASSO_GNB_IOAPIC_ID
-	hex
-	default 0x9
-	help
-	  The Picasso APU has two IOAPICs, one in the FCH and one in the
-	  northbridge.  Set this value for the intended ID to assign to the
-	  GNB IOAPIC.  The value should be >= MAX_CPUS and different from
-	  the FCH's IOAPIC_ID.
-
 config SERIRQ_CONTINUOUS_MODE
 	bool
 	default n
@@ -271,53 +248,8 @@ config SERIRQ_CONTINUOUS_MODE
 	  Set this option to y for serial IRQ in continuous mode.
 	  Otherwise it is in quiet mode.
 
-config PICASSO_ACPI_IO_BASE
-	hex
-	default 0x400
-	help
-	  Base address for the ACPI registers.
-
-config PICASSO_CONSOLE_UART
-	bool "Use Picasso UART controller for console"
-	default n
-	select DRIVERS_UART_8250MEM
-	select DRIVERS_UART_8250MEM_32
-	select NO_UART_ON_SUPERIO
-	select UART_OVERRIDE_REFCLK
-	help
-	  There are four memory-mapped UARTs controllers in Picasso at:
-	  0: 0xfedc9000
-	  1: 0xfedca000
-	  2: 0xfedc3000
-	  3: 0xfedcf000
-
-choice
-	prompt "UART Frequency"
-	depends on PICASSO_CONSOLE_UART
-	default PICASSO_UART_48MZ
-
-config PICASSO_UART_48MZ
-	bool "48 MHz clock"
-	help
-	  Select this option for the most compatibility.
-
-config PICASSO_UART_1_8MZ
-	bool "1.8432 MHz clock"
-	help
-	  Select this option if an old payload or Linux ttyS0 arguments
-	  require it.
-
-endchoice
-
-config PICASSO_UART_LEGACY
-	bool "Decode legacy I/O range"
-	help
-	  Assign I/O 3F8, 2F8, etc. to a Picasso UART. A UART accessed with I/O
-	  does not allow all the features of MMIO. The MMIO decode is still
-	  present when this option is used.
-
 config CONSOLE_UART_BASE_ADDRESS
-	depends on CONSOLE_SERIAL && PICASSO_CONSOLE_UART
+	depends on CONSOLE_SERIAL && AMD_SOC_CONSOLE_UART
 	hex
 	default 0xfedc9000 if UART_FOR_CONSOLE = 0
 	default 0xfedca000 if UART_FOR_CONSOLE = 1
@@ -326,7 +258,7 @@ config CONSOLE_UART_BASE_ADDRESS
 
 config SMM_TSEG_SIZE
 	hex
-	default 0x800000 if SMM_TSEG && HAVE_SMI_HANDLER
+	default 0x800000 if HAVE_SMI_HANDLER
 	default 0x0
 
 config SMM_RESERVED_SIZE
@@ -366,7 +298,6 @@ config ACPI_SSDT_PSD_INDEPENDENT
 	  choose to generate _PSD object to allow cores to transition together.
 
 config CHROMEOS
-	select CHROMEOS_RAMOOPS_DYNAMIC
 	select ALWAYS_LOAD_OPROM
 	select ALWAYS_RUN_OPROM
 
@@ -378,12 +309,6 @@ config RO_REGION_ONLY
 config DRIVERS_I2C_DESIGNWARE_CLOCK_MHZ
 	int
 	default 150
-
-config PICASSO_LPC_IOMUX
-	bool
-	help
-	  Picasso's LPC bus signals are MUXed with some of the EMMC signals.
-	  Select this option if LPC signals are required.
 
 config DISABLE_SPI_FLASH_ROM_SHARING
 	def_bool n
@@ -408,14 +333,6 @@ config FSP_TEMP_RAM_SIZE
 	  The amount of coreboot-allocated heap and stack usage by the FSP.
 
 menu "PSP Configuration Options"
-
-config AMDFW_OUTSIDE_CBFS
-	bool
-	default n
-	help
-	  The AMDFW (PSP) is typically locatable in cbfs.  Select this
-	  option to manually attach the generated amdfw.rom outside of
-	  cbfs.  The location is selected by the FWM position.
 
 config AMD_FWM_POSITION_INDEX
 	int "Firmware Directory Table location (0 to 5)"
@@ -453,14 +370,6 @@ comment "AMD Firmware Directory Table set to location for 16MB ROM"
 config AMDFW_CONFIG_FILE
 	string
 	default "src/soc/amd/picasso/fw.cfg"
-
-config USE_PSPSECUREOS
-	bool
-	default y
-	help
-	  Include the PspSecureOs and PspTrustlet binaries in the PSP build.
-
-	  If unsure, answer 'y'
 
 config PSP_LOAD_MP2_FW
 	bool

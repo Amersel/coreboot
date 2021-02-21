@@ -16,7 +16,6 @@ chip soc/intel/cannonlake
 	# FSP configuration
 	register "SaGv" = "SaGv_Enabled"
 	register "SataSalpSupport" = "1"
-	register "SataMode" = "Sata_AHCI"
 	register "SataPortsEnable[2]" = "1"
 	register "SataPortsDevSlp[2]" = "1"
 	register "SkipExtGfxScan" = "1"
@@ -337,7 +336,7 @@ chip soc/intel/cannonlake
 			chip drivers/i2c/hid
 				register "generic.hid" = ""PNP0C50""
 				register "generic.desc" = ""Cirque Touchpad""
-				register "generic.irq" = "ACPI_IRQ_EDGE_LOW(GPP_B3_IRQ)"
+				register "generic.irq" = "ACPI_IRQ_LEVEL_LOW(GPP_B3_IRQ)"
 				register "generic.probed" = "1"
 				register "hid_desc_reg_offset" = "0x20"
 				device i2c 2a on end

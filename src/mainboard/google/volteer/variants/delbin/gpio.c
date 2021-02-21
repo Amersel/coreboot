@@ -27,8 +27,8 @@ static const struct pad_config override_gpio_table[] = {
 	/* A23 : I2S1_SCLK ==> I2S1_SPKR_SCLK */
 	PAD_CFG_NF(GPP_A23, NONE, DEEP, NF1),
 
-	/* B2  : VRALERT# ==> NC */
-	PAD_NC(GPP_B2, NONE),
+	/* B2  : VRALERT# ==> EN_PP3300_SSD */
+	PAD_CFG_GPO(GPP_B2, 1, DEEP),
 	/* B9  : I2C5_SDA ==> PCH_I2C5_TRACKPAD_SDA */
 	PAD_CFG_NF(GPP_B9, NONE, DEEP, NF1),
 	/* B10 : I2C5_SCL ==> PCH_I2C5_TRACKPAD_SCL */
@@ -125,8 +125,16 @@ static const struct pad_config override_gpio_table[] = {
 
 /* Early pad configuration in bootblock */
 static const struct pad_config early_gpio_table[] = {
+	/* C8 : UART0 RX */
+	PAD_CFG_NF(GPP_C8, NONE, DEEP, NF1),
+	/* C9 : UART0 TX */
+	PAD_CFG_NF(GPP_C9, NONE, DEEP, NF1),
+
 	/* A12 : SATAXPCIE1 ==> M2_SSD_PEDET */
 	PAD_CFG_NF(GPP_A12, NONE, DEEP, NF1),
+	/* A13 : PMC_I2C_SCL ==> BT_DISABLE_L */
+	/* assert reset on reboot */
+	PAD_CFG_GPO(GPP_A13, 0, DEEP),
 	/* A17 : DDSP_HPDC ==> MEM_CH_SEL */
 	PAD_CFG_GPI(GPP_A17, NONE, DEEP),
 

@@ -863,6 +863,11 @@ int google_chromeec_cbi_get_board_version(uint32_t *version)
 	return cbi_get_uint32(version, CBI_TAG_BOARD_VERSION);
 }
 
+int google_chromeec_cbi_get_ssfc(uint32_t *ssfc)
+{
+	return cbi_get_uint32(ssfc, CBI_TAG_SSFC);
+}
+
 static int cbi_get_string(char *buf, size_t bufsize, uint32_t tag)
 {
 	struct ec_params_get_cbi params = {
@@ -993,9 +998,24 @@ static uint16_t google_chromeec_get_uptime_info(
 
 bool google_chromeec_get_ap_watchdog_flag(void)
 {
+	int i;
 	struct ec_response_uptime_info resp;
-	return (!google_chromeec_get_uptime_info(&resp) &&
-		(resp.ec_reset_flags & EC_RESET_FLAG_AP_WATCHDOG));
+
+	if (google_chromeec_get_uptime_info(&resp))
+		return false;
+
+	if (resp.ec_reset_flags & EC_RESET_FLAG_AP_WATCHDOG)
+		return true;
+
+	/* Find the last valid entry */
+	for (i = ARRAY_SIZE(resp.recent_ap_reset) - 1; i >= 0; i--) {
+		if (resp.recent_ap_reset[i].reset_time_ms == 0)
+			continue;
+		return (resp.recent_ap_reset[i].reset_cause ==
+			CHIPSET_RESET_AP_WATCHDOG);
+	}
+
+	return false;
 }
 
 int google_chromeec_i2c_xfer(uint8_t chip, uint8_t addr, int alen,
@@ -1620,6 +1640,53 @@ int google_chromeec_ap_reset(void)
 
 	if (google_chromeec_command(&cmd))
 		return -1;
+
+	return 0;
+}
+
+int google_chromeec_regulator_enable(uint32_t index, uint8_t enable)
+{
+	struct ec_params_regulator_enable params = {
+		.index = index,
+		.enable = enable,
+	};
+	struct chromeec_command cmd = {
+		.cmd_code = EC_CMD_REGULATOR_ENABLE,
+		.cmd_version = 0,
+		.cmd_data_in = &params,
+		.cmd_size_in = sizeof(params),
+		.cmd_data_out = NULL,
+		.cmd_size_out = 0,
+		.cmd_dev_index = 0,
+	};
+
+	if (google_chromeec_command(&cmd))
+		return -1;
+
+	return 0;
+}
+
+int google_chromeec_regulator_is_enabled(uint32_t index, uint8_t *enabled)
+{
+
+	struct ec_params_regulator_is_enabled params = {
+		.index = index,
+	};
+	struct ec_response_regulator_is_enabled resp = {};
+	struct chromeec_command cmd = {
+		.cmd_code = EC_CMD_REGULATOR_IS_ENABLED,
+		.cmd_version = 0,
+		.cmd_data_in = &params,
+		.cmd_size_in = sizeof(params),
+		.cmd_data_out = &resp,
+		.cmd_size_out = sizeof(resp),
+		.cmd_dev_index = 0,
+	};
+
+	if (google_chromeec_command(&cmd))
+		return -1;
+
+	*enabled = resp.enabled;
 
 	return 0;
 }

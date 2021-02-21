@@ -13,7 +13,6 @@
 #include <soc/pci_devs.h>
 #include <soc/ramstage.h>
 #include <soc/soc_chip.h>
-#include <string.h>
 
 /*
  * ME End of Post configuration
@@ -34,6 +33,8 @@ static const pci_devfn_t serial_io_dev[] = {
 	PCH_DEVFN_I2C3,
 	PCH_DEVFN_I2C4,
 	PCH_DEVFN_I2C5,
+	PCH_DEVFN_I2C6,
+	PCH_DEVFN_I2C7,
 	PCH_DEVFN_GSPI0,
 	PCH_DEVFN_GSPI1,
 	PCH_DEVFN_GSPI2,
@@ -44,17 +45,13 @@ static const pci_devfn_t serial_io_dev[] = {
 
 static void parse_devicetree(FSP_S_CONFIG *params)
 {
-	const struct soc_intel_elkhartlake_config *config = config_of_soc();
 	/* TODO: Update with UPD override as FSP matures */
 }
 
 /* UPD parameters to be initialized before SiliconInit */
 void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 {
-	unsigned int i;
-	struct device *dev;
 	FSP_S_CONFIG *params = &supd->FspsConfig;
-	struct soc_intel_elkhartlake_config *config = config_of_soc();
 
 	/* Parse device tree and fill in FSP UPDs */
 	parse_devicetree(params);

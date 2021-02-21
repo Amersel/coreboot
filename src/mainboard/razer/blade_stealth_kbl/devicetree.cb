@@ -23,7 +23,6 @@ chip soc/intel/skylake
 	register "dptf_enable" = "0"
 
 	# FSP Configuration
-	register "ProbelessTrace" = "0"
 	register "SataSalpSupport" = "0"
 	register "SataMode" = "0"
 	register "SataPortsEnable[0]" = "0"
@@ -33,7 +32,6 @@ chip soc/intel/skylake
 	register "IoBufferOwnership" = "0"
 	register "SsicPortEnable" = "0"
 	register "ScsEmmcHs400Enabled" = "0"
-	register "PttSwitch" = "0"
 	register "SkipExtGfxScan" = "1"
 	register "HeciEnabled" = "1"
 	register "SaGv" = "SaGv_Enabled"
@@ -193,7 +191,7 @@ chip soc/intel/skylake
 			chip drivers/i2c/hid
 				register "generic.hid" = ""PNP0C50""
 				register "generic.desc" = ""Synaptics Touchpad""
-				register "generic.irq" = "ACPI_IRQ_WAKE_EDGE_LOW(GPP_E7_IRQ)"
+				register "generic.irq" = "ACPI_IRQ_WAKE_LEVEL_LOW(GPP_E7_IRQ)"
 				register "generic.probed" = "1"
 				register "hid_desc_reg_offset" = "0x20"
 				device i2c 0x2c on end

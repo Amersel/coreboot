@@ -6,13 +6,12 @@ config BOARD_SPECIFIC_OPTIONS
 	def_bool y
 	select SOC_AMD_COMMON_BLOCK_USE_ESPI
 	select SOC_AMD_PICASSO
-	select HAVE_ACPI_TABLES
 	select BOARD_ROMSIZE_KB_8192 if BOARD_AMD_MANDOLIN
 	select BOARD_ROMSIZE_KB_16384 if BOARD_AMD_CEREME
 	select AZALIA_PLUGIN_SUPPORT
 	select HAVE_ACPI_RESUME
 	select DRIVERS_UART_ACPI
-	select PICASSO_CONSOLE_UART if !AMD_LPC_DEBUG_CARD
+	select AMD_SOC_CONSOLE_UART if !AMD_LPC_DEBUG_CARD
 
 config FMDFILE
 	string
@@ -21,13 +20,31 @@ config FMDFILE
 config AMD_LPC_DEBUG_CARD
 	bool "Enable LPC-Serial debug card on the debug header"
 	default n
-	select PICASSO_LPC_IOMUX
+	select MANDOLIN_LPC
 	select SUPERIO_SMSC_SIO1036
 	help
 	  AMD's debug card contains an SMSC SIO1036 device which provides an
 	  I/O-mapped UART in the system. This is mutually exclusive with
-	  PICASSO_CONSOLE_UART which selects the SoC's integrated memory-mapped
+	  AMD_SOC_CONSOLE_UART which selects the SoC's integrated memory-mapped
 	  UART for coreboot console output.
+
+choice
+	prompt "SMSC/Microchip 1036 SuperIO config address"
+	depends on SUPERIO_SMSC_SIO1036
+	default SMSC_SIO1036_BASE_164E
+
+config SMSC_SIO1036_BASE_4E
+	bool "0x4e/0x4d base address"
+
+config SMSC_SIO1036_BASE_164E
+	bool "0x164e/0x164d base address"
+
+endchoice
+
+config SUPERIO_ADDR_BASE
+	hex
+	default 0x4e	if SMSC_SIO1036_BASE_4E
+	default 0x164e	if SMSC_SIO1036_BASE_164E
 
 config CBFS_SIZE
 	hex
@@ -93,7 +110,7 @@ config MANDOLIN_IOMUX_USE_EMMC
 endchoice
 endif # !AMD_LPC_DEBUG_CARD
 
-config PICASSO_LPC_IOMUX
+config MANDOLIN_LPC
 	bool
 	default y if MANDOLIN_IOMUX_USE_LPC
 	help

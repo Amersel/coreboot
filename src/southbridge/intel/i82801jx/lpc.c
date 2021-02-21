@@ -12,15 +12,11 @@
 #include <device/pci_ops.h>
 #include <arch/ioapic.h>
 #include <acpi/acpi.h>
-#include <acpi/acpi_gnvs.h>
 #include <cpu/x86/smm.h>
 #include <acpi/acpigen.h>
 #include <arch/smp/mpspec.h>
-#include <cbmem.h>
-#include <string.h>
 #include "chip.h"
 #include "i82801jx.h"
-#include "nvs.h"
 #include <southbridge/intel/common/pciehp.h>
 #include <southbridge/intel/common/pmutil.h>
 #include <southbridge/intel/common/acpi_pirq_gen.h>
@@ -193,7 +189,7 @@ static void i82801jx_power_options(struct device *dev)
 	}
 
 	reg8 |= (3 << 4);	/* avoid #S4 assertions */
-	reg8 &= ~(1 << 3);	/* minimum asssertion is 1 to 2 RTCCLK */
+	reg8 &= ~(1 << 3);	/* minimum assertion is 1 to 2 RTCCLK */
 
 	pci_write_config8(dev, D31F0_GEN_PMCON_3, reg8);
 	printk(BIOS_INFO, "Set power %s after power failure.\n", state);
@@ -477,24 +473,6 @@ static void i82801jx_lpc_read_resources(struct device *dev)
 	}
 }
 
-void southbridge_inject_dsdt(const struct device *dev)
-{
-	struct global_nvs *gnvs = cbmem_add(CBMEM_ID_ACPI_GNVS, sizeof(*gnvs));
-
-	if (gnvs) {
-		memset(gnvs, 0, sizeof(*gnvs));
-		acpi_create_gnvs(gnvs);
-
-		/* And tell SMI about it */
-		apm_control(APM_CNT_GNVS_UPDATE);
-
-		/* Add it to SSDT.  */
-		acpigen_write_scope("\\");
-		acpigen_write_name_dword("NVSA", (u32) gnvs);
-		acpigen_pop_len();
-	}
-}
-
 static const char *lpc_acpi_name(const struct device *dev)
 {
 	return "LPCB";
@@ -513,7 +491,6 @@ static struct device_operations device_ops = {
 	.read_resources		= i82801jx_lpc_read_resources,
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
-	.acpi_inject_dsdt	= southbridge_inject_dsdt,
 	.write_acpi_tables      = acpi_write_hpet,
 	.acpi_fill_ssdt		= southbridge_fill_ssdt,
 	.acpi_name		= lpc_acpi_name,

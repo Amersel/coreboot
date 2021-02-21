@@ -13,8 +13,6 @@
 #include <southbridge/intel/ibexpeak/me.h>
 #include "pch.h"
 
-#include "nvs.h"
-
 /* We are using PCIe accesses for now
  *  1. the chipset can do it
  *  2. we don't need to worry about how we leave 0xcf8/0xcfc behind
@@ -22,23 +20,6 @@
 #include <northbridge/intel/ironlake/ironlake.h>
 #include <southbridge/intel/common/gpio.h>
 #include <southbridge/intel/common/pmutil.h>
-
-int southbridge_io_trap_handler(int smif)
-{
-	switch (smif) {
-	case 0x32:
-		printk(BIOS_DEBUG, "OS Init\n");
-		/* gnvs->smif:
-		 *  On success, the IO Trap Handler returns 0
-		 *  On failure, the IO Trap Handler returns a value != 0
-		 */
-		gnvs->smif = 0;
-		return 1; /* IO trap handled */
-	}
-
-	/* Not handled */
-	return 0;
-}
 
 static void southbridge_gate_memory_reset_real(int offset,
 					       u16 use, u16 io, u16 lvl)
@@ -109,8 +90,6 @@ void southbridge_smi_monitor(void)
 
 	/* IOTRAP(3) SMI function call */
 	if (IOTRAP(3)) {
-		if (gnvs && gnvs->smif)
-			io_trap_handler(gnvs->smif); // call function smif
 		return;
 	}
 
@@ -147,25 +126,9 @@ void southbridge_smi_monitor(void)
 #undef IOTRAP
 }
 
-void southbridge_update_gnvs(u8 apm_cnt, int *smm_done)
-{
-	em64t101_smm_state_save_area_t *state =
-		smi_apmc_find_state_save(apm_cnt);
-	if (state) {
-		/* EBX in the state save contains the GNVS pointer */
-		gnvs = (struct global_nvs *)(uintptr_t)((u32)state->rbx);
-		if (smm_points_to_smram(gnvs, sizeof(*gnvs))) {
-			printk(BIOS_ERR, "SMI#: ERROR: GNVS overlaps SMM\n");
-			return;
-		}
-		*smm_done = 1;
-		printk(BIOS_DEBUG, "SMI#: Setting GNVS to %p\n", gnvs);
-	}
-}
-
 void southbridge_finalize_all(void)
 {
-	intel_me_finalize_smm();
+	/* TODO: Finalize ME */
 	intel_pch_finalize_smm();
 	intel_ironlake_finalize_smm();
 	intel_model_2065x_finalize_smm();

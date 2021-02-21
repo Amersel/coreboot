@@ -10,10 +10,13 @@ ramstage-y += acpigen_ps2_keybd.c
 ramstage-y += acpigen_usb.c
 ramstage-y += device.c
 ramstage-$(CONFIG_CHROMEOS) += chromeos-gnvs.c
-ramstage-y += gnvs.c
+ramstage-$(CONFIG_ACPI_SOC_NVS) += gnvs.c
 ramstage-y += pld.c
 ramstage-y += sata.c
 ramstage-y += soundwire.c
+
+all-y += acpi_pm.c
+smm-y += acpi_pm.c
 
 ifneq ($(wildcard src/mainboard/$(MAINBOARDDIR)/acpi_tables.c),)
 ramstage-srcs += src/mainboard/$(MAINBOARDDIR)/acpi_tables.c

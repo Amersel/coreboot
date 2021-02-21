@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <arch/io.h>
+#include <console/console.h>
 #include <device/pci_ops.h>
 #include <device/smbus_host.h>
 #include <northbridge/intel/ironlake/ironlake.h>
@@ -29,7 +30,7 @@ static void pch_default_disable(void)
 void ibexpeak_setup_bars(void)
 {
 	printk(BIOS_DEBUG, "Setting up static southbridge registers...");
-	pci_write_config32(PCI_DEV(0, 0x1f, 0), RCBA, (uintptr_t)DEFAULT_RCBA | 1);
+	pci_write_config32(PCI_DEV(0, 0x1f, 0), RCBA, CONFIG_FIXED_RCBA_MMIO_BASE | 1);
 
 	pci_write_config32(PCI_DEV(0, 0x1f, 0), PMBASE, DEFAULT_PMBASE | 1);
 	/* Enable ACPI BAR */

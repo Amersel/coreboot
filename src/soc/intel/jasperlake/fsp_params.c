@@ -236,6 +236,21 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 				config->PchPmSlpS3MinAssert, config->PchPmSlpAMinAssert,
 				config->PchPmPwrCycDur);
 
+	/*
+	 * Fill Acoustic noise mitigation related configuration
+	 * JSL only has single VR domain (VCCIN VR), thus filling only index 0 for
+	 * Slew rate and FastPkgCRamp for VR0 only.
+	 */
+	params->AcousticNoiseMitigation = config->AcousticNoiseMitigation;
+
+	if (params->AcousticNoiseMitigation) {
+		params->FastPkgCRampDisable[0] = config->FastPkgCRampDisable;
+		params->SlowSlewRate[0] = config->SlowSlewRate;
+		params->PreWake = config->PreWake;
+		params->RampUp = config->RampUp;
+		params->RampDown = config->RampDown;
+	}
+
 	/* Override/Fill FSP Silicon Param for mainboard */
 	mainboard_silicon_init_params(params);
 }

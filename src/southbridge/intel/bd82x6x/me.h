@@ -171,6 +171,22 @@ struct mei_header {
 #define MKHI_GLOBAL_RESET	0x0b
 
 #define MKHI_FWCAPS_GET_RULE	0x02
+#define MKHI_FWCAPS_SET_RULE	0x03
+
+#define MKHI_DISABLE_RULE_ID	0x06
+
+#define CMOS_ME_STATE(state)	((state) & 0x1)
+#define CMOS_ME_CHANGED(state)	(((state) & 0x2) >> 1)
+#define CMOS_ME_STATE_NORMAL	0
+#define CMOS_ME_STATE_DISABLED	1
+#define CMOS_ME_STATE_CHANGED	2
+
+#define ME_ENABLE_TIMEOUT	20000
+
+struct me_disable {
+	u32 rule_id;
+	u16 data;
+} __packed;
 
 #define MKHI_MDES_ENABLE	0x09
 
@@ -220,6 +236,37 @@ typedef enum {
 	ME_FIRMWARE_UPDATE_BIOS_PATH,
 } me_bios_path;
 
+/* Defined in me_common.c for both ramstage and smm */
+const char *const me_get_bios_path_string(int path);
+
+void mei_read_dword_ptr(void *ptr, int offset);
+void mei_write_dword_ptr(void *ptr, int offset);
+
+#ifndef __SIMPLE_DEVICE__
+void pci_read_dword_ptr(struct device *dev, void *ptr, int offset);
+bool enter_soft_temp_disable(void);
+void enter_soft_temp_disable_wait(void);
+void exit_soft_temp_disable(struct device *dev);
+void exit_soft_temp_disable_wait(struct device *dev);
+#endif
+
+void read_host_csr(struct mei_csr *csr);
+void write_host_csr(struct mei_csr *csr);
+
+void read_me_csr(struct mei_csr *csr);
+
+void write_cb(u32 dword);
+u32 read_cb(void);
+
+int mei_sendrecv(struct mei_header *mei, struct mkhi_header *mkhi,
+		 void *req_data, void *rsp_data, int rsp_bytes);
+
+void update_mei_base_address(void);
+bool is_mei_base_address_valid(void);
+int intel_mei_setup(struct device *dev);
+int intel_me_extend_valid(struct device *dev);
+void intel_me_hide(struct device *dev);
+
 /* Defined in me_status.c for both romstage and ramstage */
 void intel_me_status(struct me_hfs *hfs, struct me_gmes *gmes);
 
@@ -229,7 +276,6 @@ int intel_early_me_uma_size(void);
 int intel_early_me_init_done(u8 status);
 
 void intel_me_finalize_smm(void);
-void intel_me8_finalize_smm(void);
 
 typedef struct {
 	u32       major_version  : 16;

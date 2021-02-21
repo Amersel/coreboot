@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 
-#ifndef __AMD_BLOCK_ACPIMMIO_H__
-#define __AMD_BLOCK_ACPIMMIO_H__
+#ifndef AMD_BLOCK_ACPIMMIO_H
+#define AMD_BLOCK_ACPIMMIO_H
 
 #include <device/mmio.h>
 #include <types.h>
@@ -11,15 +11,31 @@
 #define PM_DATA				0xcd7
 
 /*
+ * Power management registers: 0xfed80300 or index/data at IO 0xcd6/cd7. Valid for Mullins and
+ * newer SoCs, but not for the generations with separate FCH or Kabini.
+ */
+#define PM_DECODE_EN			0x00
+#define   HPET_MSI_EN			(1 << 29)
+#define   HPET_WIDTH_SEL		(1 << 28) /* 0=32bit, 1=64bit */
+#define   SMBUS_ASF_IO_BASE_SHIFT	8
+#define   SMBUS_ASF_IO_BASE_MASK	(0xff << SMBUS_ASF_IO_BASE_SHIFT)
+#define   HPET_EN			(1 << 6) /* decode HPET MMIO at 0xfed00000 */
+#define   FCH_IOAPIC_EN			(1 << 5)
+#define   SMBUS_ASF_IO_EN		(1 << 4)
+#define   CF9_IO_EN			(1 << 1)
+#define   LEGACY_IO_EN			(1 << 0)
+#define PM_RST_STATUS			0xc0
+
+/*
  * Earlier devices enable the ACPIMMIO bank decodes in PMx24. All discrete FCHs
  * and the Kabini SoC fall into this category. Kabini's successor, Mullins, uses
  * this newer method of enable in PMx04.
  */
 
-#define ACPIMMIO_DECODE_REGISTER_24 0x24
+#define ACPIMMIO_DECODE_REGISTER_24	0x24
 #define   PM_24_ACPIMMIO_DECODE_EN	BIT(0)
 
-#define ACPIMMIO_DECODE_REGISTER_04 0x4
+#define ACPIMMIO_DECODE_REGISTER_04	0x04
 #define   PM_04_BIOSRAM_DECODE_EN	BIT(0)
 #define   PM_04_ACPIMMIO_DECODE_EN	BIT(1)
 
@@ -49,8 +65,6 @@ extern uint8_t *MAYBE_CONST acpimmio_iomux;
 extern uint8_t *MAYBE_CONST acpimmio_misc;
 extern uint8_t *MAYBE_CONST acpimmio_dpvga;
 extern uint8_t *MAYBE_CONST acpimmio_gpio0;
-extern uint8_t *MAYBE_CONST acpimmio_gpio1;
-extern uint8_t *MAYBE_CONST acpimmio_gpio2;
 extern uint8_t *MAYBE_CONST acpimmio_xhci_pm;
 extern uint8_t *MAYBE_CONST acpimmio_acdc_tmr;
 extern uint8_t *MAYBE_CONST acpimmio_aoac;
@@ -62,6 +76,11 @@ void enable_acpimmio_decode_pm24(void);
 
 /* For newer integrated FCHs */
 void enable_acpimmio_decode_pm04(void);
+void fch_enable_cf9_io(void);
+void fch_enable_legacy_io(void);
+void fch_io_enable_legacy_io(void);
+void fch_enable_ioapic_decode(void);
+void fch_configure_hpet(void);
 
 /* Access PM registers using IO cycles */
 uint8_t pm_io_read8(uint8_t reg);
@@ -70,6 +89,9 @@ uint32_t pm_io_read32(uint8_t reg);
 void pm_io_write8(uint8_t reg, uint8_t value);
 void pm_io_write16(uint8_t reg, uint16_t value);
 void pm_io_write32(uint8_t reg, uint32_t value);
+
+/* Print source of last reset */
+void fch_print_pmxc0_status(void);
 
 static inline uint8_t sm_pci_read8(uint8_t reg)
 {
@@ -226,19 +248,9 @@ static inline uint8_t asf_read8(uint8_t reg)
 	return read8(acpimmio_asf + reg);
 }
 
-static inline uint16_t asf_read16(uint8_t reg)
-{
-	return read16(acpimmio_asf + reg);
-}
-
 static inline void asf_write8(uint8_t reg, uint8_t value)
 {
 	write8(acpimmio_asf + reg, value);
-}
-
-static inline void asf_write16(uint8_t reg, uint16_t value)
-{
-	write16(acpimmio_asf + reg, value);
 }
 
 static inline uint8_t smbus_read8(uint8_t reg)
@@ -246,49 +258,21 @@ static inline uint8_t smbus_read8(uint8_t reg)
 	return read8(acpimmio_smbus + reg);
 }
 
-static inline uint16_t smbus_read16(uint8_t reg)
-{
-	return read16(acpimmio_smbus + reg);
-}
-
 static inline void smbus_write8(uint8_t reg, uint8_t value)
 {
 	write8(acpimmio_smbus + reg, value);
 }
 
-static inline void smbus_write16(uint8_t reg, uint16_t value)
-{
-	write16(acpimmio_smbus + reg, value);
-}
-
+/* These iomux_read/write8 are to be deprecated to enforce proper
+   use of <gpio.h> API for pin configurations. */
 static inline uint8_t iomux_read8(uint8_t reg)
 {
 	return read8(acpimmio_iomux + reg);
 }
 
-static inline uint16_t iomux_read16(uint8_t reg)
-{
-	return read16(acpimmio_iomux + reg);
-}
-
-static inline uint32_t iomux_read32(uint8_t reg)
-{
-	return read32(acpimmio_iomux + reg);
-}
-
 static inline void iomux_write8(uint8_t reg, uint8_t value)
 {
 	write8(acpimmio_iomux + reg, value);
-}
-
-static inline void iomux_write16(uint8_t reg, uint16_t value)
-{
-	write16(acpimmio_iomux + reg, value);
-}
-
-static inline void iomux_write32(uint8_t reg, uint32_t value)
-{
-	write32(acpimmio_iomux + reg, value);
 }
 
 static inline uint8_t misc_read8(uint8_t reg)
@@ -327,29 +311,9 @@ static inline uint8_t gpio_100_read8(uint8_t reg)
 	return read8(acpimmio_gpio_100 + reg);
 }
 
-static inline uint16_t gpio_100_read16(uint8_t reg)
-{
-	return read16(acpimmio_gpio_100 + reg);
-}
-
-static inline uint32_t gpio_100_read32(uint8_t reg)
-{
-	return read32(acpimmio_gpio_100 + reg);
-}
-
 static inline void gpio_100_write8(uint8_t reg, uint8_t value)
 {
 	write8(acpimmio_gpio_100 + reg, value);
-}
-
-static inline void gpio_100_write16(uint8_t reg, uint16_t value)
-{
-	write16(acpimmio_gpio_100 + reg, value);
-}
-
-static inline void gpio_100_write32(uint8_t reg, uint32_t value)
-{
-	write32(acpimmio_gpio_100 + reg, value);
 }
 
 /* New GPIO banks configuration registers */
@@ -367,105 +331,6 @@ static inline uint32_t gpio_read32(uint8_t gpio_num)
 static inline void gpio_write32(uint8_t gpio_num, uint32_t value)
 {
 	write32(gpio_ctrl_ptr(gpio_num), value);
-}
-
-static inline void gpio_write32_rb(uint8_t gpio_num, uint32_t value)
-{
-	write32(gpio_ctrl_ptr(gpio_num), value);
-	read32(gpio_ctrl_ptr(gpio_num));
-}
-
-/* GPIO bank 0 */
-static inline uint8_t gpio0_read8(uint8_t reg)
-{
-	return read8(acpimmio_gpio0 + reg);
-}
-
-static inline uint16_t gpio0_read16(uint8_t reg)
-{
-	return read16(acpimmio_gpio0 + reg);
-}
-
-static inline uint32_t gpio0_read32(uint8_t reg)
-{
-	return read32(acpimmio_gpio0 + reg);
-}
-
-static inline void gpio0_write8(uint8_t reg, uint8_t value)
-{
-	write8(acpimmio_gpio0 + reg, value);
-}
-
-static inline void gpio0_write16(uint8_t reg, uint16_t value)
-{
-	write16(acpimmio_gpio0 + reg, value);
-}
-
-static inline void gpio0_write32(uint8_t reg, uint32_t value)
-{
-	write32(acpimmio_gpio0 + reg, value);
-}
-
-/* GPIO bank 1 */
-static inline uint8_t gpio1_read8(uint8_t reg)
-{
-	return read8(acpimmio_gpio1 + reg);
-}
-
-static inline uint16_t gpio1_read16(uint8_t reg)
-{
-	return read16(acpimmio_gpio1 + reg);
-}
-
-static inline uint32_t gpio1_read32(uint8_t reg)
-{
-	return read32(acpimmio_gpio1 + reg);
-}
-
-static inline void gpio1_write8(uint8_t reg, uint8_t value)
-{
-	write8(acpimmio_gpio1 + reg, value);
-}
-
-static inline void gpio1_write16(uint8_t reg, uint16_t value)
-{
-	write16(acpimmio_gpio1 + reg, value);
-}
-
-static inline void gpio1_write32(uint8_t reg, uint32_t value)
-{
-	write32(acpimmio_gpio1 + reg, value);
-}
-
-/* GPIO bank 2 */
-static inline uint8_t gpio2_read8(uint8_t reg)
-{
-	return read8(acpimmio_gpio2 + reg);
-}
-
-static inline uint16_t gpio2_read16(uint8_t reg)
-{
-	return read16(acpimmio_gpio2 + reg);
-}
-
-static inline uint32_t gpio2_read32(uint8_t reg)
-{
-	return read32(acpimmio_gpio2 + reg);
-}
-
-static inline void gpio2_write8(uint8_t reg, uint8_t value)
-{
-	write8(acpimmio_gpio2 + reg, value);
-}
-
-static inline void gpio2_write16(uint8_t reg, uint16_t value)
-{
-	write16(acpimmio_gpio2 + reg, value);
-}
-
-static inline void gpio2_write32(uint8_t reg, uint32_t value)
-{
-	write32(acpimmio_gpio2 + reg, value);
 }
 
 static inline uint8_t xhci_pm_read8(uint8_t reg)
@@ -508,4 +373,4 @@ static inline void aoac_write8(uint8_t reg, uint8_t value)
 	write8(acpimmio_aoac + reg, value);
 }
 
-#endif /* __AMD_BLOCK_ACPIMMIO_H__ */
+#endif /* AMD_BLOCK_ACPIMMIO_H */

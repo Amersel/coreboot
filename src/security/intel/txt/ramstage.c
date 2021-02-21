@@ -89,23 +89,21 @@ static void check_secrets_txt(void *unused)
 	if (status & ACMSTS_TXT_DISABLED)
 		return;
 
-	/* Check for fatal ACM error and TXT reset */
-	if (get_wake_error_status()) {
-		/*
-		 * Check if secrets bit needs to be reset. Only platforms that support
-		 * CONFIG(PLATFORM_HAS_DRAM_CLEAR) will be able to run this code.
-		 * Assume all memory really was cleared.
-		 *
-		 * TXT will issue a platform reset to come up sober.
-		 */
-		if (intel_txt_memory_has_secrets()) {
-			printk(BIOS_INFO, "TEE-TXT: Wiping TEE...\n");
-			intel_txt_run_bios_acm(ACMINPUT_CLEAR_SECRETS);
+	/*
+	 * Check if secrets bit needs to be reset. Only platforms that support
+	 * CONFIG(PLATFORM_HAS_DRAM_CLEAR) will be able to run this code.
+	 * On some platforms FSP-M takes care of the DRAM clearing.
+	 * Assume all memory really was cleared.
+	 *
+	 * TXT will issue a platform reset to come up sober.
+	 */
+	if (intel_txt_memory_has_secrets()) {
+		printk(BIOS_INFO, "TEE-TXT: Wiping TEE...\n");
+		intel_txt_run_bios_acm(ACMINPUT_CLEAR_SECRETS);
 
-			/* Should never reach this point ... */
-			intel_txt_log_acm_error(read32((void *)TXT_BIOSACM_ERRORCODE));
-			die("Waiting for platform reset...\n");
-		}
+		/* Should never reach this point ... */
+		intel_txt_log_acm_error(read32((void *)TXT_BIOSACM_ERRORCODE));
+		die("Waiting for platform reset...\n");
 	}
 }
 
@@ -173,7 +171,7 @@ static void init_intel_txt(void *unused)
 	}
 
 	int s3resume = acpi_is_wakeup_s3();
-	if (!s3resume) {
+	if (!s3resume && !CONFIG(INTEL_CBNT_SUPPORT)) {
 		printk(BIOS_INFO, "TEE-TXT: Scheck...\n");
 		if (intel_txt_run_bios_acm(ACMINPUT_SCHECK) < 0) {
 			printk(BIOS_ERR, "TEE-TXT: Error calling BIOS ACM.\n");
@@ -221,10 +219,9 @@ static void txt_initialize_heap(void)
 	data.bdr.no_logical_procs = dev_count_cpu();
 
 	void *sinit_base = (void *)(uintptr_t)read64((void *)TXT_SINIT_BASE);
-	data.bdr.bios_sinit_size = cbfs_boot_load_file(CONFIG_INTEL_TXT_CBFS_SINIT_ACM,
-						       sinit_base,
-						       read64((void *)TXT_SINIT_SIZE),
-						       CBFS_TYPE_RAW);
+	data.bdr.bios_sinit_size = cbfs_load(CONFIG_INTEL_TXT_CBFS_SINIT_ACM,
+					     sinit_base,
+					     read64((void *)TXT_SINIT_SIZE));
 
 	if (data.bdr.bios_sinit_size) {
 		printk(BIOS_INFO, "TEE-TXT: Placing SINIT ACM in memory.\n");
@@ -277,9 +274,7 @@ static void txt_initialize_heap(void)
 		data.heap_acm.num_acms = 1;
 	}
 	data.heap_acm.acm_addrs[0] =
-		(uintptr_t)cbfs_boot_map_with_leak(CONFIG_INTEL_TXT_CBFS_BIOS_ACM,
-						   CBFS_TYPE_RAW,
-						   NULL);
+		(uintptr_t)cbfs_map(CONFIG_INTEL_TXT_CBFS_BIOS_ACM, NULL);
 	/* Extended elements - End marker */
 	data.end.type = HEAP_EXTDATA_TYPE_END;
 	data.end.size = sizeof(data.end);
@@ -375,6 +370,9 @@ static void lockdown_intel_txt(void *unused)
 			return;
 		}
 
+		_Static_assert(CONFIG_INTEL_TXT_HEAP_SIZE + CONFIG_INTEL_TXT_SINIT_SIZE
+			       < CONFIG_INTEL_TXT_DPR_SIZE * MiB, "TXT Heap and Sinit must fit DPR");
+
 		if (dpr.size < CONFIG_INTEL_TXT_DPR_SIZE) {
 			printk(BIOS_ERR, "TEE-TXT: MCH DPR configured size is too small.\n");
 			return;
@@ -399,7 +397,7 @@ static void lockdown_intel_txt(void *unused)
 	 * Document Number: 558294
 	 * Chapter 5.5.6.3 Intel TXT Heap Memory Region
 	 */
-	write64((void *)TXT_HEAP_SIZE, 0xE0000);
+	write64((void *)TXT_HEAP_SIZE, CONFIG_INTEL_TXT_HEAP_SIZE);
 	write64((void *)TXT_HEAP_BASE,
 		ALIGN_DOWN(tseg_base - read64((void *)TXT_HEAP_SIZE), 4096));
 
@@ -407,7 +405,7 @@ static void lockdown_intel_txt(void *unused)
 	 * Document Number: 558294
 	 * Chapter 5.5.6.2 SINIT Memory Region
 	 */
-	write64((void *)TXT_SINIT_SIZE, 0x20000);
+	write64((void *)TXT_SINIT_SIZE, CONFIG_INTEL_TXT_SINIT_SIZE);
 	write64((void *)TXT_SINIT_BASE,
 		ALIGN_DOWN(read64((void *)TXT_HEAP_BASE) -
 			   read64((void *)TXT_SINIT_SIZE), 4096));

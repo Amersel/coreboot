@@ -9,7 +9,7 @@
 #include <device/resource.h>
 
 /** Linked list of ALL devices */
-DEVTREE_CONST struct device * DEVTREE_CONST all_devices = &dev_root;
+DEVTREE_CONST struct device *DEVTREE_CONST all_devices = &dev_root;
 
 /**
  * Given a PCI bus and a devfn number, find the device structure.
@@ -161,6 +161,9 @@ static int path_eq(const struct device_path *path1,
 		break;
 	case DEVICE_PATH_LPC:
 		equal = (path1->lpc.addr == path2->lpc.addr);
+		break;
+	case DEVICE_PATH_GPIO:
+		equal = (path1->gpio.id == path2->gpio.id);
 		break;
 	default:
 		printk(BIOS_ERR, "Unknown device type: %d\n", path1->type);

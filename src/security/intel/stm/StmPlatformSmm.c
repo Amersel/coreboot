@@ -35,8 +35,7 @@ int load_stm_image(uintptr_t mseg)
 
 	memset((void *)mseg_base, 0, CONFIG_MSEG_SIZE); // clear the mseg
 
-	stm_image_size = cbfs_boot_load_file("stm.bin", mseg_base,
-					     stm_buffer_size, CBFS_TYPE_RAW);
+	stm_image_size = cbfs_load("stm.bin", mseg_base, stm_buffer_size);
 	printk(BIOS_DEBUG, "STM:loaded into mseg: 0x%p size: %u\n", mseg_base,
 	       stm_image_size);
 	/* status is number of bytes loaded */
@@ -165,7 +164,7 @@ void stm_setup(uintptr_t mseg, int cpu, uintptr_t smbase,
 		stm_resource_heap = (uint8_t *) addr_calc;
 		printk(BIOS_DEBUG, "STM: stm_resource_heap located at %p\n",
 				stm_resource_heap);
-		//setup the the list
+		//setup the list
 		add_resources_cmd();
 
 		stm_load_status = load_stm_image(mseg);

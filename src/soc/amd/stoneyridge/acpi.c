@@ -7,21 +7,19 @@
 #include <string.h>
 #include <console/console.h>
 #include <acpi/acpi.h>
-#include <acpi/acpi_gnvs.h>
 #include <acpi/acpigen.h>
 #include <device/pci_ops.h>
 #include <arch/ioapic.h>
 #include <cpu/x86/smm.h>
-#include <cbmem.h>
 #include <device/device.h>
 #include <device/pci.h>
 #include <amdblocks/acpimmio.h>
 #include <amdblocks/acpi.h>
+#include <amdblocks/ioapic.h>
 #include <soc/acpi.h>
 #include <soc/pci_devs.h>
 #include <soc/southbridge.h>
 #include <soc/northbridge.h>
-#include <soc/nvs.h>
 #include <soc/gpio.h>
 #include <version.h>
 
@@ -32,10 +30,10 @@ unsigned long acpi_fill_madt(unsigned long current)
 
 	/* Write Kern IOAPIC, only one */
 	current += acpi_create_madt_ioapic((acpi_madt_ioapic_t *)current,
-			CONFIG_MAX_CPUS, IO_APIC_ADDR, 0);
+			FCH_IOAPIC_ID, IO_APIC_ADDR, 0);
 
 	current += acpi_create_madt_ioapic((acpi_madt_ioapic_t *)current,
-			CONFIG_MAX_CPUS+1, IO_APIC2_ADDR, 24);
+			GNB_IOAPIC_ID, IO_APIC2_ADDR, 24);
 
 	/* 0: mean bus 0--->ISA */
 	/* 0: PIC 0 */
@@ -60,7 +58,7 @@ unsigned long acpi_fill_madt(unsigned long current)
  */
 void acpi_fill_fadt(acpi_fadt_t *fadt)
 {
-	printk(BIOS_DEBUG, "pm_base: 0x%04x\n", STONEYRIDGE_ACPI_IO_BASE);
+	printk(BIOS_DEBUG, "pm_base: 0x%04x\n", ACPI_IO_BASE);
 
 	fadt->sci_int = 9;		/* IRQ 09 - ACPI SCI */
 
@@ -153,51 +151,10 @@ void generate_cpu_entries(const struct device *device)
 		acpigen_write_processor(cpu, 0, 0);
 		acpigen_pop_len();
 	}
-}
 
-unsigned long southbridge_write_acpi_tables(const struct device *device,
-		unsigned long current,
-		struct acpi_rsdp *rsdp)
-{
-	return acpi_write_hpet(device, current, rsdp);
-}
-
-void acpi_create_gnvs(struct global_nvs *gnvs)
-{
-	/* Clear out GNVS. */
-	memset(gnvs, 0, sizeof(*gnvs));
-
-	if (CONFIG(CONSOLE_CBMEM))
-		gnvs->cbmc = (uintptr_t)cbmem_find(CBMEM_ID_CONSOLE);
-
-	if (CONFIG(CHROMEOS)) {
-		/* Initialize Verified Boot data */
-		chromeos_init_chromeos_acpi(&gnvs->chromeos);
-		gnvs->chromeos.vbt2 = ACTIVE_ECFW_RO;
-	}
-
-	/* Set unknown wake source */
-	gnvs->pm1i = ~0ULL;
-	gnvs->gpei = ~0ULL;
-
-	/* CPU core count */
-	gnvs->pcnt = dev_count_cpu();
-}
-
-void southbridge_inject_dsdt(const struct device *device)
-{
-	struct global_nvs *gnvs;
-
-	gnvs = cbmem_find(CBMEM_ID_ACPI_GNVS);
-
-	if (gnvs) {
-		acpi_create_gnvs(gnvs);
-
-		/* Add it to DSDT */
-		acpigen_write_scope("\\");
-		acpigen_write_name_dword("NVSA", (uintptr_t)gnvs);
-		acpigen_pop_len();
-	}
+	acpigen_write_scope("\\");
+	acpigen_write_name_integer("PCNT", cores);
+	acpigen_pop_len();
 }
 
 static void acpigen_soc_get_gpio_in_local5(uintptr_t addr)

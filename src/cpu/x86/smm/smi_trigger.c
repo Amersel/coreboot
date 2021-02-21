@@ -1,33 +1,20 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <acpi/acpi_gnvs.h>
 #include <arch/io.h>
 #include <console/console.h>
 #include <cpu/x86/smm.h>
 
-static void set_smm_gnvs_ptr(void);
-
-int apm_control(u8 cmd)
+static void apmc_log(const char *fn, u8 cmd)
 {
-	if (!CONFIG(HAVE_SMI_HANDLER))
-		return -1;
-
 	switch (cmd) {
-	case APM_CNT_CST_CONTROL:
-		break;
-	case APM_CNT_PST_CONTROL:
-		break;
 	case APM_CNT_ACPI_DISABLE:
-		printk(BIOS_DEBUG, "Disabling ACPI via APMC.\n");
+		printk(BIOS_DEBUG, "%s: Disabling ACPI.\n", fn);
 		break;
 	case APM_CNT_ACPI_ENABLE:
-		printk(BIOS_DEBUG, "Enabling ACPI via APMC.\n");
+		printk(BIOS_DEBUG, "%s: Enabling ACPI.\n", fn);
 		break;
-	case APM_CNT_GNVS_UPDATE:
-		set_smm_gnvs_ptr();
-		return 0;
 	case APM_CNT_FINALIZE:
-		printk(BIOS_DEBUG, "Finalizing SMM.\n");
+		printk(BIOS_DEBUG, "%s: Finalizing SMM.\n", fn);
 		break;
 	case APM_CNT_ELOG_GSMI:
 		break;
@@ -36,8 +23,18 @@ int apm_control(u8 cmd)
 	case APM_CNT_SMMINFO:
 		break;
 	default:
+		printk(BIOS_DEBUG, "%s: Unknown APMC 0x%02x.\n", fn, cmd);
 		break;
 	}
+}
+
+int apm_control(u8 cmd)
+{
+	/* Never proceed inside SMI handler or without one. */
+	if (ENV_SMM || !CONFIG(HAVE_SMI_HANDLER))
+		return -1;
+
+	apmc_log(__func__, cmd);
 
 	/* Now raise the SMI. */
 	outb(cmd, APM_CNT);
@@ -46,31 +43,11 @@ int apm_control(u8 cmd)
 	return 0;
 }
 
-static void set_smm_gnvs_ptr(void)
+u8 apm_get_apmc(void)
 {
-	uintptr_t gnvs_address;
+	/* Emulate B2 register as the FADT / Linux expects it */
+	u8 cmd = inb(APM_CNT);
 
-	if (CONFIG(ACPI_NO_SMI_GNVS)) {
-		printk(BIOS_WARNING, "%s() is not implemented\n", __func__);
-		return;
-	}
-
-	gnvs_address = (uintptr_t)acpi_get_gnvs();
-	if (!gnvs_address)
-		return;
-
-	/*
-	 * Issue SMI to set the gnvs pointer in SMM.
-	 *
-	 * EAX = APM_CNT_GNVS_UPDATE
-	 * EBX = gnvs pointer
-	 * EDX = APM_CNT
-	 */
-	asm volatile (
-		"outb %%al, %%dx\n\t"
-		: /* ignore result */
-		: "a" (APM_CNT_GNVS_UPDATE),
-		  "b" (gnvs_address),
-		  "d" (APM_CNT)
-	);
+	apmc_log("SMI#", cmd);
+	return cmd;
 }

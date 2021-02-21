@@ -12,20 +12,18 @@
 #include <arch/io.h>
 #include <arch/ioapic.h>
 #include <acpi/acpi.h>
-#include <acpi/acpi_gnvs.h>
 #include <acpi/acpigen.h>
 #include <cpu/x86/smm.h>
-#include <cbmem.h>
 #include <string.h>
 #include "chip.h"
 #include "pch.h"
-#include "nvs.h"
 #include <northbridge/intel/sandybridge/sandybridge.h>
 #include <southbridge/intel/common/pciehp.h>
 #include <southbridge/intel/common/acpi_pirq_gen.h>
 #include <southbridge/intel/common/pmutil.h>
 #include <southbridge/intel/common/rtc.h>
 #include <southbridge/intel/common/spi.h>
+#include <types.h>
 
 #define NMI_OFF	0
 
@@ -407,13 +405,6 @@ static void pch_set_acpi_mode(void)
 	}
 }
 
-static void pch_disable_smm_only_flashing(struct device *dev)
-{
-	printk(BIOS_SPEW, "Enabling BIOS updates outside of SMM... ");
-
-	pci_and_config8(dev, BIOS_CNTL, ~(1 << 5));
-}
-
 static void pch_fixups(struct device *dev)
 {
 	/* Indicate DRAM init done for MRC S3 to know it can resume */
@@ -539,9 +530,6 @@ static void lpc_init(struct device *dev)
 		printk(BIOS_ERR, "Unknown Chipset: 0x%04x\n", dev->device);
 	}
 
-	/* Set the state of the GPIO lines. */
-	//gpio_init(dev);
-
 	/* Initialize the real time clock. */
 	sb_rtc_init();
 
@@ -559,8 +547,6 @@ static void lpc_init(struct device *dev)
 	/* The OS should do this? */
 	/* Interrupt 9 should be level triggered (SCI) */
 	i8259_configure_irq_trigger(9, 1);
-
-	pch_disable_smm_only_flashing(dev);
 
 	pch_set_acpi_mode();
 
@@ -642,33 +628,6 @@ static void pch_lpc_enable(struct device *dev)
 	pch_enable(dev);
 }
 
-void southbridge_inject_dsdt(const struct device *dev)
-{
-	struct global_nvs *gnvs = cbmem_add(CBMEM_ID_ACPI_GNVS, sizeof(*gnvs));
-
-	if (gnvs) {
-		memset(gnvs, 0, sizeof(*gnvs));
-
-		acpi_create_gnvs(gnvs);
-
-		gnvs->apic = 1;
-		gnvs->mpen = 1; /* Enable Multi Processing */
-		gnvs->pcnt = dev_count_cpu();
-
-#if CONFIG(CHROMEOS)
-		chromeos_init_chromeos_acpi(&(gnvs->chromeos));
-#endif
-
-		/* And tell SMI about it */
-		apm_control(APM_CNT_GNVS_UPDATE);
-
-		/* Add it to DSDT.  */
-		acpigen_write_scope("\\");
-		acpigen_write_name_dword("NVSA", (u32) gnvs);
-		acpigen_pop_len();
-	}
-}
-
 static const char *lpc_acpi_name(const struct device *dev)
 {
 	return "LPCB";
@@ -716,7 +675,6 @@ static struct device_operations device_ops = {
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
 	.write_acpi_tables      = acpi_write_hpet,
-	.acpi_inject_dsdt	= southbridge_inject_dsdt,
 	.acpi_fill_ssdt		= southbridge_fill_ssdt,
 	.acpi_name		= lpc_acpi_name,
 	.init			= lpc_init,

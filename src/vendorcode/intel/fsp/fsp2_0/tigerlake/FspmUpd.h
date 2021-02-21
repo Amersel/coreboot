@@ -1304,9 +1304,14 @@ typedef struct {
 **/
   UINT8                       IsTPMPresence;
 
-/** Offset 0x0389 - Reserved
+/** Offset 0x0389 - ConfigTdpLevel
+  Configuration for boot TDP selection; <b>0: TDP Nominal</b>; 1: TDP Down; 2: TDP Up;0xFF : Deactivate
 **/
-  UINT8                       Reserved17[6];
+  UINT8                       ConfigTdpLevel;
+
+/** Offset 0x038A - Reserved
+**/
+  UINT8                       Reserved17[5];
 
 /** Offset 0x038F - Enable PCH HSIO PCIE Rx Set Ctle
   Enable PCH PCIe Gen 3 Set CTLE Value.
@@ -2498,7 +2503,7 @@ typedef struct {
 
 /** Offset 0x091C - Reserved
 **/
-  UINT8                       Reserved45[36];
+  UINT8                       Reserved45[44];
 } FSP_M_CONFIG;
 
 /** Fsp M UPD Configuration
@@ -2517,11 +2522,11 @@ typedef struct {
 **/
   FSP_M_CONFIG                FspmConfig;
 
-/** Offset 0x0940
+/** Offset 0x0948
 **/
   UINT8                       UnusedUpdSpace27[6];
 
-/** Offset 0x0946
+/** Offset 0x094E
 **/
   UINT16                      UpdTerminator;
 } FSPM_UPD;

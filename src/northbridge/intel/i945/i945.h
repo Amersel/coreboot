@@ -3,16 +3,7 @@
 #ifndef NORTHBRIDGE_INTEL_I945_H
 #define NORTHBRIDGE_INTEL_I945_H
 
-/* Northbridge BARs */
 #define DEFAULT_X60BAR		0xfed13000
-#ifndef __ACPI__
-#define DEFAULT_MCHBAR		((u8 *)0xfed14000)	/* 16 KB */
-#define DEFAULT_DMIBAR		((u8 *)0xfed18000)	/* 4 KB */
-#else
-#define DEFAULT_MCHBAR		0xfed14000	/* 16 KB */
-#define DEFAULT_DMIBAR		0xfed18000	/* 4 KB */
-#endif
-#define DEFAULT_EPBAR		0xfed19000	/* 4 KB */
 
 #include <southbridge/intel/i82801gx/i82801gx.h>
 
@@ -99,9 +90,7 @@
  * MCHBAR
  */
 
-#define MCHBAR8(x) (*((volatile u8 *)(DEFAULT_MCHBAR + (x))))
-#define MCHBAR16(x) (*((volatile u16 *)(DEFAULT_MCHBAR + (x))))
-#define MCHBAR32(x) (*((volatile u32 *)(DEFAULT_MCHBAR + (x))))
+#include <northbridge/intel/common/fixed_bars.h>
 
 /* Chipset Control Registers */
 #define FSBPMC3		0x40	/* 32bit */
@@ -283,10 +272,6 @@
  * EPBAR - Egress Port Root Complex Register Block
  */
 
-#define EPBAR8(x) (*((volatile u8 *)(DEFAULT_EPBAR + (x))))
-#define EPBAR16(x) (*((volatile u16 *)(DEFAULT_EPBAR + (x))))
-#define EPBAR32(x) (*((volatile u32 *)(DEFAULT_EPBAR + (x))))
-
 #define EPPVCCAP1	0x004	/* 32bit */
 #define EPPVCCAP2	0x008	/* 32bit */
 
@@ -313,10 +298,6 @@
 /*
  * DMIBAR
  */
-
-#define DMIBAR8(x) (*((volatile u8 *)(DEFAULT_DMIBAR + (x))))
-#define DMIBAR16(x) (*((volatile u16 *)(DEFAULT_DMIBAR + (x))))
-#define DMIBAR32(x) (*((volatile u32 *)(DEFAULT_DMIBAR + (x))))
 
 #define DMIVCECH	0x000	/* 32bit */
 #define DMIPVCCAP1	0x004	/* 32bit */
@@ -361,8 +342,6 @@ void sdram_dump_mchbar_registers(void);
 
 u32 decode_igd_memory_size(u32 gms);
 u32 decode_tseg_size(const u8 esmramc);
-
-int decode_pcie_bar(u32 *const base, u32 *const len);
 
 /* Romstage mainboard callbacks */
 /* Optional: Override the default LPC config. */

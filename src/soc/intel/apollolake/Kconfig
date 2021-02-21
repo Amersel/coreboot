@@ -78,6 +78,7 @@ config CPU_SPECIFIC_OPTIONS
 	select SOC_INTEL_COMMON_BLOCK_PCR
 	select SOC_INTEL_COMMON_BLOCK_P2SB
 	select SOC_INTEL_COMMON_BLOCK_PMC
+	select SOC_INTEL_COMMON_BLOCK_PMC_DISCOVERABLE
 	select SOC_INTEL_COMMON_BLOCK_SRAM
 	select SOC_INTEL_COMMON_BLOCK_RTC
 	select SOC_INTEL_COMMON_BLOCK_SA
@@ -112,9 +113,6 @@ config CPU_SPECIFIC_OPTIONS
 config MAX_CPUS
 	int
 	default 4
-
-config CHROMEOS
-	select CHROMEOS_RAMOOPS_DYNAMIC
 
 config VBOOT
 	select VBOOT_SEPARATE_VERSTAGE
@@ -411,5 +409,23 @@ config SOC_INTEL_I2C_DEV_MAX
 config RO_REGION_ONLY
 	string
 	default "pdpt pt"
+
+config INTEL_GMA_PANEL_2
+	bool
+	default n
+
+config INTEL_GMA_BCLV_OFFSET
+	default 0xc8358 if INTEL_GMA_PANEL_2
+	default 0xc8258
+
+config INTEL_GMA_BCLV_WIDTH
+	default 32
+
+config INTEL_GMA_BCLM_OFFSET
+	default 0xc8354 if INTEL_GMA_PANEL_2
+	default 0xc8254
+
+config INTEL_GMA_BCLM_WIDTH
+	default 32
 
 endif

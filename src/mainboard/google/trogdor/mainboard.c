@@ -1,10 +1,12 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <bootmode.h>
+#include <console/console.h>
 #include <delay.h>
 #include <device/device.h>
 #include <device/i2c_simple.h>
 #include <drivers/ti/sn65dsi86bridge/sn65dsi86bridge.h>
+#include <framebuffer_info.h>
 #include <soc/display/mipi_dsi.h>
 #include <soc/display/mdssreg.h>
 #include <soc/qupv3_config.h>
@@ -100,17 +102,19 @@ static void display_startup(void)
 			return;
 
 		printk(BIOS_INFO, "display init!\n");
-
-		/* Configure backlight */
-		gpio_output(GPIO_BACKLIGHT_ENABLE, 1);
 		display_init(&ed);
-		set_vbe_mode_info_valid(&ed, (uintptr_t)0);
+		fb_new_framebuffer_info_from_edid(&ed, (uintptr_t)0);
 	} else
 		printk(BIOS_INFO, "Skipping display init.\n");
 }
 
 static void mainboard_init(struct device *dev)
 {
+	/* Take FPMCU out of reset. Power was already applied
+	   in romstage and should have stabilized by now. */
+	if (CONFIG(TROGDOR_HAS_FINGERPRINT))
+		gpio_output(GPIO_FP_RST_L, 1);
+
 	setup_usb();
 	qi2s_configure_gpios();
 	load_qup_fw();

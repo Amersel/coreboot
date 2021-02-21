@@ -40,57 +40,80 @@ chip soc/intel/alderlake
 	register "PrmrrSize" = "0"
 
 	# Enable PCH PCIE RP 5 using CLK 2
-	register "PcieRpEnable[4]" = "1"
-	register "PcieClkSrcClkReq[2]" = "2"
-	register "PcieClkSrcUsage[2]" = "0x4"
-	register "PcieRpClkReqDetect[4]" = "1"
+	register "pch_pcie_rp[PCH_RP(5)]" = "{
+		.clk_src = 2,
+		.clk_req = 2,
+		.flags = PCIE_RP_CLK_REQ_DETECT,
+	}"
 
 	# Enable PCH PCIE RP 6 using CLK 5
-	register "PcieRpEnable[5]" = "1"
-	register "PcieClkSrcClkReq[5]" = "5"
-	register "PcieClkSrcUsage[5]" = "0x5"
-	register "PcieRpClkReqDetect[5]" = "1"
+	register "pch_pcie_rp[PCH_RP(6)]" = "{
+		.clk_src = 5,
+		.clk_req = 5,
+		.flags = PCIE_RP_CLK_REQ_DETECT,
+	}"
+
+	# Enable PCH PCIE RP 8 using free running CLK (0x80)
+	# Clock source is shared with LAN and hence marked as free running.
+	register "pch_pcie_rp[PCH_RP(8)]" = "{
+		.flags = PCIE_RP_CLK_SRC_UNUSED,
+	}"
+	register "pcie_clk_config_flag[6]" = "PCIE_CLK_FREE_RUNNING"
 
 	# Enable PCH PCIE RP 9 using CLK 1
-	register "PcieRpEnable[8]" = "1"
-	register "PcieClkSrcClkReq[1]" = "1"
-	register "PcieClkSrcUsage[1]" = "0x8"
-	register "PcieRpClkReqDetect[8]" = "1"
+	register "pch_pcie_rp[PCH_RP(9)]" = "{
+		.clk_src = 1,
+		.clk_req = 1,
+		.flags = PCIE_RP_CLK_REQ_DETECT,
+	}"
 
 	# Enable PCH PCIE RP 11 for optane
-	register "PcieRpEnable[10]" = "1"
+	register "pch_pcie_rp[PCH_RP(11)]" = "{
+		.flags = PCIE_RP_CLK_SRC_UNUSED,
+	}"
+
 	# Hybrid storage mode
 	register "HybridStorageMode" = "1"
 
-	# Enable CPU PCIE RP 1 using PEG CLK 0
-	register "PcieClkSrcUsage[0]" = "0x40"
+	# Enable CPU PCIE RP 1 using CLK 0
+	register "cpu_pcie_rp[CPU_RP(1)]" = "{
+		.clk_req = 0,
+		.clk_src = 0,
+	}"
 
-	# Enable PCU PCIE PEG Slot 1 and 2
-	register "PcieClkSrcUsage[3]" = "0x41"
-	register "PcieClkSrcUsage[4]" = "0x42"
+	# Enable CPU PCIE RP 2 using CLK 3
+	register "cpu_pcie_rp[CPU_RP(2)]" = "{
+		.clk_req = 3,
+		.clk_src = 3,
+        }"
 
-	# Mark LAN CLK pins as unused as GbE 0:0x1f.6 is disabled below
-	register "PcieClkSrcUsage[6]" = "0xff"
+	# Enable CPU PCIE RP 3 using CLK 4
+	register "cpu_pcie_rp[CPU_RP(3)]" = "{
+		.clk_req = 4,
+		.clk_src = 4,
+	}"
 
 	register "SataSalpSupport" = "1"
 
 	register "SataPortsEnable" = "{
-		[0]  = 1,
-		[1]  = 1,
-		[2]  = 1,
-		[3]  = 1,
+		[0] = 1,
+		[1] = 1,
+		[2] = 1,
+		[3] = 1,
 	}"
 
 	register "SataPortsDevSlp" = "{
-		[0]  = 1,
-		[1]  = 1,
-		[2]  = 1,
-		[3]  = 1,
+		[0] = 1,
+		[1] = 1,
+		[2] = 1,
+		[3] = 1,
 	}"
 
 	# Enable EDP in PortA
 	register "DdiPortAConfig" = "1"
-	register "DdiPortBConfig" = "1"
+	# Enable HDMI in Port B
+	register "DdiPortBDdc" = "1"
+	register "DdiPortBHpd" = "1"
 
 	# TCSS USB3
 	register "TcssAuxOri" = "0"
@@ -98,12 +121,12 @@ chip soc/intel/alderlake
 	register "s0ix_enable" = "1"
 
 	register "SerialIoI2cMode" = "{
-		[PchSerialIoIndexI2C0]  = PchSerialIoPci,
-		[PchSerialIoIndexI2C1]  = PchSerialIoPci,
-		[PchSerialIoIndexI2C2]  = PchSerialIoPci,
-		[PchSerialIoIndexI2C3]  = PchSerialIoPci,
-		[PchSerialIoIndexI2C4]  = PchSerialIoDisabled,
-		[PchSerialIoIndexI2C5]  = PchSerialIoPci,
+		[PchSerialIoIndexI2C0] = PchSerialIoPci,
+		[PchSerialIoIndexI2C1] = PchSerialIoPci,
+		[PchSerialIoIndexI2C2] = PchSerialIoPci,
+		[PchSerialIoIndexI2C3] = PchSerialIoPci,
+		[PchSerialIoIndexI2C4] = PchSerialIoDisabled,
+		[PchSerialIoIndexI2C5] = PchSerialIoPci,
 	}"
 
 	register "SerialIoGSpiMode" = "{
@@ -169,10 +192,12 @@ chip soc/intel/alderlake
 
 	device domain 0 on
 		device pci 00.0 on  end # Host Bridge
+		device pci 01.0 on  end # PEG10
 		device pci 02.0 on  end # Graphics
 		device pci 04.0 on  end # DPTF
 		device pci 05.0 on  end # IPU
 		device pci 06.0 on  end # PEG60
+		device pci 06.2 on  end # PEG62
 		device pci 07.0 on  end # TBT_PCIe0
 		device pci 07.1 on  end # TBT_PCIe1
 		device pci 07.2 on  end # TBT_PCIe2
@@ -222,7 +247,7 @@ chip soc/intel/alderlake
 				device generic 0 on end
 			end
 		end # CNVi: WiFi
-		device pci 15.0 on  end	# I2C0
+		device pci 15.0 on  end # I2C0
 		device pci 15.1 on  end # I2C1
 		device pci 15.2 on  end # I2C2
 		device pci 15.3 on  end # I2C3
@@ -238,12 +263,12 @@ chip soc/intel/alderlake
 		device pci 19.2 off end # UART2
 		device pci 1c.0 on  end # RP1
 		device pci 1c.1 off end # RP2
-		device pci 1c.2 off end # RP3
-		device pci 1c.3 off end # RP4
+		device pci 1c.2 on  end # RP3 # W/A to FSP issue
+		device pci 1c.3 on  end # RP4 # W/A to FSP issue
 		device pci 1c.4 on  end # RP5
 		device pci 1c.5 on  end # RP6
 		device pci 1c.6 off end # RP7
-		device pci 1c.7 off end # RP8
+		device pci 1c.7 on  end # RP8
 		device pci 1d.0 on  end # RP9
 		device pci 1d.1 off end # RP10
 		device pci 1d.2 on  end # RP11

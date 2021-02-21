@@ -1,12 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <acpi/acpi.h>
-#include <acpi/acpi_gnvs.h>
 #include <acpi/acpigen.h>
 #include <arch/ioapic.h>
 #include <device/mmio.h>
 #include <arch/smp/mpspec.h>
-#include <cbmem.h>
 #include <console/console.h>
 #include <cpu/x86/smm.h>
 #include <types.h>
@@ -19,9 +17,6 @@
 #include <soc/msr.h>
 #include <soc/pattrs.h>
 #include <soc/pm.h>
-
-#include <ec/google/chromeec/ec.h>
-#include <vendorcode/google/chromeos/gnvs.h>
 
 #define MWAIT_RES(state, sub_state)                         \
 	{                                                   \
@@ -57,34 +52,6 @@ static acpi_cstate_t cstate_map[] = {
 		.resource = MWAIT_RES(5, 2),
 	}
 };
-
-void acpi_init_gnvs(struct global_nvs *gnvs)
-{
-	/* Set unknown wake source */
-	gnvs->pm1i = -1;
-
-	/* CPU core count */
-	gnvs->pcnt = dev_count_cpu();
-
-	/* Top of Low Memory (start of resource allocation) */
-	gnvs->tolm = nc_read_top_of_low_memory();
-
-#if CONFIG(CONSOLE_CBMEM)
-	/* Update the mem console pointer. */
-	gnvs->cbmc = (u32)cbmem_find(CBMEM_ID_CONSOLE);
-#endif
-
-	if (CONFIG(CHROMEOS)) {
-		/* Initialize Verified Boot data */
-		chromeos_init_chromeos_acpi(&(gnvs->chromeos));
-		if (CONFIG(EC_GOOGLE_CHROMEEC)) {
-			gnvs->chromeos.vbt2 = google_ec_running_ro() ?
-				ACTIVE_ECFW_RO : ACTIVE_ECFW_RW;
-		} else {
-			gnvs->chromeos.vbt2 = ACTIVE_ECFW_RO;
-		}
-	}
-}
 
 int acpi_sci_irq(void)
 {
@@ -122,7 +89,7 @@ int acpi_sci_irq(void)
 unsigned long acpi_fill_mcfg(unsigned long current)
 {
 	current += acpi_create_mcfg_mmconfig((acpi_mcfg_mmconfig_t *)current,
-					     MCFG_BASE_ADDRESS, 0, 0, 255);
+			CONFIG_MMCONF_BASE_ADDRESS, 0, 0, CONFIG_MMCONF_BUS_NUMBER - 1);
 	return current;
 }
 

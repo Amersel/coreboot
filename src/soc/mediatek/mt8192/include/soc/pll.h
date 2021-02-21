@@ -178,7 +178,11 @@ struct mtk_apmixed_regs {
 	u32 mfgpll_con2;
 	u32 mfgpll_con3;
 	u32 ap_pllgp1_con2;
-	u32 reserved2[33];
+	u32 reserved2[13];
+	u32 ulposc1_con0;
+	u32 ulposc1_con1;
+	u32 ulposc1_con2;
+	u32 reserved3[17];
 	u32 ap_pllgp2_con0;	/* 0x0300 */
 	u32 ap_pllgp2_con1;
 	u32 univpll_con0;
@@ -236,6 +240,8 @@ struct mtk_apmixed_regs {
 check_member(mtk_apmixed_regs, ap_pllgp1_con0, 0x0200);
 check_member(mtk_apmixed_regs, ap_pllgp2_con0, 0x0300);
 check_member(mtk_apmixed_regs, usbpll_con2, 0x03cc);
+
+#define MPLL_CON1_FREQ		0x84200000
 
 enum {
 	USBPLL_EN = 0x1 << 2,
@@ -301,5 +307,63 @@ DEFINE_BITFIELD(CLK_DBG_CFG_METER_CK_SEL, 1, 0)
 DEFINE_BITFIELD(CLK_MISC_CFG_0_METER_DIV, 31, 24)
 DEFINE_BITFIELD(CLK26CALI_0_TRIGGER, 4, 4)
 DEFINE_BITFIELD(CLK26CALI_1_LOAD_CNT, 25, 16)
+
+DEFINE_BIT(MPLL_IOS_SEL, 2)
+DEFINE_BIT(MPLL_EN_SEL, 11)
+DEFINE_BIT(MPLL_PWR_SEL, 20)
+DEFINE_BIT(MPLL_BY_ISO_DLY, 2)
+DEFINE_BIT(MPLL_BY_PWR_DLY, 2)
+
+DEFINE_BITFIELD(WDT_SWSYSRST_KEY, 31, 24)
+DEFINE_BITFIELD(WDT_SWSYSRST_CONN_MCU, 12, 12)
+
+enum {
+	INFRACFG_AO_AXIMEM_BUS_DCM_REG0_MASK = (0x1f << 12) | (0x1 << 17) | (0x1 << 18),
+	INFRACFG_AO_AXIMEM_BUS_DCM_REG0_ON = (0x10 << 12) | (0x1 << 17) | (0x0 << 18),
+	INFRACFG_AO_INFRA_BUS_DCM_REG0_MASK = (0x1 << 0) |
+					      (0x1 << 1) |
+					      (0x1 << 3) |
+					      (0x1 << 4) |
+					      (0x1f << 5) |
+					      (0x1f << 10) |
+					      (0x1 << 20) |
+					      (0x1 << 23) |
+					      (0x1 << 30),
+	INFRACFG_AO_INFRA_BUS_DCM_REG0_ON = (0x1 << 0) |
+					    (0x1 << 1) |
+					    (0x0 << 3) |
+					    (0x0 << 4) |
+					    (0x10 << 5) |
+					    (0x1 << 10) |
+					    (0x1 << 20) |
+					    (0x1 << 23) |
+					    (0x1 << 30),
+	INFRACFG_AO_INFRA_CONN_BUS_DCM_REG0_MASK = (0x1 << 8),
+	INFRACFG_AO_INFRA_CONN_BUS_DCM_REG0_ON = (0x1 << 8),
+	INFRACFG_AO_INFRA_CONN_BUS_DCM_REG1_MASK = (0x1 << 8),
+	INFRACFG_AO_INFRA_CONN_BUS_DCM_REG1_ON = (0x0 << 8),
+	INFRACFG_AO_INFRA_RX_P2P_DCM_REG0_MASK = (0xf << 0),
+	INFRACFG_AO_INFRA_RX_P2P_DCM_REG0_ON = (0x0 << 0),
+	INFRACFG_AO_PERI_BUS_DCM_REG0_MASK = (0x1 << 0) |
+					     (0x1 << 1) |
+					     (0x1 << 3) |
+					     (0x1 << 4) |
+					     (0x1f << 5) |
+					     (0x1f << 10) |
+					     (0x1f << 15) |
+					     (0x1 << 20) |
+					     (0x1 << 21),
+	INFRACFG_AO_PERI_BUS_DCM_REG0_ON = (0x1 << 0) |
+					   (0x1 << 1) |
+					   (0x0 << 3) |
+					   (0x0 << 4) |
+					   (0x1f << 5) |
+					   (0x0 << 10) |
+					   (0x1f << 15) |
+					   (0x1 << 20) |
+					   (0x1 << 21),
+	INFRACFG_AO_PERI_MODULE_DCM_REG0_MASK = (0x1 << 29) | (0x1 << 31),
+	INFRACFG_AO_PERI_MODULE_DCM_REG0_ON = (0x1 << 29) | (0x1 << 31),
+};
 
 #endif /* SOC_MEDIATEK_MT8192_PLL_H */

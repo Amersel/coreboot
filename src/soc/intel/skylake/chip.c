@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <bootsplash.h>
 #include <cbmem.h>
 #include <fsp/api.h>
 #include <acpi/acpi.h>
@@ -7,6 +8,7 @@
 #include <device/device.h>
 #include <device/pci_ids.h>
 #include <fsp/util.h>
+#include <gpio.h>
 #include <intelblocks/cfg.h>
 #include <intelblocks/itss.h>
 #include <intelblocks/lpc_lib.h>
@@ -16,7 +18,6 @@
 #include <intelblocks/xdci.h>
 #include <intelblocks/p2sb.h>
 #include <intelpch/lockdown.h>
-#include <romstage_handoff.h>
 #include <soc/acpi.h>
 #include <soc/intel/common/vbt.h>
 #include <soc/interrupt.h>
@@ -26,6 +27,7 @@
 #include <soc/pci_devs.h>
 #include <soc/ramstage.h>
 #include <soc/systemagent.h>
+#include <soc/usb.h>
 #include <string.h>
 
 #include "chip.h"
@@ -53,7 +55,7 @@ void soc_init_pre_device(void *chip_info)
 	itss_snapshot_irq_polarities(GPIO_IRQ_START, GPIO_IRQ_END);
 
 	/* Perform silicon specific init. */
-	fsp_silicon_init(romstage_handoff_is_resume());
+	fsp_silicon_init();
 
 	/*
 	 * Keep the P2SB device visible so it and the other devices are
@@ -70,11 +72,6 @@ void soc_init_pre_device(void *chip_info)
 		pcie_rp_update_devicetree(pch_h_rp_groups);
 	else
 		pcie_rp_update_devicetree(pch_lp_rp_groups);
-}
-
-void soc_fsp_load(void)
-{
-	fsps_load(romstage_handoff_is_resume());
 }
 
 static struct device_operations pci_domain_ops = {
@@ -102,6 +99,8 @@ static void soc_enable(struct device *dev)
 		dev->ops = &pci_domain_ops;
 	else if (dev->path.type == DEVICE_PATH_CPU_CLUSTER)
 		dev->ops = &cpu_bus_ops;
+	else if (dev->path.type == DEVICE_PATH_GPIO)
+		block_gpio_enable(dev);
 }
 
 struct chip_operations soc_intel_skylake_ops = {
@@ -151,16 +150,16 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 		if (config->usb2_ports[i].enable)
 			params->Usb2OverCurrentPin[i] = config->usb2_ports[i].ocpin;
 		else
-			params->Usb2OverCurrentPin[i] = 0xff;
+			params->Usb2OverCurrentPin[i] = OC_SKIP;
 	}
 
 	for (i = 0; i < ARRAY_SIZE(config->usb3_ports); i++) {
 		params->PortUsb30Enable[i] = config->usb3_ports[i].enable;
-		if (config->usb3_ports[i].enable) {
+		if (config->usb3_ports[i].enable)
 			params->Usb3OverCurrentPin[i] = config->usb3_ports[i].ocpin;
-		} else {
-			params->Usb3OverCurrentPin[i] = 0xff;
-		}
+		else
+			params->Usb3OverCurrentPin[i] = OC_SKIP;
+
 		if (config->usb3_ports[i].tx_de_emp) {
 			params->Usb3HsioTxDeEmphEnable[i] = 1;
 			params->Usb3HsioTxDeEmph[i] =
@@ -246,11 +245,11 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 	dev = pcidev_path_on_root(SA_DEVFN_IMGU);
 	params->SaImguEnable = dev && dev->enabled;
 
+	dev = pcidev_path_on_root(SA_DEVFN_CHAP);
+	tconfig->ChapDeviceEnable = dev && dev->enabled;
+
 	dev = pcidev_path_on_root(PCH_DEVFN_CSE_3);
 	params->Heci3Enabled = dev && dev->enabled;
-
-	params->LogoPtr = config->LogoPtr;
-	params->LogoSize = config->LogoSize;
 
 	params->CpuConfig.Bits.VmxEnable = CONFIG(ENABLE_VMX);
 
@@ -302,7 +301,7 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 
 	tconfig->PchLockDownGlobalSmi = config->LockDownConfigGlobalSmi;
 	tconfig->PchLockDownRtcLock = config->LockDownConfigRtcLock;
-	tconfig->PowerLimit4 = config->PowerLimit4;
+	tconfig->PowerLimit4 = 0;
 	/*
 	 * To disable HECI, the Psf needs to be left unlocked
 	 * by FSP till end of post sequence. Based on the devicetree
@@ -337,7 +336,6 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 	params->PchPmSlpS4MinAssert = config->PmConfigSlpS4MinAssert;
 	params->PchPmSlpSusMinAssert = config->PmConfigSlpSusMinAssert;
 	params->PchPmSlpAMinAssert = config->PmConfigSlpAMinAssert;
-	params->PchPmLpcClockRun = config->PmConfigPciClockRun;
 	params->PchPmSlpStrchSusUp = config->PmConfigSlpStrchSusUp;
 	params->PchPmPwrBtnOverridePeriod =
 				config->PmConfigPwrBtnOverridePeriod;
@@ -433,14 +431,14 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 	soc_irq_settings(params);
 }
 
-/* Mainboard GPIO Configuration */
+/* Mainboard FSP Configuration */
 __weak void mainboard_silicon_init_params(FSP_S_CONFIG *params)
 {
 	printk(BIOS_DEBUG, "WEAK: %s/%s called\n", __FILE__, __func__);
 }
 
 /* Handle FSP logo params */
-const struct cbmem_entry *soc_load_logo(FSPS_UPD *supd)
+void soc_load_logo(FSPS_UPD *supd)
 {
-	return fsp_load_logo(&supd->FspsConfig.LogoPtr, &supd->FspsConfig.LogoSize);
+	bmp_load_logo(&supd->FspsConfig.LogoPtr, &supd->FspsConfig.LogoSize);
 }

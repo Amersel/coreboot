@@ -18,10 +18,35 @@ chip soc/amd/picasso
 
 	# End : OPN Performance Configuration
 
-	register "telemetry_vddcr_vdd_slope_mA" = "32643"
-	register "telemetry_vddcr_vdd_offset" = "208"
-	register "telemetry_vddcr_soc_slope_mA" = "22742"
-	register "telemetry_vddcr_soc_offset" = "-83"
+	register "telemetry_vddcr_vdd_slope_mA" = "26939"
+	register "telemetry_vddcr_vdd_offset" = "125"
+	register "telemetry_vddcr_soc_slope_mA" = "20001"
+	register "telemetry_vddcr_soc_offset" = "168"
+
+	# eDP phy tuning settings
+	register "edp_phy_override" = "ENABLE_EDP_TUNINGSET"
+
+	# bit vector of phy, bit0=1: DP0, bit1=1: DP1, bit2=1: DP2 bit3=1: DP3
+	register "edp_physel" = "0x1"
+
+	register "edp_tuningset" = "{
+		.dp_vs_pemph_level = 0x00,
+		.margin_deemph = 0x004b,
+		.deemph_6db4 = 0x0,
+		.boostadj = 0x80,
+	}"
+
+	# eDP power sequence. all pwr sequence numbers below are in uint of 4ms,
+	# and "0" as default value
+	register "edp_pwr_adjust_enable" = "1"
+	register "pwron_digon_to_de" = "0"
+	register "pwron_de_to_varybl" = "0"
+	register "pwrdown_varybloff_to_de" = "0"
+	register "pwrdown_de_to_digoff" = "0"
+	register "pwroff_delay" = "0"
+	register "pwron_varybl_to_blon" = "5"
+	register "pwrdown_bloff_to_varybloff" = "5"
+	register "min_allowed_bl_level" = "0"
 
 	# USB OC pin mapping
 	register "usb_port_overcurrent_pin[1]" = "USB_OC_NONE"	# LTE instead of USB C1
@@ -50,6 +75,12 @@ chip soc/amd/picasso
 	# See AMD 55570-B1 Table 13: PCI Device ID Assignments.
 	device domain 0 on
 		subsystemid 0x1022 0x1510 inherit
+		device pci 1.3 on
+			chip drivers/generic/bayhub_lv2
+				register "enable_power_saving" = "1"
+				device pci 00.0 on end
+			end
+		end # GPP Bridge 2 - SD
 		device pci 8.1 on
 			device pci 0.5 on
 				chip drivers/amd/i2s_machine_dev
@@ -108,7 +139,7 @@ chip soc/amd/picasso
 			register "generic.reset_off_delay_ms" = "2"
 			register "generic.reset_delay_ms" = "20"
 			register "generic.stop_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPIO_144)"
-			register "generic.stop_delay_ms" = "100"
+			register "generic.stop_delay_ms" = "160"
 			register "generic.stop_off_delay_ms" = "2"
 			register "generic.has_power_resource" = "1"
 			register "hid_desc_reg_offset" = "0x01"
@@ -159,11 +190,51 @@ chip soc/amd/picasso
 			register "hid_desc_reg_offset" = "0x20"
 			device i2c 2c on end
 		end
-		chip drivers/i2c/generic
-			register "hid" = ""STH9324""
-			register "name" = ""SEMTECH SX9324""
+		chip drivers/i2c/sx9324
 			register "desc" = ""SAR Proximity Sensor""
 			register "irq_gpio" = "ACPI_GPIO_IRQ_LEVEL_LOW(GPIO_40)"
+			register "uid" = "2"
+			register "reg_gnrl_ctrl0" = "0x16"
+			register "reg_gnrl_ctrl1" = "0x21"
+			register "reg_afe_ctrl0" = "0x00"
+			register "reg_afe_ctrl1" = "0x10"
+			register "reg_afe_ctrl2" = "0x00"
+			register "reg_afe_ctrl3" = "0x00"
+			register "reg_afe_ctrl4" = "0x07"
+			register "reg_afe_ctrl5" = "0x00"
+			register "reg_afe_ctrl6" = "0x00"
+			register "reg_afe_ctrl7" = "0x07"
+			register "reg_afe_ctrl8" = "0x12"
+			register "reg_afe_ctrl9" = "0x0f"
+			register "reg_prox_ctrl0" = "0x12"
+			register "reg_prox_ctrl1" = "0x12"
+			register "reg_prox_ctrl2" = "0x90"
+			register "reg_prox_ctrl3" = "0x60"
+			register "reg_prox_ctrl4" = "0x0c"
+			register "reg_prox_ctrl5" = "0x12"
+			register "reg_prox_ctrl6" = "0x3c"
+			register "reg_prox_ctrl7" = "0x58"
+			register "reg_adv_ctrl0" = "0x00"
+			register "reg_adv_ctrl1" = "0x00"
+			register "reg_adv_ctrl2" = "0x00"
+			register "reg_adv_ctrl3" = "0x00"
+			register "reg_adv_ctrl4" = "0x00"
+			register "reg_adv_ctrl5" = "0x05"
+			register "reg_adv_ctrl6" = "0x00"
+			register "reg_adv_ctrl7" = "0x00"
+			register "reg_adv_ctrl8" = "0x00"
+			register "reg_adv_ctrl9" = "0x00"
+			register "reg_adv_ctrl10" = "0x5c"
+			register "reg_adv_ctrl11" = "0x52"
+			register "reg_adv_ctrl12" = "0xb5"
+			register "reg_adv_ctrl13" = "0x00"
+			register "reg_adv_ctrl14" = "0x80"
+			register "reg_adv_ctrl15" = "0x0c"
+			register "reg_adv_ctrl16" = "0x38"
+			register "reg_adv_ctrl17" = "0x56"
+			register "reg_adv_ctrl18" = "0x33"
+			register "reg_adv_ctrl19" = "0xf0"
+			register "reg_adv_ctrl20" = "0xf0"
 			device i2c 28 on end
 		end
 	end
