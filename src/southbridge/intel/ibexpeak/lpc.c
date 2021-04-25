@@ -155,16 +155,14 @@ static void pch_power_options(struct device *dev)
 	/* Get the chip configuration */
 	config_t *config = dev->chip_info;
 
-	int pwr_on = CONFIG_MAINBOARD_POWER_FAILURE_STATE;
-	int nmi_option;
-
 	/* Which state do we want to goto after g3 (power restored)?
 	 * 0 == S0 Full On
 	 * 1 == S5 Soft Off
 	 *
 	 * If the option is not existent (Laptops), use Kconfig setting.
 	 */
-	get_option(&pwr_on, "power_on_after_fail");
+	const int pwr_on = get_int_option("power_on_after_fail",
+					  CONFIG_MAINBOARD_POWER_FAILURE_STATE);
 
 	reg16 = pci_read_config16(dev, GEN_PMCON_3);
 	reg16 &= 0xfffe;
@@ -205,8 +203,7 @@ static void pch_power_options(struct device *dev)
 	outb(reg8, 0x61);
 
 	reg8 = inb(0x70);
-	nmi_option = NMI_OFF;
-	get_option(&nmi_option, "nmi");
+	const int nmi_option = get_int_option("nmi", NMI_OFF);
 	if (nmi_option) {
 		printk(BIOS_INFO, "NMI sources enabled.\n");
 		reg8 &= ~(1 << 7);	/* Set NMI. */
@@ -563,8 +560,18 @@ static struct device_operations device_ops = {
 };
 
 static const unsigned short pci_device_ids[] = {
+	PCI_DID_INTEL_IBEXPEAK_LPC_P55,
+	PCI_DID_INTEL_IBEXPEAK_LPC_PM55,
+	PCI_DID_INTEL_IBEXPEAK_LPC_H55,
 	PCI_DID_INTEL_IBEXPEAK_LPC_QM57,
+	PCI_DID_INTEL_IBEXPEAK_LPC_H57,
 	PCI_DID_INTEL_IBEXPEAK_LPC_HM55,
+	PCI_DID_INTEL_IBEXPEAK_LPC_Q57,
+	PCI_DID_INTEL_IBEXPEAK_LPC_HM57,
+	PCI_DID_INTEL_IBEXPEAK_LPC_QS57,
+	PCI_DID_INTEL_IBEXPEAK_LPC_3400,
+	PCI_DID_INTEL_IBEXPEAK_LPC_3420,
+	PCI_DID_INTEL_IBEXPEAK_LPC_3450,
 	0
 };
 

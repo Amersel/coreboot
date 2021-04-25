@@ -241,8 +241,6 @@ void smihandler_southbridge_sleep(
 		break;
 	}
 
-	/* Tri-state specific GPIOS to avoid leakage during S3/S5 */
-
 	/*
 	 * Write back to the SLP register to cause the originally intended
 	 * event again. We need to set BIT13 (SLP_EN) though to make the
@@ -384,6 +382,18 @@ void smihandler_southbridge_tco(
 {
 	uint32_t tco_sts = pmc_clear_tco_status();
 
+	/*
+	 * SPI synchronous SMIs are TCO SMIs, but they do not have a status
+	 * bit in the TCO_STS register. Furthermore, the TCO_STS bit in the
+	 * SMI_STS register is continually set until the SMI handler clears
+	 * the SPI synchronous SMI status bit in the SPI controller. To not
+	 * risk missing any other TCO SMIs, do not clear the TCO_STS bit in
+	 * this SMI handler invocation. If the TCO_STS bit remains set when
+	 * returning from SMM, another SMI immediately happens which clears
+	 * the TCO_STS bit and handles any pending events.
+	 */
+	fast_spi_clear_sync_smi_status();
+
 	/* Any TCO event? */
 	if (!tco_sts)
 		return;
@@ -435,16 +445,6 @@ void smihandler_southbridge_espi(
 	mainboard_smi_espi_handler();
 }
 
-/* SMI handlers that should be serviced in SCI mode too. */
-static uint32_t smihandler_soc_get_sci_mask(void)
-{
-	uint32_t sci_mask =
-		SMI_HANDLER_SCI_EN(APM_STS_BIT) |
-		SMI_HANDLER_SCI_EN(SMI_ON_SLP_EN_STS_BIT);
-
-	return sci_mask;
-}
-
 void southbridge_smi_handler(void)
 {
 	int i;
@@ -458,12 +458,14 @@ void southbridge_smi_handler(void)
 	smi_sts = pmc_clear_smi_status();
 
 	/*
-	 * In SCI mode, execute only those SMI handlers that have
-	 * declared themselves as available for service in that mode
-	 * using smihandler_soc_get_sci_mask.
+	 * When the SCI_EN bit is set, PM1 and GPE0 events will trigger a SCI
+	 * instead of a SMI#. However, SMI_STS bits PM1_STS and GPE0_STS can
+	 * still be set. Therefore, when SCI_EN is set, ignore PM1 and GPE0
+	 * events in the SMI# handler, as these events have triggered a SCI.
+	 * Do not ignore any other SMI# types, since they cannot cause a SCI.
 	 */
 	if (pmc_read_pm1_control() & SCI_EN)
-		smi_sts &= smihandler_soc_get_sci_mask();
+		smi_sts &= ~(1 << PM1_STS_BIT | 1 << GPE0_STS_BIT);
 
 	if (!smi_sts)
 		return;

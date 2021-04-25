@@ -69,6 +69,12 @@ void fch_enable_legacy_io(void)
 	pm_write32(PM_DECODE_EN, pm_read32(PM_DECODE_EN) | LEGACY_IO_EN);
 }
 
+void fch_disable_legacy_dma_io(void)
+{
+	pm_write32(PM_DECODE_EN, pm_read32(PM_DECODE_EN) &
+		~(LEGACY_DMA_IO_EN | LEGACY_DMA_IO_80_EN));
+}
+
 void fch_io_enable_legacy_io(void)
 {
 	pm_io_write32(PM_DECODE_EN, pm_io_read32(PM_DECODE_EN) | LEGACY_IO_EN);
@@ -85,6 +91,11 @@ void fch_configure_hpet(void)
 	reg |=  HPET_EN | HPET_MSI_EN;
 	reg &= ~HPET_WIDTH_SEL; /* 32 bit HPET */
 	pm_write32(PM_DECODE_EN, reg);
+}
+
+void fch_disable_kb_rst(void)
+{
+	pm_write8(PM_RST_CTRL1, pm_read8(PM_RST_CTRL1) & ~KBRSTEN);
 }
 
 /* PM registers are accessed a byte at a time via CD6/CD7 */

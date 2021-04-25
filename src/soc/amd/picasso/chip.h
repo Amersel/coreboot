@@ -3,8 +3,6 @@
 #ifndef __PICASSO_CHIP_H__
 #define __PICASSO_CHIP_H__
 
-#include <stddef.h>
-#include <stdint.h>
 #include <amdblocks/chip.h>
 #include <commonlib/helpers.h>
 #include <drivers/i2c/designware/dw_i2c.h>
@@ -12,6 +10,7 @@
 #include <soc/iomap.h>
 #include <soc/southbridge.h>
 #include <arch/x86/include/arch/smp/mpspec.h> /* point from top level */
+#include <types.h>
 
 /*
   USB 2.0 PHY Parameters
@@ -97,15 +96,15 @@ enum sysinfo_dpphy_override {
 struct soc_amd_picasso_config {
 	struct soc_amd_common_config common_config;
 	/*
-	 * If sb_reset_i2c_slaves() is called, this devicetree register
+	 * If sb_reset_i2c_peripherals() is called, this devicetree register
 	 * defines which I2C SCL will be toggled 9 times at 100 KHz.
-	 * For example, should we need I2C0 and  I2C3 have their slave
+	 * For example, should we need I2C0 and  I2C3 have their peripheral
 	 * devices reseted by toggling SCL, use:
 	 *
 	 * register i2c_scl_reset = (GPIO_I2C0_SCL | GPIO_I2C3_SCL)
 	 */
 	u8 i2c_scl_reset;
-	struct dw_i2c_bus_config i2c[I2C_MASTER_DEV_COUNT];
+	struct dw_i2c_bus_config i2c[I2C_CTRLR_COUNT];
 	enum {
 		I2S_PINS_MAX_HDA = 0,	/* HDA w/reset  3xSDI, SW w/Data0 */
 		I2S_PINS_MAX_MHDA = 1,	/* HDA no reset 3xSDI, SW w/Data0-1 */
@@ -143,11 +142,11 @@ struct soc_amd_picasso_config {
 
 	enum {
 		DOWNCORE_AUTO = 0,
-		DOWNCORE_1 = 1, /* Run with single core */
-		DOWNCORE_2 = 3, /* Run with two cores */
-		DOWNCORE_3 = 4, /* Run with three cores */
+		DOWNCORE_1 = 1, /* Run with 1 physical core */
+		DOWNCORE_2 = 3, /* Run with 2 physical cores */
+		DOWNCORE_3 = 4, /* Run with 3 physical cores */
 	} downcore_mode;
-	uint8_t smt_disable; /* 1=disable SMT, 0=enable SMT */
+	bool smt_disable; /* true=disable SMT on all physical cores */
 
 	/* Lower die temperature limit */
 	uint32_t thermctl_limit_degreeC;

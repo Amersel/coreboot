@@ -39,16 +39,6 @@ enum platform_type {
 
 #include <northbridge/intel/common/fixed_bars.h>
 
-#define MCHBAR8_AND(x,  and) (MCHBAR8(x)  = MCHBAR8(x)  & (and))
-#define MCHBAR16_AND(x, and) (MCHBAR16(x) = MCHBAR16(x) & (and))
-#define MCHBAR32_AND(x, and) (MCHBAR32(x) = MCHBAR32(x) & (and))
-#define MCHBAR8_OR(x,  or) (MCHBAR8(x)  = MCHBAR8(x)  | (or))
-#define MCHBAR16_OR(x, or) (MCHBAR16(x) = MCHBAR16(x) | (or))
-#define MCHBAR32_OR(x, or) (MCHBAR32(x) = MCHBAR32(x) | (or))
-#define MCHBAR8_AND_OR(x,  and, or) (MCHBAR8(x)  = (MCHBAR8(x)  & (and)) | (or))
-#define MCHBAR16_AND_OR(x, and, or) (MCHBAR16(x) = (MCHBAR16(x) & (and)) | (or))
-#define MCHBAR32_AND_OR(x, and, or) (MCHBAR32(x) = (MCHBAR32(x) & (and)) | (or))
-
 /* As there are many registers, define them on a separate file */
 #include "registers/mchbar.h"
 
@@ -72,7 +62,7 @@ void intel_sandybridge_finalize_smm(void);
 void systemagent_early_init(void);
 void sandybridge_init_iommu(void);
 void sandybridge_late_initialization(void);
-void northbridge_romstage_finalize(int s3resume);
+void northbridge_romstage_finalize(void);
 void early_init_dmi(void);
 
 /* mainboard_early_init: Optional callback, run after console init but before raminit. */

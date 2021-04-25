@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <console/console.h>
+#include <romstage_handoff.h>
 #include <southbridge/intel/common/pmclib.h>
 #include <arch/romstage.h>
 
@@ -36,13 +37,14 @@ void mainboard_romstage_entry(void)
 
 	if (s3_resume)
 		boot_path = BOOT_PATH_RESUME;
-	if (MCHBAR32(PMSTS_MCHBAR) & PMSTS_WARM_RESET)
+	if (mchbar_read32(PMSTS_MCHBAR) & PMSTS_WARM_RESET)
 		boot_path = BOOT_PATH_WARM_RESET;
 
 	mb_get_spd_map(spd_addr_map);
 	sdram_initialize(boot_path, spd_addr_map);
 
-	x4x_late_init(s3_resume);
-
+	x4x_late_init();
 	printk(BIOS_DEBUG, "x4x late init complete\n");
+
+	romstage_handoff_init(s3_resume);
 }

@@ -13,7 +13,6 @@ config BOARD_PRODRIVE_HERMES_BASEBOARD
 	select MAINBOARD_HAS_LPC_TPM
 	select INTEL_GMA_HAVE_VBT
 	select SOC_INTEL_COMMON_BLOCK_HDA_VERB
-	select AZALIA_PLUGIN_SUPPORT
 	select ONBOARD_VGA_IS_PRIMARY
 	select HAVE_ACPI_RESUME
 
@@ -50,10 +49,6 @@ config MAX_CPUS
 config OVERRIDE_DEVICETREE
 	string
 	default "variants/\$(CONFIG_VARIANT_DIR)/overridetree.cb"
-
-config DIMM_SPD_SIZE
-	int
-	default 512
 
 config CONSOLE_POST
 	bool

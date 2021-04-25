@@ -638,6 +638,19 @@ unsigned long acpi_create_dmar_andd(unsigned long current, u8 device_number,
 	return andd->length;
 }
 
+unsigned long acpi_create_dmar_satc(unsigned long current, u8 flags, u16 segment)
+{
+	dmar_satc_entry_t *satc = (dmar_satc_entry_t *)current;
+	int satc_len = sizeof(dmar_satc_entry_t);
+	memset(satc, 0, satc_len);
+	satc->type = DMAR_SATC;
+	satc->length = satc_len;
+	satc->flags = flags;
+	satc->segment_number = segment;
+
+	return satc->length;
+}
+
 void acpi_dmar_drhd_fixup(unsigned long base, unsigned long current)
 {
 	dmar_entry_t *drhd = (dmar_entry_t *)base;
@@ -654,6 +667,12 @@ void acpi_dmar_atsr_fixup(unsigned long base, unsigned long current)
 {
 	dmar_atsr_entry_t *atsr = (dmar_atsr_entry_t *)base;
 	atsr->length = current - base;
+}
+
+void acpi_dmar_satc_fixup(unsigned long base, unsigned long current)
+{
+	dmar_satc_entry_t *satc = (dmar_satc_entry_t *)base;
+	satc->length = current - base;
 }
 
 static unsigned long acpi_create_dmar_ds(unsigned long current,

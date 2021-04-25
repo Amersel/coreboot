@@ -1,13 +1,16 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <assert.h>
+#include <bootstate.h>
 #include <console/console.h>
 #include <device/device.h>
+#include <fsp/debug.h>
 #include <intelblocks/gpio.h>
 #include <gpio.h>
 #include <intelblocks/itss.h>
 #include <intelblocks/pcr.h>
 #include <soc/pm.h>
+#include <stdlib.h>
 #include <types.h>
 
 #define GPIO_DWx_SIZE(x)	(sizeof(uint32_t) * (x))
@@ -210,14 +213,29 @@ static void gpi_enable_nmi(const struct pad_config *cfg,
 	pcr_or32(comm->port, en_reg, en_value);
 }
 
+/* 120 GSIs is the default for IOxAPIC */
+static uint32_t gpio_ioapic_irqs_used[120 / (sizeof(uint32_t) * BITS_PER_BYTE) + 1];
+static void set_ioapic_used(uint32_t irq)
+{
+	size_t word_offset = irq / 32;
+	size_t bit_offset = irq % 32;
+	assert (word_offset < ARRAY_SIZE(gpio_ioapic_irqs_used));
+	gpio_ioapic_irqs_used[word_offset] |= BIT(bit_offset);
+}
+
+bool gpio_routes_ioapic_irq(uint32_t irq)
+{
+	size_t word_offset = irq / 32;
+	size_t bit_offset = irq % 32;
+	assert (word_offset < ARRAY_SIZE(gpio_ioapic_irqs_used));
+	return (gpio_ioapic_irqs_used[word_offset] & BIT(bit_offset)) != 0;
+}
+
 static void gpio_configure_itss(const struct pad_config *cfg, uint16_t port,
 	uint16_t  pad_cfg_offset)
 {
 	/* No ITSS configuration in SMM. */
 	if (ENV_SMM)
-		return;
-
-	if (!CONFIG(SOC_INTEL_COMMON_BLOCK_GPIO_ITSS_POL_CFG))
 		return;
 
 	int irq;
@@ -242,8 +260,12 @@ static void gpio_configure_itss(const struct pad_config *cfg, uint16_t port,
 			cfg->pad);
 		return;
 	}
-	itss_set_irq_polarity(irq, !!(cfg->pad_config[0] &
-			PAD_CFG0_RX_POL_INVERT));
+
+	if (CONFIG(SOC_INTEL_COMMON_BLOCK_GPIO_ITSS_POL_CFG))
+		itss_set_irq_polarity(irq, !!(cfg->pad_config[0] &
+					      PAD_CFG0_RX_POL_INVERT));
+
+	set_ioapic_used(irq);
 }
 
 /* Number of DWx config registers can be different for different SOCs */
@@ -637,7 +659,7 @@ void gpio_pm_configure(const uint8_t *misccfg_pm_values, size_t num)
 {
 	int i;
 	size_t gpio_communities;
-	const uint8_t misccfg_pm_mask = ~MISCCFG_ENABLE_GPIO_PM_CONFIG;
+	const uint8_t misccfg_pm_mask = (uint8_t)~MISCCFG_GPIO_PM_CONFIG_BITS;
 	const struct pad_community *comm;
 
 	comm = soc_gpio_get_community(&gpio_communities);
@@ -649,3 +671,95 @@ void gpio_pm_configure(const uint8_t *misccfg_pm_values, size_t num)
 		pcr_rmw8(comm->port, GPIO_MISCCFG,
 				misccfg_pm_mask, misccfg_pm_values[i]);
 }
+
+size_t gpio_get_index_in_group(gpio_t pad)
+{
+	const struct pad_community *comm;
+	size_t pin;
+
+	comm = gpio_get_community(pad);
+	pin = relative_pad_in_comm(comm, pad);
+	return gpio_within_group(comm, pin);
+}
+
+static uint32_t *snapshot;
+
+static void *allocate_snapshot_space(void)
+{
+	size_t gpio_communities, total = 0, i;
+	const struct pad_community *comm;
+
+	comm = soc_gpio_get_community(&gpio_communities);
+	for (i = 0; i < gpio_communities; i++, comm++)
+		total += comm->last_pad - comm->first_pad + 1;
+
+	if (total == 0)
+		return NULL;
+
+	return malloc(total * GPIO_NUM_PAD_CFG_REGS * sizeof(uint32_t));
+}
+
+void gpio_snapshot(void)
+{
+	size_t gpio_communities, index, i, pad, reg;
+	const struct pad_community *comm;
+	uint16_t config_offset;
+
+	if (snapshot == NULL) {
+		snapshot = allocate_snapshot_space();
+		if (snapshot == NULL)
+			return;
+	}
+
+	comm = soc_gpio_get_community(&gpio_communities);
+	for (i = 0, index = 0; i < gpio_communities; i++, comm++) {
+		for (pad = comm->first_pad; pad <= comm->last_pad; pad++) {
+			config_offset = pad_config_offset(comm, pad);
+			for (reg = 0; reg < GPIO_NUM_PAD_CFG_REGS; reg++) {
+				snapshot[index] = pcr_read32(comm->port,
+							PAD_CFG_OFFSET(config_offset, reg));
+				index++;
+			}
+		}
+	}
+}
+
+size_t gpio_verify_snapshot(void)
+{
+	size_t gpio_communities, index, i, pad, reg;
+	const struct pad_community *comm;
+	uint32_t curr_val;
+	uint16_t config_offset;
+	size_t changes = 0;
+
+	if (snapshot == NULL)
+		return 0;
+
+	comm = soc_gpio_get_community(&gpio_communities);
+	for (i = 0, index = 0; i < gpio_communities; i++, comm++) {
+		for (pad = comm->first_pad; pad <= comm->last_pad; pad++) {
+			config_offset = pad_config_offset(comm, pad);
+			for (reg = 0; reg < GPIO_NUM_PAD_CFG_REGS; reg++) {
+				curr_val = pcr_read32(comm->port,
+						      PAD_CFG_OFFSET(config_offset, reg));
+				if (curr_val != snapshot[index]) {
+					printk(BIOS_SPEW,
+					       "%zd(DW%zd): Changed from 0x%x to 0x%x\n",
+					       pad, reg, snapshot[index], curr_val);
+					changes++;
+				}
+				index++;
+			}
+		}
+	}
+
+	return changes;
+}
+
+static void snapshot_cleanup(void *unused)
+{
+	free(snapshot);
+}
+
+BOOT_STATE_INIT_ENTRY(BS_OS_RESUME,    BS_ON_EXIT, snapshot_cleanup, NULL);
+BOOT_STATE_INIT_ENTRY(BS_PAYLOAD_LOAD, BS_ON_EXIT, snapshot_cleanup, NULL);

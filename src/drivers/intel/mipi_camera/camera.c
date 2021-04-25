@@ -4,6 +4,7 @@
 #include <acpi/acpi.h>
 #include <acpi/acpi_device.h>
 #include <acpi/acpigen.h>
+#include <acpi/acpigen_pci.h>
 #include <console/console.h>
 #include <device/i2c_simple.h>
 #include <device/device.h>
@@ -432,6 +433,9 @@ static void camera_fill_sensor(const struct device *dev)
 		acpi_dp_add_array(dsd, lens_focus);
 	}
 
+	if (config->low_power_probe)
+		acpi_dp_add_integer(dsd, "i2c-allow-low-power-probe", 0x01);
+
 	acpi_dp_add_child(dsd, "port0", prt0);
 	acpi_dp_write(dsd);
 
@@ -479,6 +483,10 @@ static void camera_fill_nvm(const struct device *dev)
 		acpi_dp_add_integer(dsd, "address-width", config->nvm_width);
 
 	acpi_dp_add_string(dsd, "compatible", config->nvm_compat);
+
+	if (config->low_power_probe)
+		acpi_dp_add_integer(dsd, "i2c-allow-low-power-probe", 0x01);
+
 	acpi_dp_write(dsd);
 }
 
@@ -492,6 +500,10 @@ static void camera_fill_vcm(const struct device *dev)
 
 	dsd = acpi_dp_new_table("_DSD");
 	acpi_dp_add_string(dsd, "compatible", config->vcm_compat);
+
+	if (config->low_power_probe)
+		acpi_dp_add_integer(dsd, "i2c-allow-low-power-probe", 0x01);
+
 	acpi_dp_write(dsd);
 }
 

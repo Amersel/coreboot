@@ -118,6 +118,7 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 	/* Check if IGD is present and fill Graphics init param accordingly */
 	dev = pcidev_path_on_root(SA_DEVFN_IGD);
 	params->PeiGraphicsPeimInit = CONFIG(RUN_FSP_GOP) && is_dev_enabled(dev);
+	params->LidStatus = CONFIG(RUN_FSP_GOP);
 
 	/* Use coreboot MP PPI services if Kconfig is enabled */
 	if (CONFIG(USE_INTEL_FSP_TO_CALL_COREBOOT_PUBLISH_MP_PPI))
@@ -183,6 +184,11 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 		}
 	}
 
+	for (i = 0; i < ARRAY_SIZE(config->tcss_ports); i++) {
+		if (config->tcss_ports[i].enable)
+			params->CpuUsb3OverCurrentPin[i] = config->tcss_ports[i].ocpin;
+	}
+
 	/* Enable xDCI controller if enabled in devicetree and allowed */
 	dev = pcidev_path_on_root(PCH_DEVFN_USBOTG);
 	if (dev) {
@@ -246,13 +252,12 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 	/* CNVi */
 	dev = pcidev_path_on_root(PCH_DEVFN_CNVI_WIFI);
 	params->CnviMode = is_dev_enabled(dev);
-
-	/* CNVi BT Core */
-	dev = pcidev_path_on_root(PCH_DEVFN_CNVI_BT);
-	params->CnviBtCore = is_dev_enabled(dev);
-
-	/* CNVi BT Audio Offload */
+	params->CnviBtCore = config->CnviBtCore;
 	params->CnviBtAudioOffload = config->CnviBtAudioOffload;
+	/* Assert if CNVi BT is enabled without CNVi being enabled. */
+	assert(params->CnviMode || !params->CnviBtCore);
+	/* Assert if CNVi BT offload is enabled without CNVi BT being enabled. */
+	assert(params->CnviBtCore || !params->CnviBtAudioOffload);
 
 	/* VMD */
 	dev = pcidev_path_on_root(SA_DEVFN_VMD);

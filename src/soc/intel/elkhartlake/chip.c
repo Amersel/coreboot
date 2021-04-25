@@ -98,36 +98,27 @@ const char *soc_acpi_name(const struct device *dev)
 }
 #endif
 
-/* SoC rotine to fill GPIO PM mask and value for GPIO_MISCCFG register */
+/* SoC routine to fill GPIO PM mask and value for GPIO_MISCCFG register */
 static void soc_fill_gpio_pm_configuration(void)
 {
 	uint8_t value[TOTAL_GPIO_COMM];
 	const config_t *config = config_of_soc();
 
 	if (config->gpio_override_pm)
-		memcpy(value, config->gpio_pm, sizeof(uint8_t) *
-			TOTAL_GPIO_COMM);
+		memcpy(value, config->gpio_pm, sizeof(value));
 	else
-		memset(value, MISCCFG_ENABLE_GPIO_PM_CONFIG, sizeof(uint8_t) *
-			TOTAL_GPIO_COMM);
+		memset(value, MISCCFG_GPIO_PM_CONFIG_BITS, sizeof(value));
 
 	gpio_pm_configure(value, TOTAL_GPIO_COMM);
 }
 
 void soc_init_pre_device(void *chip_info)
 {
-	/* Snapshot the current GPIO IRQ polarities. FSP is setting a
-	 * default policy that doesn't honor boards' requirements. */
-	itss_snapshot_irq_polarities(GPIO_IRQ_START, GPIO_IRQ_END);
-
 	/* Perform silicon specific init. */
 	fsp_silicon_init();
 
 	 /* Display FIRMWARE_VERSION_INFO_HOB */
 	fsp_display_fvi_version_hob();
-
-	/* Restore GPIO IRQ polarities back to previous settings. */
-	itss_restore_irq_polarities(GPIO_IRQ_START, GPIO_IRQ_END);
 
 	soc_fill_gpio_pm_configuration();
 

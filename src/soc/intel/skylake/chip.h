@@ -78,9 +78,6 @@ struct soc_intel_skylake_config {
 	/* TCC activation offset */
 	uint32_t tcc_offset;
 
-	/* Whether to ignore VT-d support of the SKU */
-	int ignore_vtd;
-
 	/*
 	 * System Agent dynamic frequency configuration
 	 * When enabled memory will be trained at two different frequencies.
@@ -427,12 +424,9 @@ struct soc_intel_skylake_config {
 	 *
 	 * GpioInt (Edge, ActiveBoth, SharedAndWake, PullNone, 10000,
 	 *          "\\_SB.PCI0.GPIO", 0, ResourceConsumer)
-	 *          { sdcard_cd_gpio_default }
+	 *          { sdcard_cd_gpio }
 	 */
-	unsigned int sdcard_cd_gpio_default;
-
-	/* Use custom SD card detect GPIO configuration */
-	struct acpi_gpio sdcard_cd_gpio;
+	unsigned int sdcard_cd_gpio;
 
 	/* Wake Enable Bitmap for USB2 ports */
 	u16 usb2_wake_enable_bitmap;
@@ -482,9 +476,6 @@ struct soc_intel_skylake_config {
 	 * 2 - VR mailbox command sent for IA/GT/SA rails.
 	 */
 	u8 IslVrCmd;
-
-	/* Enable/Disable Sata test mode */
-	u8 SataTestMode;
 
 	/* i915 struct for GMA backlight control */
 	struct i915_gpu_controller_info gfx;

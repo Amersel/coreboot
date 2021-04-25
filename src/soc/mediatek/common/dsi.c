@@ -204,7 +204,7 @@ static void mtk_dsi_config_vdo_timing(u32 mode_flags, u32 format, u32 lanes,
 	data_phy_cycles = phy_timing->lpx + phy_timing->da_hs_prepare +
 			  phy_timing->da_hs_zero + phy_timing->da_hs_exit + 3;
 
-	u32 delta = 12;
+	u32 delta = 10;
 
 	if (mode_flags & MIPI_DSI_MODE_EOT_PACKET)
 		delta += 2;
@@ -222,6 +222,13 @@ static void mtk_dsi_config_vdo_timing(u32 mode_flags, u32 format, u32 lanes,
 	} else {
 		printk(BIOS_ERR, "HFP plus HBP is not greater than d_phy, "
 		       "the panel may not work properly.\n");
+	}
+
+	if (mode_flags & MIPI_DSI_MODE_LINE_END) {
+		hsync_active_byte = DIV_ROUND_UP(hsync_active_byte, lanes) * lanes - 2;
+		hbp_byte = DIV_ROUND_UP(hbp_byte, lanes) * lanes - 2;
+		hfp_byte = DIV_ROUND_UP(hfp_byte, lanes) * lanes - 2;
+		hbp_byte -= (edid->mode.ha * bytes_per_pixel + 2) % lanes;
 	}
 
 	if (hfp_byte + hbp_byte < MIN_HFP_BYTE + MIN_HBP_BYTE) {

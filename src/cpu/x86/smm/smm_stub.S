@@ -11,6 +11,7 @@
 
 #include <cpu/x86/cr.h>
 #include <cpu/x86/msr.h>
+#include <cpu/x86/lapic_def.h>
 
 .code32
 .section ".module_parameters", "aw", @progbits
@@ -21,33 +22,18 @@ stack_top:
 .long 0
 c_handler:
 .long 0
-c_handler_arg:
-.long 0
 fxsave_area:
 .long 0
 fxsave_area_size:
 .long 0
-/* struct smm_runtime begins here. */
-smm_runtime:
-smbase:
-.long 0
-smm_size:
-.long 0
-save_state_size:
-.long 0
-num_cpus:
-.long 0
-gnvs_ptr:
-.long 0
-/* allows the STM to bring up SMM in 32-bit mode */
-start32_offset:
-.long smm_trampoline32 - _start
 /* apic_to_cpu_num is a table mapping the default APIC id to CPU num. If the
  * APIC id is found at the given index, the contiguous CPU number is index
  * into the table. */
 apic_to_cpu_num:
-.fill CONFIG_MAX_CPUS,1,0xff
-/* end struct smm_runtime */
+.fill CONFIG_MAX_CPUS,2,0xffff
+/* allows the STM to bring up SMM in 32-bit mode */
+start32_offset:
+.long smm_trampoline32 - _start
 
 .data
 /* Provide fallback stack to use when a valid CPU number cannot be found. */
@@ -112,16 +98,31 @@ smm_trampoline32:
 
 	/* The CPU number is calculated by reading the initial APIC id. Since
 	 * the OS can maniuplate the APIC id use the non-changing cpuid result
-	 * for APIC id (ebx[31:24]). A table is used to handle a discontiguous
+	 * for APIC id (ax). A table is used to handle a discontiguous
 	 * APIC id space.  */
-	mov	$1, %eax
-	cpuid
-	bswap	%ebx	/* Default APIC id in bl. */
-	mov	$(apic_to_cpu_num), %eax
-	xor	%ecx, %ecx
+apic_id:
+        mov $LAPIC_BASE_MSR, %ecx
+        rdmsr
+        andl $LAPIC_BASE_MSR_X2APIC_MODE, %eax
+        jz xapic
+
+x2apic:
+        mov $X2APIC_LAPIC_ID, %ecx
+        rdmsr
+        jmp apicid_end
+
+xapic:
+        movl    $(LOCAL_APIC_ADDR | LAPIC_ID), %esi
+        movl    (%esi), %eax
+        shr     $24, %eax
+
+apicid_end:
+
+        mov     $(apic_to_cpu_num), %ebx
+        xor     %ecx, %ecx
 
 1:
-	cmp	(%eax, %ecx, 1), %bl
+	cmp	(%ebx, %ecx, 2), %ax
 	je	1f
 	inc	%ecx
 	cmp	$CONFIG_MAX_CPUS, %ecx
@@ -202,9 +203,7 @@ smm_trampoline32:
 	 */
 #ifdef __x86_64__
 	push	%rbx /* uintptr_t *canary */
-	push	$(smm_runtime)
 	push	%rcx /* size_t cpu */
-	push	c_handler_arg /* void *arg */
 
 	mov	%rsp, %rdi	/* *arg */
 
@@ -230,12 +229,8 @@ smm_trampoline32:
 
 #else
 	push	$0x0 /* Padding */
-	push	$0x0 /* Padding */
-	push	$0x0 /* Padding */
 	push	%ebx /* uintptr_t *canary */
-	push	$(smm_runtime)
 	push	%ecx /* size_t cpu */
-	push	c_handler_arg /* void *arg */
 	push	%esp /* smm_module_params *arg (allocated on stack). */
 	mov	c_handler, %eax
 	call	*%eax

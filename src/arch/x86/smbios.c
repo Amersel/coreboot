@@ -283,6 +283,7 @@ static int create_smbios_type17_for_dimm(struct dimm_info *dimm,
 
 	smbios_fill_dimm_manufacturer_from_id(dimm->mod_id, t);
 	smbios_fill_dimm_serial_number(dimm, t);
+	smbios_fill_dimm_asset_tag(dimm, t);
 	smbios_fill_dimm_locator(dimm, t);
 
 	/* put '\0' in the end of data */
@@ -389,7 +390,7 @@ static int smbios_write_type0(unsigned long *current, int handle)
 	t->vendor = smbios_add_string(t->eos, "coreboot");
 	t->bios_release_date = smbios_add_string(t->eos, coreboot_dmi_date);
 
-	if (CONFIG(CHROMEOS) && CONFIG(HAVE_ACPI_TABLES)) {
+	if (CONFIG(CHROMEOS_NVS)) {
 		uintptr_t version_address = (uintptr_t)t->eos;
 		/* SMBIOS offsets start at 1 rather than 0 */
 		version_address += (u32)smbios_string_table_len(t->eos) - 1;
@@ -440,12 +441,6 @@ static int get_socket_type(void)
 		return 0x36;
 
 	return 0x02; /* Unknown */
-}
-
-unsigned int __weak smbios_memory_error_correction_type(struct memory_info *meminfo)
-{
-	return meminfo->ecc_capable ?
-		MEMORY_ARRAY_ECC_SINGLE_BIT : MEMORY_ARRAY_ECC_NONE;
 }
 
 unsigned int __weak smbios_processor_external_clock(void)
@@ -935,7 +930,7 @@ int smbios_write_type9(unsigned long *current, int *handle,
 			const enum slot_data_bus_bandwidth bandwidth,
 			const enum misc_slot_usage usage,
 			const enum misc_slot_length length,
-			u8 slot_char1, u8 slot_char2, u8 bus, u8 dev_func)
+			const u16 id, u8 slot_char1, u8 slot_char2, u8 bus, u8 dev_func)
 {
 	struct smbios_type9 *t = (struct smbios_type9 *)*current;
 	int len = sizeof(struct smbios_type9);
@@ -947,6 +942,7 @@ int smbios_write_type9(unsigned long *current, int *handle,
 	t->slot_designation = smbios_add_string(t->eos, name ? name : "SLOT");
 	t->slot_type = type;
 	/* TODO add slot_id supoort, will be "_SUN" for ACPI devices */
+	t->slot_id = id;
 	t->slot_data_bus_width = bandwidth;
 	t->current_usage = usage;
 	t->slot_length = length;
@@ -1023,7 +1019,7 @@ static int smbios_write_type16(unsigned long *current, int *handle)
 
 	t->location = MEMORY_ARRAY_LOCATION_SYSTEM_BOARD;
 	t->use = MEMORY_ARRAY_USE_SYSTEM;
-	t->memory_error_correction = smbios_memory_error_correction_type(meminfo);
+	t->memory_error_correction = meminfo->ecc_type;
 
 	/* no error information handle available */
 	t->memory_error_information_handle = 0xFFFE;
@@ -1277,6 +1273,7 @@ static int smbios_walk_device_tree_type9(struct device *dev, int *handle,
 				  bandwidth,
 				  usage,
 				  length,
+				  0,
 				  1,
 				  0,
 				  dev->bus->secondary,

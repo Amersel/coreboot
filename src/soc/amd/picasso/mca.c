@@ -1,9 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <amdblocks/msr_zen.h>
+#include <amdblocks/reset.h>
 #include <cpu/x86/msr.h>
 #include <acpi/acpi.h>
 #include <soc/cpu.h>
-#include <soc/reset.h>
 #include <console/console.h>
 #include <arch/bert_storage.h>
 #include <cper.h>
@@ -121,8 +122,7 @@ static void build_bert_mca_error(struct mca_bank *mci)
 					IA32_MC0_CTL + (mci->bank * 4), 4);
 	if (!ctx)
 		goto failed;
-	ctx = cper_new_ia32x64_context_msr(status, x86_sec,
-					MC0_CTL_MASK + mci->bank, 1);
+	ctx = cper_new_ia32x64_context_msr(status, x86_sec, MCA_CTL_MASK_MSR(mci->bank), 1);
 	if (!ctx)
 		goto failed;
 
@@ -136,11 +136,12 @@ failed:
 static const char *const mca_bank_name[] = {
 	"Load-store unit",
 	"Instruction fetch unit",
-	"Combined unit",
-	"Reserved",
-	"Northbridge",
+	"L2 cache unit",
+	"Decode unit",
+	"",
 	"Execution unit",
-	"Floating point unit"
+	"Floating point unit",
+	"L3 cache unit"
 };
 
 /* Check the Legacy Machine Check Architecture registers */
@@ -161,7 +162,8 @@ void check_mca(void)
 				int core = cpuid_ebx(1) >> 24;
 
 				printk(BIOS_WARNING, "#MC Error: core %d, bank %d %s\n",
-						core, i, mca_bank_name[i]);
+				       core, i,
+				       i < ARRAY_SIZE(mca_bank_name) ? mca_bank_name[i] : "");
 
 				printk(BIOS_WARNING, "   MC%d_STATUS =   %08x_%08x\n",
 						i, mci.sts.hi, mci.sts.lo);
@@ -174,7 +176,7 @@ void check_mca(void)
 				mci.ctl = rdmsr(IA32_MC0_CTL + (i * 4));
 				printk(BIOS_WARNING, "   MC%d_CTL =      %08x_%08x\n",
 						i, mci.ctl.hi, mci.ctl.lo);
-				mci.cmask = rdmsr(MC0_CTL_MASK + i);
+				mci.cmask = rdmsr(MCA_CTL_MASK_MSR(i));
 				printk(BIOS_WARNING, "   MC%d_CTL_MASK = %08x_%08x\n",
 						i, mci.cmask.hi, mci.cmask.lo);
 

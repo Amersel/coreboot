@@ -175,7 +175,7 @@ void sdram_initialize(struct pei_data *pei_data)
 		usbdebug_hw_init(true);
 
 	/* Print the MRC version after executing the UEFI PEI stage */
-	u32 version = MCHBAR32(MRC_REVISION);
+	u32 version = mchbar_read32(MRC_REVISION);
 	printk(BIOS_DEBUG, "MRC Version %d.%d.%d Build %d\n",
 		(version >> 24) & 0xff, (version >> 16) & 0xff,
 		(version >>  8) & 0xff, (version >>  0) & 0xff);
@@ -361,6 +361,7 @@ void perform_raminit(int s3resume)
 	pei_data.boot_mode = s3resume ? 2 : 0;
 	timestamp_add_now(TS_BEFORE_INITRAM);
 	sdram_initialize(&pei_data);
+	timestamp_add_now(TS_AFTER_INITRAM);
 
 	/* Sanity check mrc_var location by verifying a known field */
 	mrc_var = (void *)DCACHE_RAM_MRC_VAR_BASE;

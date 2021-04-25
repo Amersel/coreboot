@@ -39,6 +39,8 @@ TEST_CFLAGS += -I$(dir $(TEST_KCONFIG_AUTOHEADER))
 
 TEST_CFLAGS += -std=gnu11 -Os -ffunction-sections -fdata-sections -fno-builtin
 
+TEST_CFLAGS += -D__TEST__
+
 # Checkout Cmocka repository
 forgetthis:=$(shell git submodule update --init --checkout 3rdparty/cmocka)
 
@@ -59,8 +61,8 @@ stages:= decompressor bootblock romstage smm verstage
 stages+= ramstage rmodule postcar libagesa
 
 alltests:=
-subdirs:= tests/arch tests/commonlib tests/console tests/cpu tests/device
-subdirs+= tests/drivers tests/ec tests/lib tests/mainboard
+subdirs:= tests/arch tests/acpi tests/commonlib tests/console tests/cpu
+subdirs+= tests/device tests/drivers tests/ec tests/lib tests/mainboard
 subdirs+= tests/northbridge tests/security tests/soc tests/southbridge
 subdirs+= tests/superio tests/vendorcode
 
@@ -148,7 +150,7 @@ $(TEST_KCONFIG_AUTOCONFIG): $(TEST_KCONFIG_AUTOHEADER)
 
 ifeq ($(JUNIT_OUTPUT),y)
 $(alltests): export CMOCKA_MESSAGE_OUTPUT=xml
-$(alltests): export CMOCKA_XML_FILE=$(testobj)/junit-$(subst /,_,$^).xml
+$(alltests): export CMOCKA_XML_FILE=$(testobj)/junit-$(subst /,_,$^)-%g.xml
 endif
 
 $(alltests): $$($$(@)-bin)
@@ -177,3 +179,18 @@ $(addprefix clean-,$(alltests)): clean-%:
 
 clean-unit-tests:
 	rm -rf $(testobj)
+
+list-unit-tests:
+	@echo "unit-tests:"
+	for t in $(sort $(alltests)); do \
+		echo "  $$t"; \
+	done
+
+help-unit-tests help::
+	@echo  '*** coreboot unit-tests targets ***'
+	@echo  '  unit-tests        - Run all unit-tests from tests/'
+	@echo  '  clean-unit-tests  - Remove unit-tests build artifacts'
+	@echo  '  list-unit-tests   - List all unit-tests'
+	@echo  '  <unit-test>       - Build and run single unit-test'
+	@echo  '  clean-<unit-test> - Remove single unit-test build artifacts'
+	@echo

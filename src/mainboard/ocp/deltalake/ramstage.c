@@ -23,31 +23,6 @@
 extern struct fru_info_str fru_strings;
 static char slot_id_str[SLOT_ID_LEN];
 
-/* Override SMBIOS type 16 error correction type. */
-unsigned int smbios_memory_error_correction_type(struct memory_info *meminfo)
-{
-	const struct SystemMemoryMapHob *hob;
-
-	hob = get_system_memory_map();
-	assert(hob != NULL);
-
-	switch (hob->RasModesEnabled) {
-	case CH_INDEPENDENT:
-		return MEMORY_ARRAY_ECC_SINGLE_BIT;
-	case FULL_MIRROR_1LM:
-	case PARTIAL_MIRROR_1LM:
-	case FULL_MIRROR_2LM:
-	case PARTIAL_MIRROR_2LM:
-		return MEMORY_ARRAY_ECC_MULTI_BIT;
-	case RK_SPARE:
-		return MEMORY_ARRAY_ECC_SINGLE_BIT;
-	case CH_LOCKSTEP:
-		return MEMORY_ARRAY_ECC_SINGLE_BIT;
-	default:
-		return MEMORY_ARRAY_ECC_MULTI_BIT;
-	}
-}
-
 /*
  * Update SMBIOS type 0 ec version.
  * In deltalake, BMC version is used to represent ec version.
@@ -81,6 +56,12 @@ const char *smbios_mainboard_location_in_chassis(void)
 	return slot_id_str;
 }
 
+/* Override SMBIOS type 2 Feature Flags */
+u8 smbios_mainboard_feature_flags(void)
+{
+	return SMBIOS_FEATURE_FLAGS_HOSTING_BOARD | SMBIOS_FEATURE_FLAGS_REPLACEABLE;
+}
+
 /*
  * Override SMBIOS type 4 cpu voltage.
  * BIT7 will set to 1 after value return. If BIT7 is set to 1, the remaining seven
@@ -102,6 +83,7 @@ typedef struct {
 	const char *slot_designator;
 } slot_info;
 
+/* Array index + 1 would be used as Slot ID */
 slot_info slotinfo[] = {
 	{CSTACK,  SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0xE8, "SSD1_M2_Data_Drive"},
 	{PSTACK1, SlotTypePciExpressGen3X4, SlotDataBusWidth4X, 0x10, "SSD0_M2_Boot_Drive"},
@@ -284,12 +266,14 @@ static int create_smbios_type9(int *handle, unsigned long *current)
 		if (sltcap & PCI_EXP_SLTCAP_HPC)
 			characteristics_2 |= SMBIOS_SLOT_HOTPLUG;
 
+		const uint16_t slot_id = index + 1;
 		length += smbios_write_type9(current, handle,
 					  slotinfo[index].slot_designator,
 					  slotinfo[index].slot_type,
 					  slotinfo[index].slot_data_bus_width,
 					  slot_usage,
 					  slot_length,
+					  slot_id,
 					  characteristics_1,
 					  characteristics_2,
 					  stack_busnos[slotinfo[index].stack],

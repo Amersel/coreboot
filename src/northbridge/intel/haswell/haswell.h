@@ -20,11 +20,32 @@
 
 /* Device 0:1.0 PCI configuration space (PCIe Graphics) */
 
+#define PEG_CAP		0xa2
+#define PEG_DCAP	0xa4
+
+#define PEG_LCAP	0xac
+
+#define PEG_DSTS	0xaa
+
+#define PEG_SLOTCAP	0xb4
+
 #define PEG_DCAP2	0xc4	/* 32bit */
+
+#define PEG_LCTL2	0xd0
+
+#define PEG_VC0RCTL	0x114
 
 #define PEG_ESD		0x144	/* 32bit */
 #define PEG_LE1D	0x150	/* 32bit */
 #define PEG_LE1A	0x158	/* 64bit */
+
+#define PEG_UESTS	0x1c4
+#define PEG_UESEV	0x1cc
+#define PEG_CESTS	0x1d0
+
+#define PEG_L0SLAT	0x22c
+
+#define PEG_AFE_PM_TMR	0xc28
 
 /* Device 0:2.0 PCI configuration space (Graphics Device) */
 
@@ -35,16 +56,6 @@
  */
 
 #include <northbridge/intel/common/fixed_bars.h>
-
-#define MCHBAR8_AND(x,  and) (MCHBAR8(x)  = MCHBAR8(x)  & (and))
-#define MCHBAR16_AND(x, and) (MCHBAR16(x) = MCHBAR16(x) & (and))
-#define MCHBAR32_AND(x, and) (MCHBAR32(x) = MCHBAR32(x) & (and))
-#define MCHBAR8_OR(x,  or) (MCHBAR8(x)  = MCHBAR8(x)  | (or))
-#define MCHBAR16_OR(x, or) (MCHBAR16(x) = MCHBAR16(x) | (or))
-#define MCHBAR32_OR(x, or) (MCHBAR32(x) = MCHBAR32(x) | (or))
-#define MCHBAR8_AND_OR(x,  and, or) (MCHBAR8(x)  = (MCHBAR8(x)  & (and)) | (or))
-#define MCHBAR16_AND_OR(x, and, or) (MCHBAR16(x) = (MCHBAR16(x) & (and)) | (or))
-#define MCHBAR32_AND_OR(x, and, or) (MCHBAR32(x) = (MCHBAR32(x) & (and)) | (or))
 
 /* As there are many registers, define them on a separate file */
 #include "registers/mchbar.h"
@@ -61,21 +72,15 @@
  * EPBAR - Egress Port Root Complex Register Block
  */
 
-#define EPBAR64(x) (*((volatile u64 *)((uintptr_t)CONFIG_FIXED_EPBAR_MMIO_BASE + (x))))
-
 #include "registers/epbar.h"
 
 /*
  * DMIBAR
  */
 
-#define DMIBAR64(x) (*((volatile u64 *)((uintptr_t)CONFIG_FIXED_DMIBAR_MMIO_BASE + (x))))
-
 #include "registers/dmibar.h"
 
 #ifndef __ASSEMBLER__
-
-void intel_northbridge_haswell_finalize_smm(void);
 
 void mb_late_romstage_setup(void); /* optional */
 

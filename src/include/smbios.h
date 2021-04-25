@@ -20,7 +20,7 @@ int smbios_write_type9(unsigned long *current, int *handle,
 			const enum slot_data_bus_bandwidth bandwidth,
 			const enum misc_slot_usage usage,
 			const enum misc_slot_length length,
-			u8 slot_char1, u8 slot_char2, u8 bus, u8 dev_func);
+			const u16 id, u8 slot_char1, u8 slot_char2, u8 bus, u8 dev_func);
 enum smbios_bmc_interface_type;
 int smbios_write_type38(unsigned long *current, int *handle,
 			const enum smbios_bmc_interface_type interface_type,
@@ -61,7 +61,6 @@ void smbios_type0_bios_version(uintptr_t address);
 
 void smbios_ec_revision(uint8_t *ec_major_revision, uint8_t *ec_minor_revision);
 
-unsigned int smbios_memory_error_correction_type(struct memory_info *meminfo);
 unsigned int smbios_processor_external_clock(void);
 unsigned int smbios_processor_characteristics(void);
 struct cpuid_result;
@@ -311,6 +310,12 @@ struct smbios_type1 {
 	u8 family;
 	u8 eos[2];
 } __packed;
+
+#define SMBIOS_FEATURE_FLAGS_HOSTING_BOARD		(1 << 0)
+#define SMBIOS_FEATURE_FLAGS_REQUIRES_DAUGHTER_CARD	(1 << 1)
+#define SMBIOS_FEATURE_FLAGS_REMOVABLE			(1 << 2)
+#define SMBIOS_FEATURE_FLAGS_REPLACEABLE		(1 << 3)
+#define SMBIOS_FEATURE_FLAGS_HOT_SWAPPABLE		(1 << 4)
 
 typedef enum {
 	SMBIOS_BOARD_TYPE_UNKNOWN = 0x01,
@@ -957,6 +962,8 @@ struct smbios_type127 {
 } __packed;
 
 void smbios_fill_dimm_manufacturer_from_id(uint16_t mod_id,
+	struct smbios_type17 *t);
+void smbios_fill_dimm_asset_tag(const struct dimm_info *dimm,
 	struct smbios_type17 *t);
 void smbios_fill_dimm_locator(const struct dimm_info *dimm,
 	struct smbios_type17 *t);

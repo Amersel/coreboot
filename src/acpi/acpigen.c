@@ -18,8 +18,6 @@
 #include <assert.h>
 #include <console/console.h>
 #include <device/device.h>
-#include <device/pci_def.h>
-#include <device/pci_type.h>
 #include <device/soundwire.h>
 #include <types.h>
 
@@ -805,6 +803,78 @@ void acpigen_write_STA_ext(const char *namestring)
 	acpigen_pop_len();
 }
 
+void acpigen_write_LPI_package(u64 level, const struct acpi_lpi_state *states, u16 nentries)
+{
+	/*
+	* Name (_LPI, Package (0x06)  // _LPI: Low Power Idle States
+	* {
+	*     0x0000,
+	*     0x0000000000000000,
+	*     0x0003,
+	*     Package (0x0A)
+	*     {
+	*         0x00000002,
+	*         0x00000001,
+	*         0x00000001,
+	*         0x00000000,
+	*         0x00000000,
+	*         0x00000000,
+	*         ResourceTemplate ()
+	*         {
+	*             Register (FFixedHW,
+	*                 0x02,               // Bit Width
+	*                 0x02,               // Bit Offset
+	*                 0x0000000000000000, // Address
+	*                 ,)
+	*         },
+	*
+	*        ResourceTemplate ()
+	*        {
+	*            Register (SystemMemory,
+	*                0x00,               // Bit Width
+	*                0x00,               // Bit Offset
+	*                0x0000000000000000, // Address
+	*                ,)
+	*        },
+	*
+	*        ResourceTemplate ()
+	*        {
+	*            Register (SystemMemory,
+	*                0x00,               // Bit Width
+	*                0x00,               // Bit Offset
+	*                0x0000000000000000, // Address
+	*                ,)
+	*        },
+	*
+	*        "C1"
+	*    },
+	*    ...
+	* }
+	*/
+
+	acpigen_write_name("_LPI");
+	acpigen_write_package(3 + nentries);
+	acpigen_write_word(0); /* Revision */
+	acpigen_write_qword(level);
+	acpigen_write_word(nentries);
+
+	for (size_t i = 0; i < nentries; i++, states++) {
+		acpigen_write_package(0xA);
+		acpigen_write_dword(states->min_residency_us);
+		acpigen_write_dword(states->worst_case_wakeup_latency_us);
+		acpigen_write_dword(states->flags);
+		acpigen_write_dword(states->arch_context_lost_flags);
+		acpigen_write_dword(states->residency_counter_frequency_hz);
+		acpigen_write_dword(states->enabled_parent_state);
+		acpigen_write_register_resource(&states->entry_method);
+		acpigen_write_register_resource(&states->residency_counter_register);
+		acpigen_write_register_resource(&states->usage_counter_register);
+		acpigen_write_string(states->state_name);
+		acpigen_pop_len();
+	}
+	acpigen_pop_len();
+}
+
 /*
  * Generates a func with max supported P-states.
  */
@@ -1424,8 +1494,10 @@ void acpigen_write_if_lequal_namestr_int(const char *namestr, uint64_t val)
 	acpigen_write_integer(val);
 }
 
+/* Closes previously opened if statement and generates ACPI code for else statement. */
 void acpigen_write_else(void)
 {
+	acpigen_pop_len();
 	acpigen_emit_byte(ELSE_OP);
 	acpigen_write_len_f();
 }
@@ -2031,23 +2103,6 @@ void acpigen_resource_qword(u16 res_type, u16 gen_flags, u16 type_flags,
 void acpigen_write_ADR(uint64_t adr)
 {
 	acpigen_write_name_qword("_ADR", adr);
-}
-
-void acpigen_write_ADR_pci_devfn(pci_devfn_t devfn)
-{
-	/*
-	 * _ADR for PCI Bus is encoded as follows:
-	 * [63:32] - unused
-	 * [31:16] - device #
-	 * [15:0]  - function #
-	 */
-	acpigen_write_ADR(PCI_SLOT(devfn) << 16 | PCI_FUNC(devfn));
-}
-
-void acpigen_write_ADR_pci_device(const struct device *dev)
-{
-	assert(dev->path.type == DEVICE_PATH_PCI);
-	acpigen_write_ADR_pci_devfn(dev->path.pci.devfn);
 }
 
 /**

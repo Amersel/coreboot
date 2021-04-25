@@ -43,12 +43,14 @@ config CPU_SPECIFIC_OPTIONS
 	select SOC_INTEL_COMMON_ACPI_WAKE_SOURCE
 	select SOC_INTEL_COMMON_BLOCK
 	select SOC_INTEL_COMMON_BLOCK_ACPI
+	select SOC_INTEL_COMMON_BLOCK_ACPI_GPIO
 	select SOC_INTEL_COMMON_BLOCK_ACPI_LPIT
 	select SOC_INTEL_COMMON_BLOCK_CAR
 	select SOC_INTEL_COMMON_BLOCK_CHIP_CONFIG
 	select SOC_INTEL_COMMON_BLOCK_CNVI
 	select SOC_INTEL_COMMON_BLOCK_CPU
 	select SOC_INTEL_COMMON_BLOCK_CPU_MPINIT
+	select SOC_INTEL_COMMON_BLOCK_CPU_SMMRELOCATE
 	select SOC_INTEL_COMMON_BLOCK_DTT
 	select SOC_INTEL_COMMON_BLOCK_GPIO_DUAL_ROUTE_SUPPORT
 	select SOC_INTEL_COMMON_BLOCK_GPIO_IOSTANDBY
@@ -127,7 +129,7 @@ config MAX_ROOT_PORTS
 	int
 	default 12
 
-config MAX_PCIE_CLOCKS
+config MAX_PCIE_CLOCK_SRC
 	int
 	default 7
 
@@ -237,12 +239,6 @@ config PRERAM_CBMEM_CONSOLE_SIZE
 	hex
 	default 0x2000
 
-config EARLY_TCSS_DISPLAY
-	bool "Enable early TCSS display"
-	depends on RUN_FSP_GOP
-	help
-	  Enable displays to be detected over Type-C ports during boot.
-
 config DATA_BUS_WIDTH
 	int
 	default 128
@@ -254,5 +250,12 @@ config DIMMS_PER_CHANNEL
 config MRC_CHANNEL_WIDTH
 	int
 	default 16
+
+config SOC_INTEL_CRASHLOG
+	def_bool n
+	select SOC_INTEL_COMMON_BLOCK_CRASHLOG
+	select ACPI_BERT
+	help
+	  Enables CrashLog.
 
 endif

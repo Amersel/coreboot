@@ -181,7 +181,7 @@ static u32 get_COMP2(const ramctr_timing *ctrl)
 static u32 get_COMP1(ramctr_timing *ctrl, const int channel)
 {
 	const union comp_ofst_1_reg orig_comp = {
-		.raw = MCHBAR32(CRCOMPOFST1_ch(channel)),
+		.raw = mchbar_read32(CRCOMPOFST1_ch(channel)),
 	};
 
 	if (IS_SANDY_CPU(ctrl->cpu) && !IS_SANDY_CPU_D2(ctrl->cpu)) {
@@ -503,42 +503,15 @@ static void dram_timing(ramctr_timing *ctrl)
 	else
 		ctrl->CWL = get_CWL(ctrl->tCK);
 
-	printk(BIOS_DEBUG, "Selected CWL latency   : %uT\n", ctrl->CWL);
-
-	/* Find tRCD */
 	ctrl->tRCD = DIV_ROUND_UP(ctrl->tRCD, ctrl->tCK);
-	printk(BIOS_DEBUG, "Selected tRCD          : %uT\n", ctrl->tRCD);
-
 	ctrl->tRP  = DIV_ROUND_UP(ctrl->tRP,  ctrl->tCK);
-	printk(BIOS_DEBUG, "Selected tRP           : %uT\n", ctrl->tRP);
-
-	/* Find tRAS */
 	ctrl->tRAS = DIV_ROUND_UP(ctrl->tRAS, ctrl->tCK);
-	printk(BIOS_DEBUG, "Selected tRAS          : %uT\n", ctrl->tRAS);
-
-	/* Find tWR */
 	ctrl->tWR  = DIV_ROUND_UP(ctrl->tWR,  ctrl->tCK);
-	printk(BIOS_DEBUG, "Selected tWR           : %uT\n", ctrl->tWR);
-
-	/* Find tFAW */
 	ctrl->tFAW = DIV_ROUND_UP(ctrl->tFAW, ctrl->tCK);
-	printk(BIOS_DEBUG, "Selected tFAW          : %uT\n", ctrl->tFAW);
-
-	/* Find tRRD */
 	ctrl->tRRD = DIV_ROUND_UP(ctrl->tRRD, ctrl->tCK);
-	printk(BIOS_DEBUG, "Selected tRRD          : %uT\n", ctrl->tRRD);
-
-	/* Find tRTP */
 	ctrl->tRTP = DIV_ROUND_UP(ctrl->tRTP, ctrl->tCK);
-	printk(BIOS_DEBUG, "Selected tRTP          : %uT\n", ctrl->tRTP);
-
-	/* Find tWTR */
 	ctrl->tWTR = DIV_ROUND_UP(ctrl->tWTR, ctrl->tCK);
-	printk(BIOS_DEBUG, "Selected tWTR          : %uT\n", ctrl->tWTR);
-
-	/* Refresh-to-Active or Refresh-to-Refresh (tRFC) */
 	ctrl->tRFC = DIV_ROUND_UP(ctrl->tRFC, ctrl->tCK);
-	printk(BIOS_DEBUG, "Selected tRFC          : %uT\n", ctrl->tRFC);
 
 	ctrl->tREFI     =     get_REFI(ctrl->FRQ, ctrl->base_freq);
 	ctrl->tMOD      =      get_MOD(ctrl->FRQ, ctrl->base_freq);
@@ -548,6 +521,17 @@ static void dram_timing(ramctr_timing *ctrl)
 	ctrl->tXPDLL    =    get_XPDLL(ctrl->FRQ, ctrl->base_freq);
 	ctrl->tXP       =       get_XP(ctrl->FRQ, ctrl->base_freq);
 	ctrl->tAONPD    =    get_AONPD(ctrl->FRQ, ctrl->base_freq);
+
+	printk(BIOS_DEBUG, "Selected CWL latency   : %uT\n", ctrl->CWL);
+	printk(BIOS_DEBUG, "Selected tRCD          : %uT\n", ctrl->tRCD);
+	printk(BIOS_DEBUG, "Selected tRP           : %uT\n", ctrl->tRP);
+	printk(BIOS_DEBUG, "Selected tRAS          : %uT\n", ctrl->tRAS);
+	printk(BIOS_DEBUG, "Selected tWR           : %uT\n", ctrl->tWR);
+	printk(BIOS_DEBUG, "Selected tFAW          : %uT\n", ctrl->tFAW);
+	printk(BIOS_DEBUG, "Selected tRRD          : %uT\n", ctrl->tRRD);
+	printk(BIOS_DEBUG, "Selected tRTP          : %uT\n", ctrl->tRTP);
+	printk(BIOS_DEBUG, "Selected tWTR          : %uT\n", ctrl->tWTR);
+	printk(BIOS_DEBUG, "Selected tRFC          : %uT\n", ctrl->tRFC);
 }
 
 static void dram_freq(ramctr_timing *ctrl)
@@ -570,7 +554,7 @@ static void dram_freq(ramctr_timing *ctrl)
 		 * The MPLL will never lock if the requested frequency is already set.
 		 * Exit early to prevent a system hang.
 		 */
-		reg1 = MCHBAR32(MC_BIOS_DATA);
+		reg1 = mchbar_read32(MC_BIOS_DATA);
 		val2 = (u8) reg1;
 		if (val2)
 			return;
@@ -581,18 +565,18 @@ static void dram_freq(ramctr_timing *ctrl)
 			reg1 |= (1 << 8);	/* Use 100MHz reference clock */
 
 		reg1 |= (1 << 31);	/* Set running bit */
-		MCHBAR32(MC_BIOS_REQ) = reg1;
+		mchbar_write32(MC_BIOS_REQ, reg1);
 		int i = 0;
 		printk(BIOS_DEBUG, "MPLL busy... ");
 		while (reg1 & (1 << 31)) {
 			udelay(10);
 			i++;
-			reg1 = MCHBAR32(MC_BIOS_REQ);
+			reg1 = mchbar_read32(MC_BIOS_REQ);
 		}
 		printk(BIOS_DEBUG, "done in %d us\n", i * 10);
 
 		/* Step 3 - Verify lock frequency */
-		reg1 = MCHBAR32(MC_BIOS_DATA);
+		reg1 = mchbar_read32(MC_BIOS_DATA);
 		val2 = (u8) reg1;
 		if (val2 >= ctrl->FRQ) {
 			printk(BIOS_DEBUG, "MPLL frequency is set at : %d MHz\n",
@@ -610,12 +594,12 @@ static void dram_ioregs(ramctr_timing *ctrl)
 
 	/* IO clock */
 	FOR_ALL_CHANNELS {
-		MCHBAR32(GDCRCLKRANKSUSED_ch(channel)) = ctrl->rankmap[channel];
+		mchbar_write32(GDCRCLKRANKSUSED_ch(channel), ctrl->rankmap[channel]);
 	}
 
 	/* IO command */
 	FOR_ALL_CHANNELS {
-		MCHBAR32(GDCRCTLRANKSUSED_ch(channel)) = ctrl->rankmap[channel];
+		mchbar_write32(GDCRCTLRANKSUSED_ch(channel), ctrl->rankmap[channel]);
 	}
 
 	/* IO control */
@@ -625,23 +609,23 @@ static void dram_ioregs(ramctr_timing *ctrl)
 
 	/* Perform RCOMP */
 	printram("RCOMP...");
-	while (!(MCHBAR32(RCOMP_TIMER) & (1 << 16)))
+	while (!(mchbar_read32(RCOMP_TIMER) & (1 << 16)))
 		;
 
 	printram("done\n");
 
 	/* Set COMP2 */
-	MCHBAR32(CRCOMPOFST2) = get_COMP2(ctrl);
+	mchbar_write32(CRCOMPOFST2, get_COMP2(ctrl));
 	printram("COMP2 done\n");
 
 	/* Set COMP1 */
 	FOR_ALL_POPULATED_CHANNELS {
-		MCHBAR32(CRCOMPOFST1_ch(channel)) = get_COMP1(ctrl, channel);
+		mchbar_write32(CRCOMPOFST1_ch(channel), get_COMP1(ctrl, channel));
 	}
 	printram("COMP1 done\n");
 
 	printram("FORCE RCOMP and wait 20us...");
-	MCHBAR32(M_COMP) |= (1 << 8);
+	mchbar_setbits32(M_COMP, 1 << 8);
 	udelay(20);
 	printram("done\n");
 }
@@ -670,7 +654,7 @@ int try_init_dram_ddr3(ramctr_timing *ctrl, int fast_boot, int s3resume, int me_
 	}
 
 	/* Set version register */
-	MCHBAR32(MRC_REVISION) = 0xc04eb002;
+	mchbar_write32(MRC_REVISION, 0xc04eb002);
 
 	/* Enable crossover */
 	dram_xover(ctrl);
@@ -679,16 +663,16 @@ int try_init_dram_ddr3(ramctr_timing *ctrl, int fast_boot, int s3resume, int me_
 	dram_timing_regs(ctrl);
 
 	/* Power mode preset */
-	MCHBAR32(PM_THML_STAT) = 0x5500;
+	mchbar_write32(PM_THML_STAT, 0x5500);
 
 	/* Set scheduler chicken bits */
-	MCHBAR32(SCHED_CBIT) = 0x10100005;
+	mchbar_write32(SCHED_CBIT, 0x10100005);
 
 	/* Set up watermarks and starvation counter */
 	set_wmm_behavior(ctrl->cpu);
 
 	/* Clear IO reset bit */
-	MCHBAR32(MC_INIT_STATE_G) &= ~(1 << 5);
+	mchbar_clrbits32(MC_INIT_STATE_G, 1 << 5);
 
 	/* Set MAD-DIMM registers */
 	dram_dimm_set_mapping(ctrl, 1);

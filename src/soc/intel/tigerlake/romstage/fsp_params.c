@@ -56,7 +56,7 @@ static void soc_memory_init_params(FSP_M_CONFIG *m_cfg,
 	memcpy(m_cfg->PcieClkSrcUsage, config->PcieClkSrcUsage,
 		sizeof(config->PcieClkSrcUsage));
 
-	for (i = 0; i < CONFIG_MAX_PCIE_CLOCKS; i++) {
+	for (i = 0; i < CONFIG_MAX_PCIE_CLOCK_SRC; i++) {
 		if (config->PcieClkSrcUsage[i] == 0)
 			m_cfg->PcieClkSrcUsage[i] = 0xff;
 	}
@@ -215,6 +215,12 @@ static void soc_memory_init_params(FSP_M_CONFIG *m_cfg,
 
 	/* Change TmeEnable UPD value according to INTEL_TME Kconfig */
 	m_cfg->TmeEnable = CONFIG(INTEL_TME);
+
+	/* crashLog config */
+	if (CONFIG(SOC_INTEL_CRASHLOG)) {
+		m_cfg->CpuCrashLogDevice = 1;
+		m_cfg->CpuCrashLogEnable = 1;
+	}
 }
 
 void platform_fsp_memory_init_params_cb(FSPM_UPD *mupd, uint32_t version)

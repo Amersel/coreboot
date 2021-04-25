@@ -151,7 +151,7 @@ uint32_t cpu_get_max_turbo_ratio(void);
 void mca_configure(void);
 
 /* Lock chipset memory registers to protect SMM */
-void cpu_lt_lock_memory(void *unused);
+void cpu_lt_lock_memory(void);
 
 /* Get a supported PRMRR size in bytes with respect to users choice */
 int get_valid_prmrr_size(void);
@@ -161,5 +161,9 @@ int get_valid_prmrr_size(void);
  * disabling the PM ACPI timer (PM1_TMR) for power saving.
  */
 void enable_pm_timer_emulation(void);
+
+/* Derive core, package and thread information from lapic ID */
+void get_cpu_topology_from_apicid(uint32_t apicid, uint8_t *package,
+		uint8_t *core, uint8_t *thread);
 
 #endif	/* SOC_INTEL_COMMON_BLOCK_CPULIB_H */

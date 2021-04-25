@@ -1,13 +1,17 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <amdblocks/acpi.h>
 #include <amdblocks/acpimmio.h>
 #include <amdblocks/amd_pci_util.h>
+#include <amdblocks/gpio_banks.h>
 #include <amdblocks/smi.h>
 #include <assert.h>
 #include <bootstate.h>
 #include <cpu/x86/smm.h>
+#include <amdblocks/i2c.h>
 #include <soc/amd_pci_int_defs.h>
 #include <soc/iomap.h>
+#include <soc/i2c.h>
 #include <soc/smi.h>
 #include <soc/southbridge.h>
 
@@ -111,7 +115,12 @@ static void fch_init_acpi_ports(void)
 
 void fch_init(void *chip_info)
 {
+	i2c_soc_init();
 	fch_init_acpi_ports();
+
+	acpi_pm_gpe_add_events_print_events();
+	gpio_add_events();
+	acpi_clear_pm_gpe_status();
 }
 
 void fch_final(void *chip_info)

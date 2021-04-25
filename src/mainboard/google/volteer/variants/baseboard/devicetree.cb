@@ -62,6 +62,16 @@ fw_config
 		option REGULAR_TOUCHPAD 0
 		option NUMPAD_TOUCHPAD 1
 	end
+	field WIFI_SAR_ID 26 27
+		option WIFI_SAR_ID_0 0
+		option WIFI_SAR_ID_1 1
+		option WIFI_SAR_ID_2 2
+		option WIFI_SAR_ID_3 3
+	end
+	field OLED_SCREEN 28
+		option OLED_NOT_PRESENT 0
+		option OLED_PRESENT 1
+	end
 end
 
 chip soc/intel/tigerlake
@@ -289,7 +299,9 @@ chip soc/intel/tigerlake
 
 	register "tcc_offset" = "10"     # TCC of 90
 
-	register "CnviBtAudioOffload" = "FORCE_ENABLE"
+	register "CnviBtCore" = "true"
+
+	register "CnviBtAudioOffload" = "true"
 
 	# Intel Common SoC Config
 	#+-------------------+---------------------------+
@@ -343,6 +355,11 @@ chip soc/intel/tigerlake
 		.v1p05_icc_max_ma = 500,
 		.vnn_sx_voltage_mv = 1250,
 	}"
+
+	# Acoustic settings
+	register "AcousticNoiseMitigation" = "1"
+	register "SlowSlewRate" = "SLEW_FAST_8"
+	register "FastPkgCRampDisable" = "1"
 
 	device domain 0 on
 		device ref igpu on end
@@ -461,7 +478,6 @@ chip soc/intel/tigerlake
 		end
 		device ref gna on end
 		device ref north_xhci on end
-		device ref cnvi_bt on end
 		device ref south_xhci on end
 		device ref shared_ram on end
 		device ref cnvi_wifi on

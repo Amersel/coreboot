@@ -5,6 +5,7 @@
 #include <cbmem.h>
 #include <console/console.h>
 #include <crc_byte.h>
+#include <bootstate.h>
 #include <device/device.h>
 #include <device/dram/spd.h>
 #include <intelblocks/pmclib.h>
@@ -136,11 +137,6 @@ static void mainboard_init(void *chip_info)
 	if (!board_cfg)
 		return;
 
-	/* Set Deep Sx */
-	config_t *config = config_of_soc();
-	config->deep_s5_enable_ac = board_cfg->deep_sx_enabled;
-	config->deep_s5_enable_dc = board_cfg->deep_sx_enabled;
-
 	/* Enable internal speaker amplifier */
 	if (board_cfg->internal_audio_connection == 2)
 		mb_hda_amp_enable(1);
@@ -181,16 +177,12 @@ static void mainboard_acpi_fill_ssdt(const struct device *dev)
 	else
 		acpigen_write_soc_gpio_op = acpigen_soc_clear_tx_gpio;
 
-	acpigen_write_scope("\\_SB");
+	acpigen_write_method("\\_SB.MPTS", 1);
 	{
-		acpigen_write_method("MPTS", 1);
+		acpigen_write_if_lequal_op_int(ARG0_OP, 5);
 		{
-			acpigen_write_if_lequal_op_int(ARG0_OP, 5);
-			{
-				for (size_t i = 0; i < ARRAY_SIZE(usb_power_gpios); i++)
-					acpigen_write_soc_gpio_op(usb_power_gpios[i]);
-			}
-			acpigen_pop_len();
+			for (size_t i = 0; i < ARRAY_SIZE(usb_power_gpios); i++)
+				acpigen_write_soc_gpio_op(usb_power_gpios[i]);
 		}
 		acpigen_pop_len();
 	}
@@ -222,3 +214,29 @@ struct chip_operations mainboard_ops = {
 	.init       = mainboard_init,
 	.enable_dev = mainboard_enable,
 };
+
+/* Must happen before MPinit */
+static void mainboard_early(void *unused)
+{
+	const struct eeprom_board_settings *const board_cfg = get_board_settings();
+	config_t *config = config_of_soc();
+
+	if (board_cfg) {
+		/* Set Deep Sx */
+		config->deep_s5_enable_ac = board_cfg->deep_sx_enabled;
+		config->deep_s5_enable_dc = board_cfg->deep_sx_enabled;
+	}
+
+	if (check_signature(offsetof(struct eeprom_layout, supd), FSPS_UPD_SIGNATURE)) {
+		struct {
+			struct {
+				u8 TurboMode;
+			} FspsConfig;
+		} supd = {0};
+
+		READ_EEPROM_FSP_S((&supd), FspsConfig.TurboMode);
+		config->cpu_turbo_disable = !supd.FspsConfig.TurboMode;
+	}
+}
+
+BOOT_STATE_INIT_ENTRY(BS_PRE_DEVICE, BS_ON_EXIT, mainboard_early, NULL);
