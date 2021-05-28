@@ -1,0 +1,13 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
+config BOARD_DELL_OPTIPLEX_7020
+	bool "OptiPlex 7020 SFF/MT"
+	help
+	  The OptiPlex 7020 and 9020 boards are physically identical, these options
+	  only change strings in the firmware.
+
+config BOARD_DELL_OPTIPLEX_9020
+	bool "OptiPlex 7020 USFF/SFF/MT"
+	help
+	  The OptiPlex 7020 and 9020 boards are physically identical, these options
+	  only change strings in the firmware.
