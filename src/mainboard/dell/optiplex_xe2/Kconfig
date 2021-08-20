@@ -1,0 +1,58 @@
+if BOARD_DELL_OPTIPLEX_XE2
+
+config BOARD_SPECIFIC_OPTIONS
+	def_bool y
+	select BOARD_ROMSIZE_KB_12288
+	select CPU_INTEL_HASWELL
+	select HAVE_ACPI_RESUME
+	select HAVE_ACPI_TABLES
+	select INTEL_GMA_HAVE_VBT
+	select INTEL_INT15
+	select MAINBOARD_HAS_LIBGFXINIT # FIXME: check this
+	select MAINBOARD_USES_IFD_GBE_REGION
+	select NORTHBRIDGE_INTEL_HASWELL
+	select SERIRQ_CONTINUOUS_MODE
+	select SOUTHBRIDGE_INTEL_LYNXPOINT
+	select SUPERIO_SMSC_SCH555x
+	select TSC_MONOTONIC_TIMER
+
+#config GFX_GMA_CPU_VARIANT
+#	string
+#	default "Normal"
+
+config CBFS_SIZE
+	hex
+	default 0x600000
+
+config MAINBOARD_DIR
+	string
+	default "dell/optiplex_xe2"
+
+config MAINBOARD_PART_NUMBER
+	string
+	default "OptiPlex XE2"
+
+config VGA_BIOS_FILE
+	string
+	default "pci8086,0412.rom"
+
+config VGA_BIOS_ID
+	string
+	default "8086,0412"
+
+config MAINBOARD_PCI_SUBSYSTEM_DEVICE_ID
+	hex
+	default 0x5c1
+
+config MAINBOARD_PCI_SUBSYSTEM_VENDOR_ID
+	hex
+	default 0x1028
+
+#config MAX_CPUS
+#	int
+#	default 8
+
+#config USBDEBUG_HCD_INDEX # FIXME: check this
+#	int
+#	default 2
+endif

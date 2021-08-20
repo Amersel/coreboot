@@ -1,0 +1,111 @@
+chip northbridge/intel/haswell
+	register "gpu_ddi_e_connected" = "1"
+	register "gpu_dp_b_hotplug" = "0"
+	register "gpu_dp_c_hotplug" = "4"
+	register "gpu_dp_d_hotplug" = "4"
+	device cpu_cluster 0 on
+		chip cpu/intel/haswell
+			#register "c1_acpower" = "1"
+			#register "c1_battery" = "1"
+			#register "c2_acpower" = "3"
+			#register "c2_battery" = "3"
+			#register "c3_acpower" = "5"
+			#register "c3_battery" = "5"
+			device lapic 0x0 on end
+			device lapic 0xacac off end
+		end
+	end
+	device domain 0 on
+		chip southbridge/intel/lynxpoint # Intel Series 8 Lynx Point PCH
+			register "gen1_dec" = "0x007c0a01"
+			register "gen2_dec" = "0x007c0901"
+			register "gen3_dec" = "0x003c07e1"
+			register "gen4_dec" = "0x001c0901"
+#			register "sata_ahci" = "1"
+			register "sata_port_map" = "0x33"
+			device pci 14.0 on # xHCI Controller
+				subsystemid 0x1028 0x05c1
+			end
+			device pci 16.0 on # Management Engine Interface 1
+				subsystemid 0x1028 0x05c1
+			end
+			device pci 16.1 off # Management Engine Interface 2
+			end
+			device pci 16.2 off # Management Engine IDE-R
+			end
+			device pci 16.3 on # Management Engine KT
+			end
+			device pci 19.0 on # Intel Gigabit Ethernet
+				subsystemid 0x1028 0x05c1
+			end
+			device pci 1a.0 on # USB2 EHCI #2
+				subsystemid 0x1028 0x05c1
+			end
+			device pci 1b.0 on # High Definition Audio
+				subsystemid 0x1028 0x05c1
+			end
+			device pci 1c.0 on # PCIe Port #1
+				subsystemid 0x1028 0x05c1
+			end
+			device pci 1c.1 on # PCIe Port #2
+				subsystemid 0x1028 0x05c1
+			end
+			device pci 1c.2 off # PCIe Port #3
+			end
+			device pci 1c.3 off # PCIe Port #4
+			end
+			device pci 1c.4 off # PCIe Port #5
+			end
+			device pci 1c.5 off # PCIe Port #6
+			end
+			device pci 1c.6 off # PCIe Port #7
+			end
+			device pci 1c.7 off # PCIe Port #8
+			end
+			device pci 1d.0 on # USB2 EHCI #1
+				subsystemid 0x1028 0x05c1
+			end
+			device pci 1f.0 on # LPC bridge PCI-LPC bridge
+				chip superio/smsc/sch555x
+					device pnp 2e.0 on		# EMI
+						io 0x60 = 0xa00
+					end
+					device pnp 2e.1 on		# 8042
+						io 0x60 = 0x60
+						irq 0x0f = 0
+						irq 0x70 = 1
+						irq 0x72 = 12
+					end
+					device pnp 2e.7 on		# UART1
+						io 0x60 = 0x3f8
+						irq 0x0f = 2
+						irq 0x70 = 4
+					end
+					device pnp 2e.8 off end 	# UART2
+					device pnp 2e.c on		# LPC interface
+						io 0x60 = 0x2e
+					end
+					device pnp 2e.a on		# Runtime registers
+						io 0x60 = 0xa40
+					end
+					device pnp 2e.b  off end	# Floppy Controller
+					device pnp 2e.11 off end	# Parallel Port
+				end
+			end
+			device pci 1f.2 on # SATA Controller 1 Unsupported PCI device 8086:2822
+				subsystemid 0x1028 0x05c1
+			end
+			device pci 1f.3 on # SMBus
+				subsystemid 0x1028 0x05c1
+			end
+			device pci 1f.5 off # SATA Controller 2
+			end
+			device pci 1f.6 off # Thermal
+			end
+		end
+		device pci 00.0 on end # Host bridge Host bridge
+		device pci 01.0 on end # PCIe Bridge for discrete graphics
+		device pci 02.0 on end # Internal graphics VGA controller
+		device pci 03.0 on end # Mini-HD audio
+	end
+end
