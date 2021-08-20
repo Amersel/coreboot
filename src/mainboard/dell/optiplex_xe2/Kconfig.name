@@ -1,0 +1,2 @@
+config BOARD_DELL_OPTIPLEX_XE2
+	bool "OptiPlex XE2"
