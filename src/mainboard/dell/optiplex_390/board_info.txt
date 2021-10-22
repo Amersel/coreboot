@@ -1,0 +1,2 @@
+Category: desktop
+FIXME: check category, , put ROM package, ROM socketed, ROM protocol, Flashrom support, Release year
