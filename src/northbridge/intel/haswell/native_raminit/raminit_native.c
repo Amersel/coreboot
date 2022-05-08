@@ -200,8 +200,6 @@ void perform_raminit(const int s3resume)
 		else
 			me_status = ME_INIT_STATUS_SUCCESS;
 
-		/** TODO: Remove this once raminit is implemented **/
-		me_status = ME_INIT_STATUS_ERROR;
 		intel_early_me_init_done(me_status);
 	}
 
@@ -217,7 +215,8 @@ void perform_raminit(const int s3resume)
 	}
 
 	/* Save training data on non-S3 resumes */
-	if (!s3resume)
+	/** TODO: Enable this once training data is populated **/
+	if (0 && !s3resume)
 		save_mrc_data(&md);
 
 	/** TODO: setup_sdram_meminfo **/
