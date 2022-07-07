@@ -1,0 +1,2 @@
+config BOARD_DELL_OPTIPLEX_9030_AIO
+	bool "OptiPlex 9030 AIO"
