@@ -24,10 +24,8 @@ chip northbridge/intel/haswell
 #			register "sata_ahci" = "1"
 			register "sata_port_map" = "0x63"
 			device pci 14.0 on # xHCI Controller
-				subsystemid 0x1028 0x05c1
 			end
 			device pci 16.0 on # Management Engine Interface 1
-				subsystemid 0x1028 0x05c1
 			end
 			device pci 16.1 off # Management Engine Interface 2
 			end
@@ -39,31 +37,26 @@ chip northbridge/intel/haswell
 				subsystemid 0x1028 0x05c1
 			end
 			device pci 1a.0 on # USB2 EHCI #2
-				subsystemid 0x1028 0x05c1
 			end
 			device pci 1b.0 on # High Definition Audio
-				subsystemid 0x1028 0x05c1
 			end
 			device pci 1c.0 on # PCIe Port #1
-				subsystemid 0x1028 0x05c1
 			end
 			device pci 1c.1 on # PCIe Port #2
-				subsystemid 0x1028 0x05c1
 			end
-			device pci 1c.2 off # PCIe Port #3
+			device pci 1c.2 on # PCIe Port #3
 			end
-			device pci 1c.3 off # PCIe Port #4
+			device pci 1c.3 on # PCIe Port #4
 			end
-			device pci 1c.4 off # PCIe Port #5
+			device pci 1c.4 on # PCIe Port #5
 			end
-			device pci 1c.5 off # PCIe Port #6
+			device pci 1c.5 on # PCIe Port #6
 			end
-			device pci 1c.6 off # PCIe Port #7
+			device pci 1c.6 on # PCIe Port #7
 			end
-			device pci 1c.7 off # PCIe Port #8
+			device pci 1c.7 on # PCIe Port #8
 			end
 			device pci 1d.0 on # USB2 EHCI #1
-				subsystemid 0x1028 0x05c1
 			end
 			device pci 1f.0 on # LPC bridge PCI-LPC bridge
 				chip superio/smsc/sch555x
@@ -96,10 +89,8 @@ chip northbridge/intel/haswell
         end
 			end
 			device pci 1f.2 on # SATA Controller 1 Unsupported PCI device 8086:2822
-				subsystemid 0x1028 0x05c1
 			end
 			device pci 1f.3 on # SMBus
-				subsystemid 0x1028 0x05c1
 			end
 			device pci 1f.5 off # SATA Controller 2
 			end

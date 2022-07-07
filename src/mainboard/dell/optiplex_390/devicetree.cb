@@ -46,57 +46,45 @@ chip northbridge/intel/sandybridge # FIXME: GPU registers may not always apply.
 			device pci 19.0 off # Intel Gigabit Ethernet
 			end
 			device pci 1a.0 on # USB2 EHCI #2
-				subsystemid 0x1028 0x04f5
 			end
 			device pci 1b.0 on # High Definition Audio
-				subsystemid 0x1028 0x04f5
 			end
 			device pci 1c.0 on # PCIe Port #1
-				subsystemid 0x1028 0x04f5
 			end
-			device pci 1c.1 off # PCIe Port #2
+			device pci 1c.1 on # PCIe Port #2
 			end
 			device pci 1c.2 on # PCIe Port #3
-				subsystemid 0x1028 0x04f5
 			end
-			device pci 1c.3 off # PCIe Port #4
+			device pci 1c.3 on # PCIe Port #4
 			end
 			device pci 1c.4 on # PCIe Port #5
-				subsystemid 0x1028 0x04f5
 			end
-			device pci 1c.5 off # PCIe Port #6
+			device pci 1c.5 on # PCIe Port #6
 			end
-			device pci 1c.6 off # PCIe Port #7
+			device pci 1c.6 on # PCIe Port #7
 			end
-			device pci 1c.7 off # PCIe Port #8
+			device pci 1c.7 on # PCIe Port #8
 			end
 			device pci 1d.0 on # USB2 EHCI #1
-				subsystemid 0x1028 0x04f5
 			end
 			device pci 1e.0 off # PCI bridge
 			end
 			device pci 1f.0 on # LPC bridge
-				subsystemid 0x1028 0x04f5
 			end
 			device pci 1f.2 on # SATA Controller 1
-				subsystemid 0x1028 0x04f5
 			end
 			device pci 1f.3 on # SMBus
-				subsystemid 0x1028 0x04f5
 			end
 			device pci 1f.5 on # SATA Controller 2 Unsupported PCI device 8086:1c08
-				subsystemid 0x1028 0x04f5
 			end
 			device pci 1f.6 off # Thermal
 			end
 		end
 		device pci 00.0 on # Host bridge Host bridge
-			subsystemid 0x1028 0x04f5
 		end
 		device pci 01.0 off # PEG
 		end
 		device pci 02.0 on # iGPU
-			subsystemid 0x1028 0x04f5
 		end
 	end
 end
