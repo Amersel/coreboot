@@ -1,11 +1,11 @@
 chip northbridge/intel/haswell # FIXME: check ec_present, usb_xhci_on_resume, gfx
-	register "ec_present" = "false"
+	register "ec_present" = "true"
 	register "gfx" = "GMA_STATIC_DISPLAYS(0)"
 	register "gpu_ddi_e_connected" = "1"
 	register "gpu_dp_b_hotplug" = "0"
 	register "gpu_dp_c_hotplug" = "0"
 	register "gpu_dp_d_hotplug" = "0"
-	register "panel_cfg" = "{ # FIXME: check panel_cfg
+	register "panel_cfg" = "{
 		.up_delay_ms		=   0,
 		.down_delay_ms		=   0,
 		.cycle_delay_ms		= 4294967196,
