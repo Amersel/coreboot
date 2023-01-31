@@ -5,14 +5,13 @@
 #include <stdint.h>
 #include <cpu/x86/msr.h>
 #include <cpu/x86/smm.h>
-#include <cpu/amd/msr.h>
 #include <cpu/amd/mtrr.h>
 #include <cbmem.h>
 #include <soc/northbridge.h>
 #include <soc/iomap.h>
 #include <amdblocks/biosram.h>
 
-void *cbmem_top_chipset(void)
+uintptr_t cbmem_top_chipset(void)
 {
 	msr_t tom = rdmsr(TOP_MEM);
 
@@ -20,8 +19,7 @@ void *cbmem_top_chipset(void)
 		return 0;
 
 	/* 8MB alignment to keep MTRR usage low */
-	return (void *)ALIGN_DOWN(restore_top_of_low_cacheable()
-				  - CONFIG_SMM_TSEG_SIZE, 8*MiB);
+	return ALIGN_DOWN(restore_top_of_low_cacheable() - CONFIG_SMM_TSEG_SIZE, 8 * MiB);
 }
 
 static uintptr_t smm_region_start(void)

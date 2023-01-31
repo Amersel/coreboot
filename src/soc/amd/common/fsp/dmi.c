@@ -16,19 +16,41 @@
 #include <dmi_info.h>
 #include <device/dram/ddr4.h>
 #include <device/dram/lpddr4.h>
+#include <device/dram/ddr5.h>
 
 /**
  * Convert DDR clock speed (based on memory type) in MHz to the standard reported speed in MT/s
  */
 static uint16_t ddr_speed_mhz_to_reported_mts(uint16_t ddr_type, uint16_t speed)
 {
+
+	if (CONFIG(USE_DDR4) && ddr_type == MEMORY_TYPE_DDR4)
+		return ddr4_speed_mhz_to_reported_mts(speed);
+	else if (CONFIG(USE_LPDDR4) && ddr_type == MEMORY_TYPE_LPDDR4)
+		return lpddr4_speed_mhz_to_reported_mts(speed);
+	else if (CONFIG(USE_DDR5) && (ddr_type == MEMORY_TYPE_DDR5 ||
+			ddr_type == MEMORY_TYPE_LPDDR5))
+		return ddr5_speed_mhz_to_reported_mts(speed);
+
+	printk(BIOS_ERR, "Unknown memory type %x\n", ddr_type);
+	return 0;
+}
+
+/**
+ * Return DDR voltage (in mV) based on memory type
+ */
+static uint16_t ddr_get_voltage(uint16_t ddr_type)
+{
 	switch (ddr_type) {
 	case MEMORY_TYPE_DDR4:
-		return ddr4_speed_mhz_to_reported_mts(speed);
+		return 1200;
 	case MEMORY_TYPE_LPDDR4:
-		return lpddr4_speed_mhz_to_reported_mts(speed);
+	case MEMORY_TYPE_DDR5:
+		return 1100;
+	case MEMORY_TYPE_LPDDR5:
+		return 1050;
 	default:
-		printk(BIOS_ERR, "Unknown memory type %x", ddr_type);
+		printk(BIOS_ERR, "Unknown memory type %x\n", ddr_type);
 		return 0;
 	}
 }
@@ -63,6 +85,8 @@ static void transfer_memory_info(const TYPE17_DMI_INFO *dmi17,
 
 	dimm->bank_locator = 0;
 
+	dimm->vdd_voltage = ddr_get_voltage(dmi17->MemoryType);
+
 	strncpy((char *)dimm->module_part_number, dmi17->PartNumber,
 		sizeof(dimm->module_part_number) - 1);
 }
@@ -73,7 +97,9 @@ static void print_dimm_info(const struct dimm_info *dimm)
 	       "CBMEM_ID_MEMINFO:\n"
 	       "  dimm_size: %u\n"
 	       "  ddr_type: 0x%hx\n"
-	       "  ddr_frequency: %hu\n"
+	       "  max_speed_mts: %hu\n"
+	       "  config_speed_mts: %hu\n"
+	       "  vdd_voltage: %hu\n"
 	       "  rank_per_dimm: %hhu\n"
 	       "  channel_num: %hhu\n"
 	       "  dimm_num: %hhu\n"
@@ -85,7 +111,9 @@ static void print_dimm_info(const struct dimm_info *dimm)
 	       "  module_part_number(%zu): %s\n",
 	       dimm->dimm_size,
 	       dimm->ddr_type,
-	       dimm->ddr_frequency,
+	       dimm->max_speed_mts,
+	       dimm->configured_speed_mts,
+	       dimm->vdd_voltage,
 	       dimm->rank_per_dimm,
 	       dimm->channel_num,
 	       dimm->dimm_num,

@@ -1,3 +1,4 @@
+## SPDX-License-Identifier: GPL-2.0-only
 ifeq ($(CONFIG_SOC_INTEL_BROADWELL),y)
 
 subdirs-y += pch
@@ -8,6 +9,7 @@ romstage-y += early_init.c
 romstage-y += raminit.c
 romstage-y += report_platform.c
 romstage-y += romstage.c
+romstage-$(CONFIG_HAVE_SPD_IN_CBFS) += spd.c
 
 ramstage-y += acpi.c
 ramstage-y += finalize.c

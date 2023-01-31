@@ -9,11 +9,10 @@
 #include <program_loading.h>
 #include <reset.h>
 #include <rmodule.h>
+#include <security/vboot/vboot_common.h>
 #include <stage_cache.h>
 #include <symbols.h>
-#include <thread.h>
 #include <timestamp.h>
-#include <security/vboot/vboot_common.h>
 
 void run_romstage(void)
 {
@@ -82,7 +81,7 @@ void preload_ramstage(void)
 
 	cbfs_preload(CONFIG_CBFS_PREFIX "/ramstage");
 }
-void run_ramstage(void)
+void __noreturn run_ramstage(void)
 {
 	struct prog ramstage =
 		PROG_INIT(PROG_RAMSTAGE, CONFIG_CBFS_PREFIX "/ramstage");

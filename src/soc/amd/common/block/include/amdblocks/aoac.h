@@ -10,7 +10,7 @@
 #define AOAC_DEV_D3_STATE(device)	(AOAC_DEV_D3_CTL(device) + 1)
 
 /* Bit definitions for Device D3 Control AOACx0000[40...7E; even byte addresses] */
-#define   FCH_AOAC_TARGET_DEVICE_STATE (BIT(0) + BIT(1))
+#define   FCH_AOAC_TARGET_DEVICE_STATE (BIT(0) | BIT(1))
 #define     FCH_AOAC_D0_UNINITIALIZED	0
 #define     FCH_AOAC_D0_INITIALIZED	1
 #define     FCH_AOAC_D1_2_3_WARM	2
@@ -35,5 +35,8 @@
 bool is_aoac_device_enabled(unsigned int dev);
 void power_on_aoac_device(unsigned int dev);
 void power_off_aoac_device(unsigned int dev);
+/* the following 2 functions are implemented in the SoC code */
+void enable_aoac_devices(void);
+void wait_for_aoac_enabled(unsigned int dev);
 
 #endif /* AMD_BLOCK_AOAC_H */

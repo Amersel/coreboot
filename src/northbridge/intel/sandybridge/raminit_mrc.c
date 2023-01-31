@@ -111,7 +111,7 @@ static void prepare_mrc_cache(struct pei_data *pei_data)
 	pei_data->mrc_input = mrc_cache_current_mmap_leak(MRC_TRAINING_DATA,
 							  MRC_CACHE_VERSION,
 							  &mrc_size);
-	if (pei_data->mrc_input == NULL) {
+	if (!pei_data->mrc_input) {
 		/* Error message printed in find_current_mrc_cache */
 		return;
 	}
@@ -332,7 +332,7 @@ void perform_raminit(int s3resume)
 		enable_usb_bar();
 
 	memset(&pei_data, 0, sizeof(pei_data));
-	pei_data.pei_version = PEI_VERSION,
+	pei_data.pei_version = PEI_VERSION;
 
 	northbridge_fill_pei_data(&pei_data);
 	southbridge_fill_pei_data(&pei_data);
@@ -433,7 +433,7 @@ static void setup_sdram_meminfo(struct pei_data *pei_data)
 			dimm->mod_id =					/* bytes 117/118 */
 				(pei_data->spd_data[0][SPD_DIMM_MOD_ID2] << 8) |
 				(pei_data->spd_data[0][SPD_DIMM_MOD_ID1] & 0xFF);
-			dimm->mod_type = DDR3_SPD_SODIMM;
+			dimm->mod_type = SPD_DDR3_DIMM_TYPE_SO_DIMM;
 			dimm->bus_width = MEMORY_BUS_WIDTH_64;
 			dimm_cnt++;
 		}
@@ -457,7 +457,7 @@ static void setup_sdram_meminfo(struct pei_data *pei_data)
 			dimm->mod_id =					/* bytes 117/118 */
 				(pei_data->spd_data[0][SPD_DIMM_MOD_ID2] << 8) |
 				(pei_data->spd_data[0][SPD_DIMM_MOD_ID1] & 0xFF);
-			dimm->mod_type = DDR3_SPD_SODIMM;
+			dimm->mod_type = SPD_DDR3_DIMM_TYPE_SO_DIMM;
 			dimm->bus_width = MEMORY_BUS_WIDTH_64;
 			dimm_cnt++;
 		}

@@ -81,11 +81,11 @@ chip soc/intel/alderlake
 	#+-------------------+---------------------------+
 	#| GSPI1             | Fingerprint MCU           |
 	#| I2C0              | Audio and WFC             |
-	#| I2C1              | Touchscreen               |
-	#| I2C2              | SAR0                      |
-	#| I2C3              | cr50 TPM. Early init is   |
+	#| I2C1              | cr50 TPM. Early init is   |
 	#|                   | required to set up a BAR  |
 	#|                   | for TPM communication     |
+	#| I2C2              | SAR0                      |
+	#| I2C3              | Touchscreen               |
 	#| I2C5              | Trackpad                  |
 	#+-------------------+---------------------------+
 	register "common_soc_config" = "{
@@ -122,12 +122,38 @@ chip soc/intel/alderlake
 		},
 	}"
 
-	# set EPP to 45%: 45 * 256/100 = 115 = 0x73
-	register "enable_energy_perf_pref" = "true"
-	register "energy_perf_pref_value" = "0x73"
-
 	device domain 0 on
-		device ref igpu on end
+		# The timing values can be derived from datasheet of display panel
+		# You can use EDID string to identify the type of display on the board
+		# use below command to get display info from EDID
+		# strings /sys/devices/pci0000:00/0000:00:02.0/drm/card0/card0-eDP-1/edid
+
+		# refer to display PRM document (Volume 2b: Command Reference: Registers)
+		# for more info on display control registers
+		# https://01.org/linuxgraphics/documentation/hardware-specification-prms
+		#+-----------------------------+---------------------------------------+-----+
+		#| Intel docs                  | devicetree.cb                         | eDP |
+		#+-----------------------------+---------------------------------------+-----+
+		#| Power up delay              | `gpu_panel_power_up_delay`            | T3  |
+		#+-----------------------------+---------------------------------------+-----+
+		#| Power on to backlight on    | `gpu_panel_power_backlight_on_delay`  | T7  |
+		#+-----------------------------+---------------------------------------+-----+
+		#| Power Down delay            | `gpu_panel_power_down_delay`          | T10 |
+		#+-----------------------------+---------------------------------------+-----+
+		#| Backlight off to power down | `gpu_panel_power_backlight_off_delay` | T9  |
+		#+-----------------------------+---------------------------------------+-----+
+		#| Power Cycle Delay           | `gpu_panel_power_cycle_delay`         | T12 |
+		#+-----------------------------+---------------------------------------+-----+
+		device ref igpu on
+			register "panel_cfg" = "{
+			    .up_delay_ms = 200,
+			    .down_delay_ms = 50,
+			    .cycle_delay_ms = 500,
+			    .backlight_on_delay_ms = 1,
+			    .backlight_off_delay_ms = 200,
+			    .backlight_pwm_hz = 200,
+			}"
+		end
 		device ref dtt on end
 		device ref tbt_pcie_rp0 on end
 		device ref tbt_pcie_rp1 on end
@@ -140,7 +166,7 @@ chip soc/intel/alderlake
 		device ref cnvi_wifi on
 			chip drivers/wifi/generic
 				register "wake" = "GPE0_PME_B0"
-				register "is_untrusted" = "true"
+				register "add_acpi_dma_property" = "true"
 				device generic 0 on end
 			end
 		end

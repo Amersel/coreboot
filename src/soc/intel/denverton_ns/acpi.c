@@ -3,6 +3,7 @@
 #include <acpi/acpi.h>
 #include <acpi/acpi_gnvs.h>
 #include <acpi/acpigen.h>
+#include <arch/ioapic.h>
 #include <arch/smp/mpspec.h>
 #include <cpu/cpu.h>
 #include <cpu/x86/smm.h>
@@ -98,7 +99,7 @@ void soc_fill_fadt(acpi_fadt_t *fadt)
 
 	/* PM2 Control Registers */
 	fadt->x_pm2_cnt_blk.space_id = ACPI_ADDRESS_SPACE_IO;
-	fadt->x_pm2_cnt_blk.bit_width = 8;
+	fadt->x_pm2_cnt_blk.bit_width = fadt->pm2_cnt_len * 8;
 	fadt->x_pm2_cnt_blk.bit_offset = 0;
 	fadt->x_pm2_cnt_blk.access_size = ACPI_ACCESS_SIZE_BYTE_ACCESS;
 	fadt->x_pm2_cnt_blk.addrl = fadt->pm2_cnt_blk;
@@ -106,7 +107,7 @@ void soc_fill_fadt(acpi_fadt_t *fadt)
 
 	/* PM1 Timer Register */
 	fadt->x_pm_tmr_blk.space_id = ACPI_ADDRESS_SPACE_IO;
-	fadt->x_pm_tmr_blk.bit_width = 32;
+	fadt->x_pm_tmr_blk.bit_width = fadt->pm_tmr_len * 8;
 	fadt->x_pm_tmr_blk.bit_offset = 0;
 	fadt->x_pm_tmr_blk.access_size = ACPI_ACCESS_SIZE_DWORD_ACCESS;
 	fadt->x_pm_tmr_blk.addrl = fadt->pm_tmr_blk;
@@ -152,7 +153,7 @@ unsigned long southcluster_write_acpi_tables(const struct device *device,
 	acpi_header_t *ssdt2;
 
 	current = acpi_write_hpet(device, current, rsdp);
-	current = (ALIGN(current, 16));
+	current = (ALIGN_UP(current, 16));
 
 	ssdt2 = (acpi_header_t *)current;
 	memset(ssdt2, 0, sizeof(acpi_header_t));
@@ -162,7 +163,7 @@ unsigned long southcluster_write_acpi_tables(const struct device *device,
 		acpi_add_table(rsdp, ssdt2);
 		printk(BIOS_DEBUG, "ACPI:     * SSDT2 @ %p Length %x\n", ssdt2,
 		       ssdt2->length);
-		current = (ALIGN(current, 16));
+		current = (ALIGN_UP(current, 16));
 	} else {
 		ssdt2 = NULL;
 		printk(BIOS_DEBUG, "ACPI:     * SSDT2 not generated.\n");
@@ -188,8 +189,8 @@ static unsigned long acpi_fill_dmar(unsigned long current)
 	current += acpi_create_dmar_drhd(current,
 			DRHD_INCLUDE_PCI_ALL, 0, vtbar);
 
-	current += acpi_create_dmar_ds_ioapic(current,
-			2, PCH_IOAPIC_PCI_BUS, PCH_IOAPIC_PCI_SLOT, 0);
+	current += acpi_create_dmar_ds_ioapic_from_hw(current,
+			IO_APIC_ADDR, PCH_IOAPIC_PCI_BUS, PCH_IOAPIC_PCI_SLOT, 0);
 	current += acpi_create_dmar_ds_msi_hpet(current,
 			0, PCH_HPET_PCI_BUS, PCH_HPET_PCI_SLOT, 0);
 

@@ -21,7 +21,6 @@ struct device_operations wifi_pcie_ops = {
 	.enable_resources	= pci_dev_enable_resources,
 	.init			= wifi_pci_dev_init,
 	.ops_pci		= &pci_dev_ops_pci,
-	.scan_bus		= scan_static_bus,
 #if CONFIG(HAVE_ACPI_TABLES)
 	.acpi_name		= wifi_pcie_acpi_name,
 	.acpi_fill_ssdt		= wifi_pcie_fill_ssdt,
@@ -40,11 +39,6 @@ struct device_operations wifi_cnvi_ops = {
 #if CONFIG(GENERATE_SMBIOS_TABLES)
 	.get_smbios_data	= smbios_write_wifi_cnvi,
 #endif
-};
-
-struct device_operations wifi_generic_ops = {
-	.read_resources		= noop_read_resources,
-	.set_resources		= noop_set_resources,
 };
 
 static bool is_cnvi(const struct device *dev)
@@ -66,11 +60,10 @@ bool wifi_generic_cnvi_ddr_rfim_enabled(const struct device *dev)
 static void wifi_generic_enable(struct device *dev)
 {
 #if !DEVTREE_EARLY
-	const struct device *parent = dev->bus->dev;
-	if (parent && parent->ops == &wifi_pcie_ops)
-		dev->ops = &wifi_generic_ops;
-	else
+	if (is_cnvi(dev))
 		dev->ops = &wifi_cnvi_ops;
+	else
+		dev->ops = &wifi_pcie_ops;
 #endif
 }
 
@@ -115,15 +108,6 @@ static const unsigned short intel_pci_device_ids[] = {
 	PCI_DID_CyP_6SERIES_WIFI,
 	/* Typhoon Peak */
 	PCI_DID_TyP_6SERIES_WIFI,
-	/* Garfield Peak */
-	PCI_DID_GrP_6SERIES_1_WIFI,
-	PCI_DID_GrP_6SERIES_2_WIFI,
-	PCI_DID_GrP_6SERIES_3_WIFI,
-	/* Typhoon Peak 2 */
-	PCI_DID_TyP2_6SERIES_1_WIFI,
-	PCI_DID_TyP2_6SERIES_2_WIFI,
-	PCI_DID_TyP2_6SERIES_3_WIFI,
-	PCI_DID_TyP2_6SERIES_4_WIFI,
 	0
 };
 

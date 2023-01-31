@@ -54,7 +54,7 @@ void soc_fill_fadt(acpi_fadt_t *fadt)
 
 	/* PM2 Control Registers */
 	fadt->x_pm2_cnt_blk.space_id = ACPI_ADDRESS_SPACE_IO;
-	fadt->x_pm2_cnt_blk.bit_width = 8;
+	fadt->x_pm2_cnt_blk.bit_width = fadt->pm2_cnt_len * 8;
 	fadt->x_pm2_cnt_blk.bit_offset = 0;
 	fadt->x_pm2_cnt_blk.access_size = ACPI_ACCESS_SIZE_BYTE_ACCESS;
 	fadt->x_pm2_cnt_blk.addrl = fadt->pm2_cnt_blk;
@@ -62,7 +62,7 @@ void soc_fill_fadt(acpi_fadt_t *fadt)
 
 	/* PM1 Timer Register */
 	fadt->x_pm_tmr_blk.space_id = ACPI_ADDRESS_SPACE_IO;
-	fadt->x_pm_tmr_blk.bit_width = 32;
+	fadt->x_pm_tmr_blk.bit_width = fadt->pm_tmr_len * 8;
 	fadt->x_pm_tmr_blk.bit_offset = 0;
 	fadt->x_pm_tmr_blk.access_size = ACPI_ACCESS_SIZE_DWORD_ACCESS;
 	fadt->x_pm_tmr_blk.addrl = fadt->pm_tmr_blk;
@@ -147,24 +147,4 @@ void uncore_inject_dsdt(const struct device *device)
 
 void soc_power_states_generation(int core, int cores_per_package)
 {
-}
-
-unsigned long xeonsp_acpi_create_madt_lapics(unsigned long current)
-{
-	struct device *cpu;
-	uint8_t num_cpus = 0;
-
-	for (cpu = all_devices; cpu; cpu = cpu->next) {
-		if ((cpu->path.type != DEVICE_PATH_APIC) ||
-			(cpu->bus->dev->path.type != DEVICE_PATH_CPU_CLUSTER)) {
-			continue;
-		}
-		if (!cpu->enabled)
-			continue;
-		current += acpi_create_madt_lapic((acpi_madt_lapic_t *)current,
-			num_cpus, cpu->path.apic.apic_id);
-		num_cpus++;
-	}
-
-	return current;
 }

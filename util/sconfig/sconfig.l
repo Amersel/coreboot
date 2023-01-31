@@ -14,6 +14,7 @@ int linenum = 0;
 chip			{return(CHIP);}
 device			{return(DEVICE);}
 alias			{return(ALIAS);}
+ops			{return(OPS);}
 use			{return(REFERENCE);}
 ref			{return(REFERENCE);}
 as			{return(ASSOCIATION);}
@@ -39,6 +40,7 @@ mmio			{yylval.number=MMIO; return(BUS);}
 spi			{yylval.number=SPI; return(BUS);}
 usb			{yylval.number=USB; return(BUS);}
 gpio			{yylval.number=GPIO; return(BUS);}
+mdio			{yylval.number=MDIO; return(BUS);}
 irq			{yylval.number=IRQ; return(RESOURCE);}
 drq			{yylval.number=DRQ; return(RESOURCE);}
 io			{yylval.number=IO; return(RESOURCE);}

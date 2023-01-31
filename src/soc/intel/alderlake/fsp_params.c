@@ -3,14 +3,17 @@
 #include <assert.h>
 #include <console/console.h>
 #include <cpu/intel/microcode.h>
+#include <delay.h>
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
+#include <device/pci_ops.h>
+#include <drivers/intel/gma/i915_reg.h>
 #include <fsp/api.h>
 #include <fsp/fsp_debug_event.h>
 #include <fsp/ppi/mp_service_ppi.h>
 #include <fsp/util.h>
-#include <option.h>
+#include <gpio.h>
 #include <intelblocks/irq.h>
 #include <intelblocks/lpss.h>
 #include <intelblocks/mp_init.h>
@@ -19,8 +22,8 @@
 #include <intelpch/lockdown.h>
 #include <intelblocks/systemagent.h>
 #include <intelblocks/tcss.h>
+#include <option.h>
 #include <soc/cpu.h>
-#include <soc/gpio.h>
 #include <soc/intel/common/vbt.h>
 #include <soc/pci_devs.h>
 #include <soc/pcie.h>
@@ -60,6 +63,12 @@ enum fsp_end_of_post {
 };
 
 static const struct slot_irq_constraints irq_constraints[] = {
+	{
+		.slot = SA_DEV_SLOT_CPU_1,
+		.fns = {
+			FIXED_INT_PIRQ(SA_DEVFN_CPU_PCIE1_0, PCI_INT_A, PIRQ_A),
+		},
+	},
 	{
 		.slot = SA_DEV_SLOT_IGD,
 		.fns = {
@@ -423,7 +432,7 @@ static const SI_PCH_DEVICE_INTERRUPT_CONFIG *pci_irq_to_fsp(size_t *out_count)
 
 	/* Count PCH devices */
 	while (entry) {
-		if (PCI_SLOT(entry->devfn) >= MIN_PCH_SLOT)
+		if (is_pch_slot(entry->devfn))
 			++pch_total;
 		entry = entry->next;
 	}
@@ -432,7 +441,7 @@ static const SI_PCH_DEVICE_INTERRUPT_CONFIG *pci_irq_to_fsp(size_t *out_count)
 	config = calloc(pch_total, sizeof(*config));
 	entry = get_cached_pci_irqs();
 	while (entry) {
-		if (PCI_SLOT(entry->devfn) < MIN_PCH_SLOT) {
+		if (!is_pch_slot(entry->devfn)) {
 			entry = entry->next;
 			continue;
 		}
@@ -465,29 +474,26 @@ static const SI_PCH_DEVICE_INTERRUPT_CONFIG *pci_irq_to_fsp(size_t *out_count)
  */
 static int get_l1_substate_control(enum L1_substates_control ctl)
 {
-	if ((ctl > L1_SS_L1_2) || (ctl == L1_SS_FSP_DEFAULT))
+	if (CONFIG(SOC_INTEL_COMPLIANCE_TEST_MODE))
+		ctl = L1_SS_DISABLED;
+	else if ((ctl > L1_SS_L1_2) || (ctl == L1_SS_FSP_DEFAULT))
 		ctl = L1_SS_L1_2;
 	return ctl - 1;
 }
 
 /*
- * Chip config parameter pcie_rp_aspm uses (UPD value + 1) because
- * a UPD value of 0 for pcie_rp_aspm means disabled. In order to ensure
- * that the mainboard setting does not disable ASPM incorrectly, chip
- * config parameter values are offset by 1 with 0 meaning use FSP UPD default.
  * get_aspm_control() ensures that the right UPD value is set in fsp_params.
- * 0: Use FSP UPD default
- * 1: Disable ASPM
- * 2: L0s only
- * 3: L1 only
- * 4: L0s and L1
- * 5: Auto configuration
+ * 0: Disable ASPM
+ * 1: L0s only
+ * 2: L1 only
+ * 3: L0s and L1
+ * 4: Auto configuration
  */
 static unsigned int get_aspm_control(enum ASPM_control ctl)
 {
-	if ((ctl > ASPM_AUTO) || (ctl == ASPM_DEFAULT))
+	if (ctl > ASPM_AUTO)
 		ctl = ASPM_AUTO;
-	return ctl - 1;
+	return ctl;
 }
 
 /* This function returns the VccIn Aux Imon IccMax values for ADL and RPL
@@ -511,6 +517,8 @@ static uint16_t get_vccin_aux_imon_iccmax(void)
 	case PCI_DID_INTEL_RPL_P_ID_1:
 	case PCI_DID_INTEL_RPL_P_ID_2:
 	case PCI_DID_INTEL_RPL_P_ID_3:
+	case PCI_DID_INTEL_RPL_P_ID_4:
+	case PCI_DID_INTEL_RPL_P_ID_5:
 		tdp = get_cpu_tdp();
 		if (tdp == TDP_45W)
 			return ICC_MAX_TDP_45W;
@@ -527,6 +535,8 @@ static uint16_t get_vccin_aux_imon_iccmax(void)
 	case PCI_DID_INTEL_ADL_S_ID_3:
 	case PCI_DID_INTEL_ADL_S_ID_8:
 	case PCI_DID_INTEL_ADL_S_ID_10:
+	case PCI_DID_INTEL_ADL_S_ID_11:
+	case PCI_DID_INTEL_ADL_S_ID_12:
 		return ICC_MAX_ADL_S;
 	default:
 		printk(BIOS_ERR, "Unknown MCH ID: 0x%4x, skipping VccInAuxImonIccMax config\n",
@@ -556,7 +566,7 @@ static void fill_fsps_lpss_params(FSP_S_CONFIG *s_cfg,
 		s_cfg->SerialIoUartMode[i] = config->serial_io_uart_mode[i];
 }
 
-static void fill_fsps_cpu_params(FSP_S_CONFIG *s_cfg,
+static void fill_fsps_microcode_params(FSP_S_CONFIG *s_cfg,
 		const struct soc_intel_alderlake_config *config)
 {
 	const struct microcode *microcode_file;
@@ -573,18 +583,28 @@ static void fill_fsps_cpu_params(FSP_S_CONFIG *s_cfg,
 			s_cfg->MicrocodeRegionSize = (uint32_t)microcode_len;
 		}
 	}
+}
 
-	if (CONFIG(USE_FSP_MP_INIT)) {
+static void fill_fsps_cpu_params(FSP_S_CONFIG *s_cfg,
+		const struct soc_intel_alderlake_config *config)
+{
+	/*
+	 * FIXME: FSP assumes ownership of the APs (Application Processors)
+	 * upon passing `NULL` pointer to the CpuMpPpi FSP-S UPD.
+	 * Hence, pass a valid pointer to the CpuMpPpi UPD unconditionally.
+	 * This would avoid APs from getting hijacked by FSP while coreboot
+	 * decides to set SkipMpInit UPD.
+	 */
+	s_cfg->CpuMpPpi = (uintptr_t)mp_fill_ppi_services_data();
+
+	if (CONFIG(USE_FSP_MP_INIT))
 		/*
-		 * Use FSP running MP PPI services to perform CPU feature programming
-		 * if Kconfig is enabled
+		 * Fill `2nd microcode loading FSP UPD` if FSP is running CPU feature
+		 * programming.
 		 */
-		s_cfg->CpuMpPpi = (uintptr_t) mp_fill_ppi_services_data();
-	} else {
-		/* Use coreboot native driver to perform MP init by default */
-		s_cfg->CpuMpPpi = (uintptr_t)NULL;
+		fill_fsps_microcode_params(s_cfg, config);
+	else
 		s_cfg->SkipMpInit = !CONFIG(USE_INTEL_FSP_MP_INIT);
-	}
 }
 
 static void fill_fsps_igd_params(FSP_S_CONFIG *s_cfg,
@@ -628,7 +648,7 @@ static void fill_fsps_tcss_params(FSP_S_CONFIG *s_cfg,
 
 	/* D3Hot and D3Cold for TCSS */
 	s_cfg->D3HotEnable = !config->tcss_d3_hot_disable;
-	s_cfg->D3ColdEnable = !config->tcss_d3_cold_disable;
+	s_cfg->D3ColdEnable = !CONFIG(SOC_INTEL_ALDERLAKE_S3) && !config->tcss_d3_cold_disable;
 
 	s_cfg->UsbTcPortEn = 0;
 	for (int i = 0; i < MAX_TYPE_C_PORTS; i++) {
@@ -739,6 +759,8 @@ static void fill_fsps_sata_params(FSP_S_CONFIG *s_cfg,
 	 * these disable variables to 1 in devicetree overrides.
 	 */
 	s_cfg->SataPwrOptEnable = !(config->sata_pwr_optimize_disable);
+	/* Test mode for SATA margining */
+	s_cfg->SataTestMode = CONFIG(ENABLE_SATA_TEST_MODE);
 	/*
 	 *  Enable DEVSLP Idle Timeout settings DmVal and DitoVal.
 	 *  SataPortsDmVal is the DITO multiplier. Default is 15.
@@ -761,6 +783,12 @@ static void fill_fsps_thermal_params(FSP_S_CONFIG *s_cfg,
 
 	/* Set TccActivationOffset */
 	s_cfg->TccActivationOffset = config->tcc_offset;
+}
+
+static void fill_fsps_gna_params(FSP_S_CONFIG *s_cfg,
+		const struct soc_intel_alderlake_config *config)
+{
+	s_cfg->GnaEnable = is_devfn_enabled(SA_DEVFN_GNA);
 }
 
 static void fill_fsps_lan_params(FSP_S_CONFIG *s_cfg,
@@ -864,7 +892,8 @@ static void fill_fsps_pcie_params(FSP_S_CONFIG *s_cfg,
 				get_l1_substate_control(rp_cfg->PcieRpL1Substates);
 		s_cfg->PcieRpLtrEnable[i] = !!(rp_cfg->flags & PCIE_RP_LTR);
 		s_cfg->PcieRpAdvancedErrorReporting[i] = !!(rp_cfg->flags & PCIE_RP_AER);
-		s_cfg->PcieRpHotPlug[i] = !!(rp_cfg->flags & PCIE_RP_HOTPLUG);
+		s_cfg->PcieRpHotPlug[i] = !!(rp_cfg->flags & PCIE_RP_HOTPLUG)
+				|| CONFIG(SOC_INTEL_COMPLIANCE_TEST_MODE);
 		s_cfg->PcieRpClkReqDetect[i] = !!(rp_cfg->flags & PCIE_RP_CLK_REQ_DETECT);
 		if (rp_cfg->pcie_rp_aspm)
 			s_cfg->PcieRpAspm[i] = get_aspm_control(rp_cfg->pcie_rp_aspm);
@@ -873,6 +902,7 @@ static void fill_fsps_pcie_params(FSP_S_CONFIG *s_cfg,
 			s_cfg->PcieRpSlotImplemented[i] = 0;
 		s_cfg->PcieRpDetectTimeoutMs[i] = rp_cfg->pcie_rp_detect_timeout_ms;
 	}
+	s_cfg->PcieComplianceTestMode = CONFIG(SOC_INTEL_COMPLIANCE_TEST_MODE);
 }
 
 static void fill_fsps_cpu_pcie_params(FSP_S_CONFIG *s_cfg,
@@ -891,9 +921,17 @@ static void fill_fsps_cpu_pcie_params(FSP_S_CONFIG *s_cfg,
 			get_l1_substate_control(rp_cfg->PcieRpL1Substates);
 		s_cfg->CpuPcieRpLtrEnable[i] = !!(rp_cfg->flags & PCIE_RP_LTR);
 		s_cfg->CpuPcieRpAdvancedErrorReporting[i] = !!(rp_cfg->flags & PCIE_RP_AER);
-		s_cfg->CpuPcieRpHotPlug[i] = !!(rp_cfg->flags & PCIE_RP_HOTPLUG);
+		s_cfg->CpuPcieRpHotPlug[i] = !!(rp_cfg->flags & PCIE_RP_HOTPLUG)
+				|| CONFIG(SOC_INTEL_COMPLIANCE_TEST_MODE);
+		s_cfg->CpuPcieRpDetectTimeoutMs[i] = rp_cfg->pcie_rp_detect_timeout_ms;
 		s_cfg->PtmEnabled[i] = 0;
+		if (rp_cfg->pcie_rp_aspm)
+			s_cfg->CpuPcieRpAspm[i] = get_aspm_control(rp_cfg->pcie_rp_aspm);
+
+		if (!!(rp_cfg->flags & PCIE_RP_BUILT_IN))
+			s_cfg->CpuPcieRpSlotImplemented[i] = 0;
 	}
+	s_cfg->CpuPcieComplianceTestMode = CONFIG(SOC_INTEL_COMPLIANCE_TEST_MODE);
 }
 
 static void fill_fsps_misc_power_params(FSP_S_CONFIG *s_cfg,
@@ -912,9 +950,10 @@ static void fill_fsps_misc_power_params(FSP_S_CONFIG *s_cfg,
 	s_cfg->Hwp = 1;
 	s_cfg->Cx = 1;
 	s_cfg->PsOnEnable = 1;
-	/* Enable the energy efficient turbo mode */
-	s_cfg->EnergyEfficientTurbo = 1;
 	s_cfg->PkgCStateLimit = LIMIT_AUTO;
+
+	/* Disable Energy Efficient Turbo mode */
+	s_cfg->EnergyEfficientTurbo = 0;
 
 	/* VccIn Aux Imon IccMax. Values are in 1/4 Amp increments and range is 0-512. */
 	s_cfg->VccInAuxImonIccImax = get_vccin_aux_imon_iccmax() * 4 / MILLIAMPS_TO_AMPS;
@@ -1031,6 +1070,15 @@ static void fill_fsps_fivr_params(FSP_S_CONFIG *s_cfg,
 
 	s_cfg->PchFivrExtVnnRailIccMaximum =
 			config->ext_fivr_settings.vnn_icc_max_ma;
+
+#if CONFIG(SOC_INTEL_ALDERLAKE_PCH_N)
+	/* Enable the FIVR VCCST ICCMax Control for ADL-N.
+	 * TODO:Right now the UPD is update in partial headers for only ADL-N and when its
+	 * updated for ADL-P then we will remove the config since this needs to be enabled for
+	 * all the Alderlake platforms.
+	 */
+	s_cfg->PchFivrVccstIccMaxControl = 1;
+#endif
 }
 
 static void fill_fsps_fivr_rfi_params(FSP_S_CONFIG *s_cfg,
@@ -1137,6 +1185,7 @@ static void soc_silicon_init_params(FSP_S_CONFIG *s_cfg,
 		fill_fsps_uart_params,
 		fill_fsps_sata_params,
 		fill_fsps_thermal_params,
+		fill_fsps_gna_params,
 		fill_fsps_lan_params,
 		fill_fsps_cnvi_params,
 		fill_fsps_vmd_params,
@@ -1159,6 +1208,46 @@ static void soc_silicon_init_params(FSP_S_CONFIG *s_cfg,
 		fill_fsps_params[i](s_cfg, config);
 }
 
+/*
+ * The Alder Lake PEIM graphics driver executed as part of the FSP does not wait
+ * for the panel power cycle to complete before it initializes communication
+ * with the display. It can result in AUX channel communication time out and
+ * PEIM graphics driver failing to bring up graphics.
+ *
+ * If we have performed some graphics operations in romstage, it is possible
+ * that a panel power cycle is still in progress. To prevent any issue with the
+ * PEIM graphics driver it is preferable to ensure that panel power cycle is
+ * complete.
+ *
+ * BUG:b:264526798
+ */
+static void wait_for_panel_power_cycle_done(const struct soc_intel_alderlake_config *config)
+{
+	const struct i915_gpu_panel_config *panel_cfg;
+	uint32_t bar0;
+	void *mmio;
+
+	if (!CONFIG(RUN_FSP_GOP))
+		return;
+
+	bar0 = pci_s_read_config32(SA_DEV_IGD, PCI_BASE_ADDRESS_0);
+	mmio = (void *)(bar0 & ~PCI_BASE_ADDRESS_MEM_ATTR_MASK);
+	if (!mmio)
+		return;
+
+	panel_cfg = &config->panel_cfg;
+	for (size_t i = 0;; i++) {
+		uint32_t status = read32(mmio + PCH_PP_STATUS);
+		if (!(status & PANEL_POWER_CYCLE_ACTIVE))
+			break;
+		if (i == panel_cfg->cycle_delay_ms) {
+			printk(BIOS_ERR, "Panel power cycle is still active.\n");
+			break;
+		}
+		mdelay(1);
+	}
+}
+
 /* UPD parameters to be initialized before SiliconInit */
 void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 {
@@ -1168,6 +1257,8 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 	config = config_of_soc();
 	soc_silicon_init_params(s_cfg, config);
 	mainboard_silicon_init_params(s_cfg);
+
+	wait_for_panel_power_cycle_done(config);
 }
 
 /*

@@ -5,15 +5,6 @@
 
 Scope(\)
 {
-	// IO-Trap at 0x800. This is the ACPI->SMI communication interface.
-
-	OperationRegion(IO_T, SystemIO, 0x800, 0x10)
-	Field(IO_T, ByteAcc, NoLock, Preserve)
-	{
-		Offset(0x8),
-		TRP0, 8		// IO-Trap at 0x808
-	}
-
 	// PCH Power Management Registers, located at PMBASE (0x1f.0 0x40.l)
 	OperationRegion(PMIO, SystemIO, DEFAULT_PMBASE, 0x80)
 	Field(PMIO, ByteAcc, NoLock, Preserve)
@@ -247,13 +238,13 @@ Method (_OSC, 4)
 	 * Arg3 - A Buffer containing a list of DWORD capabilities
 	 */
 	/* Check for XHCI */
-	If (LEqual (Arg0, ToUUID("7c9512a9-1705-4cb4-af7d-506a2423ab71")))
+	If (Arg0 == ToUUID("7c9512a9-1705-4cb4-af7d-506a2423ab71"))
 	{
 		Return (^XHC.POSC(Arg2, Arg3))
 	}
 
 	/* Check for PCIe */
-	If (LEqual (Arg0, ToUUID("33DB4D5B-1FF7-401C-9657-7441C03DD766")))
+	If (Arg0 == ToUUID("33DB4D5B-1FF7-401C-9657-7441C03DD766"))
 	{
 		/* Let OS control everything */
 		Return (Arg3)
@@ -261,7 +252,7 @@ Method (_OSC, 4)
 
 	/* Else Return Unrecognized UUID */
 	CreateDWordField (Arg3, 0, CDW1)
-	Or (CDW1, 4, CDW1)
+	CDW1 |= 4
 	Return (Arg3)
 
 }

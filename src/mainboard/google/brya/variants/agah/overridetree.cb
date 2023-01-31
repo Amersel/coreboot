@@ -14,6 +14,9 @@ chip soc/intel/alderlake
 	register "common_soc_config" = "{
 		.i2c[0] = {
 			.speed = I2C_SPEED_FAST,
+			.rise_time_ns = 650,
+			.fall_time_ns = 400,
+			.data_hold_time_ns = 50,
 		},
 		.i2c[1] = {
 			.speed = I2C_SPEED_FAST,
@@ -24,12 +27,19 @@ chip soc/intel/alderlake
 		.i2c[3] = {
 			.early_init = 1,
 			.speed = I2C_SPEED_FAST,
+			.rise_time_ns = 600,
+			.fall_time_ns = 400,
+			.data_hold_time_ns = 50,
 		},
 		.i2c[5] = {
 			.speed = I2C_SPEED_FAST,
+			.rise_time_ns = 650,
+			.fall_time_ns = 400,
+			.data_hold_time_ns = 50,
 		},
 	}"
 
+	register "tcc_offset" = "3"     # TCC of 97
 	register "sagv" = "SaGv_Disabled"
 	register "tcss_aux_ori" = "0x10"
 	register "typec_aux_bias_pads[2]" = "{.pad_auxp_dc = GPP_E22, .pad_auxn_dc = GPP_E23}"
@@ -59,6 +69,12 @@ chip soc/intel/alderlake
         }"
 
         device domain 0 on
+		device ref tbt_pcie_rp0 off end
+		device ref tbt_pcie_rp1 off end
+		device ref tbt_pcie_rp2 off end
+
+		device ref tcss_dma0 off end
+		device ref tcss_dma1 off end
 		device ref pcie4_0 on
 			# Enable CPU PCIe RP 1 using CLKREQ 0 and CLKSRC 0
 			register "cpu_pcie_rp[CPU_RP(1)]" = "{
@@ -72,25 +88,45 @@ chip soc/intel/alderlake
 			chip drivers/intel/dptf
 				## sensor information
 				register "options.tsr[0].desc" = ""DRAM""
-				register "options.tsr[1].desc" = ""Soc""
+				register "options.tsr[1].desc" = ""GPU""
 				register "options.tsr[2].desc" = ""Charger""
-				register "options.tsr[3].desc" = ""Regulator""
 				# TODO: below values are initial reference values only
+				## Active Policy
+				register "policies.active" = "{
+					[0] = {
+						.target = DPTF_CPU,
+						.thresholds = {
+								TEMP_PCT(85, 90),
+								TEMP_PCT(80, 80),
+								TEMP_PCT(75, 70),
+								TEMP_PCT(70, 50),
+								TEMP_PCT(65, 30),
+						}
+					},
+					[1] = {
+						.target = DPTF_TEMP_SENSOR_1,
+						.thresholds = {
+								TEMP_PCT(50, 90),
+								TEMP_PCT(48, 70),
+								TEMP_PCT(46, 60),
+								TEMP_PCT(43, 40),
+								TEMP_PCT(40, 30),
+						}
+					}
+				}"
 				## Passive Policy
 				register "policies.passive" = "{
 					[0] = DPTF_PASSIVE(CPU,         CPU,           95, 5000),
 					[1] = DPTF_PASSIVE(CPU,         TEMP_SENSOR_0, 75, 5000),
 					[2] = DPTF_PASSIVE(CPU,		TEMP_SENSOR_1, 75, 5000),
 					[3] = DPTF_PASSIVE(CHARGER,     TEMP_SENSOR_2, 75, 5000),
-					[4] = DPTF_PASSIVE(CPU,		TEMP_SENSOR_3, 75, 5000),
 				}"
 				## Critical Policy
 				register "policies.critical" = "{
 					[0] = DPTF_CRITICAL(CPU,               105, SHUTDOWN),
-					[1] = DPTF_CRITICAL(TEMP_SENSOR_0,      85, SHUTDOWN),
-					[2] = DPTF_CRITICAL(TEMP_SENSOR_1,      85, SHUTDOWN),
-					[3] = DPTF_CRITICAL(TEMP_SENSOR_2,	85, SHUTDOWN),
-					[4] = DPTF_CRITICAL(TEMP_SENSOR_3,	85, SHUTDOWN),
+					[1] = DPTF_CRITICAL(TEMP_SENSOR_0,     105, SHUTDOWN),
+					[2] = DPTF_CRITICAL(TEMP_SENSOR_1,     105, SHUTDOWN),
+					[3] = DPTF_CRITICAL(TEMP_SENSOR_2,     105, SHUTDOWN),
 				}"
 				register "controls.power_limits" = "{
 					.pl1 = {
@@ -108,6 +144,9 @@ chip soc/intel/alderlake
 							.granularity = 1000,
 						}
 				}"
+				register "oem_data.oem_variables" = "{
+						[0] = 0x0
+				}"
 				## Charger Performance Control (Control, mA)
 				register "controls.charger_perf" = "{
 					[0] = { 255, 1700 },
@@ -115,7 +154,25 @@ chip soc/intel/alderlake
 					[2] = {  16, 1000 },
 					[3] = {   8,  500 }
 				}"
-				device generic 0 on end
+				## Fan Performance Control (Percent, Speed, Noise, Power)
+				register "controls.fan_perf" = "{
+					[0] = {  90, 4700, 220, 2200, },
+					[1] = {  80, 4500, 180, 1800, },
+					[2] = {  70, 4300, 145, 1450, },
+					[3] = {  60, 3700, 115, 1150, },
+					[4] = {  50, 3300,  90,  900, },
+					[5] = {  40, 3100,  55,  550, },
+					[6] = {  30, 2800,  30,  300, },
+					[7] = {  20, 2500,  15,  150, },
+					[8] = {  10, 2300,  10,  100, },
+					[9] = {   0,    0,   0,   50, }
+				}"
+
+				## Fan options
+				register "options.fan.fine_grained_control" = "1"
+				register "options.fan.step_size" = "2"
+
+				device generic 0 alias dptf_policy on end
 			end
 		end
 		device ref cnvi_wifi on
@@ -153,7 +210,7 @@ chip soc/intel/alderlake
 				register "desc" = ""ELAN Touchpad""
 				register "irq" = "ACPI_IRQ_WAKE_LEVEL_LOW(GPP_F14_IRQ)"
 				register "wake" = "GPE0_DW2_14"
-				register "probed" = "1"
+				register "detect" = "1"
 				device i2c 15 on end
 			end
 		end
@@ -168,6 +225,7 @@ chip soc/intel/alderlake
 				register "customized_leds" = "0x05af"
 				register "wake" = "GPE0_DW0_07"
 				register "device_index" = "0"
+				register "add_acpi_dma_property" = "true"
 				device pci 00.0 on end
 			end
 		end 	#RTL8111H Ethernet NIC

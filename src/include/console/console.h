@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 /* console.h is supposed to provide the log levels defined in here: */
-#include <commonlib/loglevel.h>
+#include <commonlib/loglevel.h> /* IWYU pragma: export */
 
 #define RAM_DEBUG (CONFIG(DEBUG_RAM_SETUP) ? BIOS_DEBUG : BIOS_NEVER)
 #define RAM_SPEW  (CONFIG(DEBUG_RAM_SETUP) ? BIOS_SPEW  : BIOS_NEVER)
@@ -16,6 +16,7 @@
 void post_code(u8 value);
 void mainboard_post(u8 value);
 void arch_post_code(u8 value);
+void soc_post_code(uint8_t value);
 
 void __noreturn die(const char *fmt, ...);
 #define die_with_post_code(value, fmt, ...) \

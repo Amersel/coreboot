@@ -1,15 +1,19 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 
-External (\_SB.PCI0.DGPU, DeviceObj)
-External (\_SB.PCI0.PEG0.PEGP._OFF, MethodObj)
-External (\_SB.PCI0.PEG0.PEGP._ON, MethodObj)
+External (\_SB.PCI0.PEG0.PEGP.NPON, MethodObj)
+External (\_SB.PCI0.PEG0.PEGP.NPOF, MethodObj)
 
 OperationRegion (PCIC, PCI_Config, 0x00, 0x100)
 Field (PCIC, AnyAcc, NoLock, Preserve)
 {
+	Offset (0x4a),
+	CEDR,   1,		/* Correctable Error Detected, RW/1C/V */
 	Offset (0x52),
 	,	13,
 	LASX,	1,		/* Link Active Status */
+	Offset (0x69),
+	,       2,
+	LREN,   1,		/* LTR Enabled */
 	Offset (0xe0),
 	,	7,
 	NCB7,	1,		/* Scratch bit to save L2/3 state */
@@ -78,14 +82,14 @@ PowerResource (PGPR, 0, 0)
 	Method (_ON, 0, Serialized)
 	{
 		/* Power up GPU from GCOFF (or GC6 exit if deferred) */
-		\_SB.PCI0.PEG0.PEGP._ON ()
+		\_SB.PCI0.PEG0.PEGP.NPON ()
 		_STA = 1
 	}
 	Method (_OFF, 0, Serialized)
 	{
 		/* Power down GPU to GCOFF (or GC6 entry if deferred) */
 		_STA = 0
-		\_SB.PCI0.PEG0.PEGP._OFF ()
+		\_SB.PCI0.PEG0.PEGP.NPOF ()
 	}
 	Name (_STA, 0)
 }

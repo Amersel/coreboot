@@ -210,6 +210,72 @@ enum region_space {
 	REGION_SPACE_MAX,
 };
 
+enum acpi_resource_type {
+	RSRC_TYPE_MEM = 0,
+	RSRC_TYPE_IO = 1,
+	RSRC_TYPE_BUS = 2
+};
+
+enum acpi_decode_type {
+	DECODE_10,
+	DECODE_16
+};
+
+enum acpi_read_write_type {
+	READ_ONLY,
+	READ_WRITE
+};
+
+enum acpi_cacheable_type {
+	NON_CACHEABLE,
+	CACHEABLE
+};
+
+enum acpi_resource_subtype {
+	DWORD_IO,
+	DWORD_MEMORY,
+	IO,
+	MEMORY_32_FIXED,
+	QWORD_MEMORY,
+	WORD_BUS_NUMBER
+};
+
+/* macros for ACPI Table 6.49 Memory Resource Flag (Resource Type = 0) */
+#define MEM_RSRC_FLAG_TRNSL_TYPE_STATIC		0x0
+#define MEM_RSRC_FLAG_TRNSL_TYPE_TRANSLATION	(0x1 << 5)
+#define MEM_RSRC_FLAG_ADDR_RNG_MEM		0x0
+#define MEM_RSRC_FLAG_ADDR_RNG_RSV		(0x1 << 3)
+#define MEM_RSRC_FLAG_ADDR_RNG_ACPI		(0x2 << 3)
+#define MEM_RSRC_FLAG_ADDR_RNG_NVA		(0x3 << 3)
+#define MEM_RSRC_FLAG_MEM_ATTR_NON_CACHE	0x0
+#define MEM_RSRC_FLAG_MEM_ATTR_CACHE		(0x1 << 1)
+#define MEM_RSRC_FLAG_MEM_ATTR_CACHE_WRT	(0x2 << 1)
+#define MEM_RSRC_FLAG_MEM_ATTR_CACHE_PREFETCH	(0x3 << 1)
+#define MEM_RSRC_FLAG_MEM_READ_ONLY		0x0
+#define MEM_RSRC_FLAG_MEM_READ_WRITE		0x1
+
+/* macros for ACPI Table 6.50 I/O Resource Flag (Resource Type = 1) */
+#define IO_RSRC_FLAG_ENTIRE_RANGE		0x3
+#define IO_RSRC_FLAG_ISA_ONLY			0x2
+#define IO_RSRC_FLAG_NON_ISA_ONLY		0x1
+#define IO_RSRC_FLAG_TRASL_TYPE_STATIC		0x0
+#define IO_RSRC_FLAG_TRNSL_TYPE_TRANSLATION	(0x1 << 4)
+#define IO_RSRC_FLAG_SPRS_TRASL_DENSE		0x0
+#define IO_RSRC_FLAG_SPRS_TRNSL_SPARSE		(0x1 << 5)
+
+/* macro for ACPI Table 6.51 Bus Number Range Resource Flag (Resource Type = 2) */
+#define BUS_NUM_RANGE_RESOURCE_FLAG		0x0 // reserved
+
+/* General Flags for WORD Address Space Descriptor Definition  (ACPI Table 6.47, byte 4)*/
+#define ADDR_SPACE_GENERAL_FLAG_MAX_FIXED	(0x1 << 3)
+#define ADDR_SPACE_GENERAL_FLAG_MAX_NOT_FIXED	0x0
+#define ADDR_SPACE_GENERAL_FLAG_MIN_FIXED	(0x1 << 2)
+#define ADDR_SPACE_GENERAL_FLAG_MIN_NOT_FIXED	0x0
+#define ADDR_SPACE_GENERAL_FLAG_DEC_SUB		(0x1 << 1)
+#define ADDR_SPACE_GENERAL_FLAG_DEC_POS		0x0
+#define ADDR_SPACE_GENERAL_FLAG_CONSUMER	0x10
+#define ADDR_SPACE_GENERAL_FLAG_PRODUCER	0x0
+
 struct opregion {
 	const char *name;
 	enum region_space regionspace;
@@ -310,7 +376,7 @@ void acpigen_pop_len(void);
 void acpigen_set_current(char *curr);
 char *acpigen_get_current(void);
 char *acpigen_write_package(int nr_el);
-inline void acpigen_write_package_end(void)
+__always_inline void acpigen_write_package_end(void)
 {
 	acpigen_pop_len();
 }
@@ -340,23 +406,23 @@ void acpigen_write_name_byte(const char *name, uint8_t val);
 void acpigen_write_name_integer(const char *name, uint64_t val);
 void acpigen_write_coreboot_hid(enum coreboot_acpi_ids id);
 void acpigen_write_scope(const char *name);
-inline void acpigen_write_scope_end(void)
+__always_inline void acpigen_write_scope_end(void)
 {
 	acpigen_pop_len();
 }
 void acpigen_write_method(const char *name, int nargs);
 void acpigen_write_method_serialized(const char *name, int nargs);
-inline void acpigen_write_method_end(void)
+__always_inline void acpigen_write_method_end(void)
 {
 	acpigen_pop_len();
 }
 void acpigen_write_device(const char *name);
-inline void acpigen_write_device_end(void)
+__always_inline void acpigen_write_device_end(void)
 {
 	acpigen_pop_len();
 }
 void acpigen_write_thermal_zone(const char *name);
-inline void acpigen_write_thermal_zone_end(void)
+__always_inline void acpigen_write_thermal_zone_end(void)
 {
 	acpigen_pop_len();
 }
@@ -383,8 +449,9 @@ void acpigen_write_pct_package(const acpi_addr_t *perf_ctrl, const acpi_addr_t *
 void acpigen_write_xpss_package(const struct acpi_xpss_sw_pstate *pstate_value);
 void acpigen_write_xpss_object(const struct acpi_xpss_sw_pstate *pstate_values,
 			       size_t nentries);
+void acpigen_write_processor_namestring(unsigned int cpu_index);
 void acpigen_write_processor(u8 cpuindex, u32 pblock_addr, u8 pblock_len);
-inline void acpigen_write_processor_end(void)
+__always_inline void acpigen_write_processor_end(void)
 {
 	acpigen_pop_len();
 }
@@ -405,7 +472,7 @@ void acpigen_write_irq(u16 mask);
 void acpigen_write_uuid(const char *uuid);
 void acpigen_write_power_res(const char *name, uint8_t level, uint16_t order,
 			     const char * const dev_states[], size_t dev_states_count);
-inline void acpigen_write_power_res_end(void)
+__always_inline void acpigen_write_power_res_end(void)
 {
 	acpigen_pop_len();
 }
@@ -419,16 +486,24 @@ void acpigen_write_or(uint8_t arg1, uint8_t arg2, uint8_t res);
 void acpigen_write_xor(uint8_t arg1, uint8_t arg2, uint8_t res);
 void acpigen_write_and(uint8_t arg1, uint8_t arg2, uint8_t res);
 void acpigen_write_not(uint8_t arg, uint8_t res);
+void acpigen_concatenate_string_string(const char *str1, const char *str2, uint8_t res);
+void acpigen_concatenate_string_int(const char *str, uint64_t val, uint8_t res);
+void acpigen_concatenate_string_op(const char *str, uint8_t src_res, uint8_t dest_res);
 void acpigen_write_debug_string(const char *str);
 void acpigen_write_debug_namestr(const char *str);
 void acpigen_write_debug_integer(uint64_t val);
 void acpigen_write_debug_op(uint8_t op);
+void acpigen_write_debug_concatenate_string_string(const char *str1, const char *str2,
+						   uint8_t tmp_res);
+void acpigen_write_debug_concatenate_string_int(const char *str1, uint64_t val,
+						uint8_t tmp_res);
+void acpigen_write_debug_concatenate_string_op(const char *str1, uint8_t res, uint8_t tmp_res);
 void acpigen_write_if(void);
 void acpigen_write_if_and(uint8_t arg1, uint8_t arg2);
 void acpigen_write_if_lequal_op_op(uint8_t op, uint8_t val);
 void acpigen_write_if_lequal_op_int(uint8_t op, uint64_t val);
 void acpigen_write_if_lequal_namestr_int(const char *namestr, uint64_t val);
-inline void acpigen_write_if_end(void)
+__always_inline void acpigen_write_if_end(void)
 {
 	acpigen_pop_len();
 }
@@ -453,6 +528,7 @@ void acpigen_write_create_byte_field(uint8_t op, size_t byte_offset, const char 
 void acpigen_write_create_word_field(uint8_t op, size_t byte_offset, const char *name);
 void acpigen_write_create_dword_field(uint8_t op, size_t byte_offset, const char *name);
 void acpigen_write_create_qword_field(uint8_t op, size_t byte_offset, const char *name);
+void acpigen_write_field_name(const char *name, uint32_t size);
 /*
  * Generate ACPI AML code for _DSM method.
  * This function takes as input uuid for the device, set of callbacks and

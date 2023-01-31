@@ -8,7 +8,7 @@
 		<nixpkgs/nixos/modules/installer/cd-dvd/iso-image.nix>
 	];
 
-	system.stateVersion = "22.05";
+	system.stateVersion = "22.11";
 
 	isoImage = {
 		makeEfiBootable = true;
@@ -111,6 +111,7 @@
 		cryptsetup
 		curl
 		ddrescue
+		devmem2
 		dmidecode
 		dosfstools
 		e2fsprogs
@@ -148,6 +149,7 @@
 		p7zip
 		pacman
 		parted
+		pcimem
 		pciutils
 		phoronix-test-suite
 		powertop

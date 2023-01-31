@@ -693,9 +693,9 @@ static u32 make_mr0(ramctr_timing *ctrl, u8 rank)
 
 	/* Convert CAS to MCH register friendly */
 	if (ctrl->CAS < 12) {
-		mch_cas = (u16) ((ctrl->CAS - 4) << 1);
+		mch_cas = (u16)((ctrl->CAS - 4) << 1);
 	} else {
-		mch_cas = (u16) (ctrl->CAS - 12);
+		mch_cas = (u16)(ctrl->CAS - 12);
 		mch_cas = ((mch_cas << 1) | 0x1);
 	}
 
@@ -1513,7 +1513,7 @@ static void fill_pattern0(ramctr_timing *ctrl, int channel, u32 a, u32 b)
 
 	for (j = 0; j < 16; j++) {
 		addr = 0x04000000 + channel_offset + 4 * j;
-		write32((void *)addr, j & 2 ? b : a);
+		write32p(addr, j & 2 ? b : a);
 	}
 
 	sfence();
@@ -1538,11 +1538,11 @@ static void fill_pattern1(ramctr_timing *ctrl, int channel)
 
 	for (j = 0; j < 16; j++) {
 		addr = 0x04000000 + channel_offset + j * 4;
-		write32((void *)addr, 0xffffffff);
+		write32p(addr, 0xffffffff);
 	}
 	for (j = 0; j < 16; j++) {
 		addr = 0x04000000 + channel_offset + channel_step + j * 4;
-		write32((void *)addr, 0);
+		write32p(addr, 0);
 	}
 	sfence();
 
@@ -1732,7 +1732,7 @@ static void train_write_flyby(ramctr_timing *ctrl)
 
 		FOR_ALL_LANES {
 			u64 res = mchbar_read32(lane_base[lane] + GDCRTRAININGRESULT1(channel));
-			res |= ((u64) mchbar_read32(lane_base[lane] +
+			res |= ((u64)mchbar_read32(lane_base[lane] +
 				GDCRTRAININGRESULT2(channel))) << 32;
 
 			old = ctrl->timings[channel][slotrank].lanes[lane].tx_dqs;
@@ -1948,7 +1948,7 @@ static void fill_pattern5(ramctr_timing *ctrl, int channel, int patno)
 					val = ~val;
 
 				addr = (1 << 26) + offset + i * step + j * 4;
-				write32((void *)addr, val);
+				write32p(addr, val);
 			}
 		}
 	} else {
@@ -1956,7 +1956,7 @@ static void fill_pattern5(ramctr_timing *ctrl, int channel, int patno)
 			for (j = 0; j < 16; j++) {
 				const u32 val = pattern[i][j];
 				addr = (1 << 26) + offset + i * step + j * 4;
-				write32((void *)addr, val);
+				write32p(addr, val);
 			}
 		}
 		sfence();

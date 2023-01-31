@@ -11,6 +11,8 @@ static const struct pad_config gpio_table[] = {
 	PAD_CFG_GPO(GPP_A10, 1, PWROK),
 	/* A11 : TOUCH_RPT_EN ==> NC */
 	PAD_NC(GPP_A11, NONE),
+	/* A18 : USB_OC0_N */
+	PAD_CFG_NF(GPP_A18, NONE, DEEP, NF1),
 
 	/* B7  : PCIE_CLKREQ2_N ==> WWAN_SAR_DETECT_ODL */
 	PAD_CFG_GPO(GPP_B7, 1, DEEP),
@@ -26,10 +28,14 @@ static const struct pad_config gpio_table[] = {
 
 	/* D0  : WWAN_HOST_WAKE ==> WWAN_WDISABLE_L */
 	PAD_CFG_GPO(GPP_D0, 1, DEEP),
+	/* D5  : TOUCH_RESET_L */
+	PAD_NC(GPP_D5, NONE),
+	/* D6  : EN_PP3300_TOUCH_S0 */
+	PAD_NC(GPP_D6, NONE),
 	/* D12 : WCAM_RST_L ==> NC */
 	PAD_NC(GPP_D12, NONE),
-	/* D13 : EN_PP2800_CAMERA ==> NC */
-	PAD_NC(GPP_D13, NONE),
+	/* D13 : EN_PP2800_CAMERA */
+	PAD_CFG_GPO(GPP_D13, 1, PLTRST),
 	/* D14 : EN_PP1200_CAMERA ==> NC */
 	PAD_NC(GPP_D14, NONE),
 	/* D15 : UCAM_RST_L ==> NC */
@@ -81,6 +87,11 @@ static const struct pad_config gpio_table[] = {
 	PAD_NC(GPP_H7, NONE),
 	/* H17 : WWAN_RST_L */
 	PAD_CFG_GPO(GPP_H17, 0, PLTRST),
+
+	/* S2  : DMIC1_CLK ==> NC */
+	PAD_NC(GPP_S2, NONE),
+	/* S3  : DMIC1_DATA ==> NC */
+	PAD_NC(GPP_S3, NONE),
 };
 
 static const struct pad_config lte_disable_pads[] = {
@@ -93,6 +104,20 @@ const struct pad_config *variant_override_gpio_table(size_t *num)
 {
 	*num = ARRAY_SIZE(gpio_table);
 	return gpio_table;
+}
+
+static const struct pad_config romstage_gpio_table[] = {
+	/* no touchscreen present */
+	/* D5  : TOUCH_RESET_L */
+	PAD_NC(GPP_D5, NONE),
+	/* D6  : EN_PP3300_TOUCH_S0 */
+	PAD_NC(GPP_D6, NONE),
+};
+
+const struct pad_config *__weak variant_romstage_gpio_table(size_t *num)
+{
+	*num = ARRAY_SIZE(romstage_gpio_table);
+	return romstage_gpio_table;
 }
 
 static void fw_config_handle(void *unused)

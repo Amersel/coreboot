@@ -3,6 +3,8 @@
 #ifndef RAMINIT_H
 #define RAMINIT_H
 
+#include <types.h>
+
 #define DIMM_SOCKETS 2
 
 #define DIMM_TCO_BASE 0x30
@@ -24,11 +26,11 @@ struct sys_info {
 	u8 cas;			/* 3, 4 or 5 */
 	u8 refresh;		/* 0 = 15.6us, 1 = 7.8us */
 
-	u8 dual_channel;	/* 0 or 1 */
-	u8 interleaved;
+	bool dual_channel;
+	bool interleaved;
 
 	u8 mvco4x;		/* 0 (8x) or 1 (4x) */
-	u8 clkcfg_bit7;
+	bool clkcfg_bit7;
 	u8 boot_path;
 #define BOOT_PATH_NORMAL	0
 #define BOOT_PATH_RESET		1
@@ -47,7 +49,7 @@ struct sys_info {
 #define SYSINFO_DIMM_NOT_POPULATED	0x04
 
 	u8 banks[2 * DIMM_SOCKETS];
-	u8 banksize[2 * 2 * DIMM_SOCKETS];
+	size_t banksize[2 * 2 * DIMM_SOCKETS];
 	const u8 *spd_addresses;
 
 } __packed;

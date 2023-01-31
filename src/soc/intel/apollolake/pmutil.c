@@ -7,7 +7,6 @@
 #include <arch/io.h>
 #include <device/mmio.h>
 #include <console/console.h>
-#include <cpu/x86/msr.h>
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_def.h>
@@ -57,7 +56,7 @@ const char *const *soc_smi_sts_array(size_t *a)
 		[SERIRQ_SMI_STS_BIT] = "SERIRQ",
 		[SMBUS_SMI_STS_BIT] = "SMBUS_SMI",
 		[XHCI_SMI_STS_BIT] = "XHCI",
-		[SCS_SMI_STS_BIT] = "HOST_SMBUS",
+		[HSMBUS_SMI_STS_BIT] = "HOST_SMBUS",
 		[SCS_SMI_STS_BIT] = "SCS",
 		[PCI_EXP_SMI_STS_BIT] = "PCI_EXP_SMI",
 		[SCC2_SMI_STS_BIT] = "SCC2",
@@ -134,9 +133,9 @@ void soc_clear_pm_registers(uintptr_t pmc_bar)
 {
 	uint32_t gen_pmcon1;
 
-	gen_pmcon1 = read32((void *)(pmc_bar + GEN_PMCON1));
+	gen_pmcon1 = read32p(pmc_bar + GEN_PMCON1);
 	/* Clear the status bits. The RPS field is cleared on a 0 write. */
-	write32((void *)(pmc_bar + GEN_PMCON1), gen_pmcon1 & ~RPS);
+	write32p(pmc_bar + GEN_PMCON1, gen_pmcon1 & ~RPS);
 }
 
 void soc_get_gpi_gpe_configs(uint8_t *dw0, uint8_t *dw1, uint8_t *dw2)
@@ -158,10 +157,10 @@ void soc_fill_power_state(struct chipset_power_state *ps)
 	ps->tco1_sts = tco_read_reg(TCO1_STS);
 	ps->tco2_sts = tco_read_reg(TCO2_STS);
 
-	ps->prsts = read32((void *)(pmc_bar0 + PRSTS));
-	ps->gen_pmcon1 = read32((void *)(pmc_bar0 + GEN_PMCON1));
-	ps->gen_pmcon2 = read32((void *)(pmc_bar0 + GEN_PMCON2));
-	ps->gen_pmcon3 = read32((void *)(pmc_bar0 + GEN_PMCON3));
+	ps->prsts = read32p(pmc_bar0 + PRSTS);
+	ps->gen_pmcon1 = read32p(pmc_bar0 + GEN_PMCON1);
+	ps->gen_pmcon2 = read32p(pmc_bar0 + GEN_PMCON2);
+	ps->gen_pmcon3 = read32p(pmc_bar0 + GEN_PMCON3);
 
 	printk(BIOS_DEBUG, "prsts: %08x\n",
 	       ps->prsts);
@@ -192,7 +191,7 @@ int soc_get_rtc_failed(void)
 {
 	const struct chipset_power_state *ps;
 
-	if (acpi_pm_state_for_rtc(&ps) < 0)
+	if (acpi_fetch_pm_state(&ps, PS_CLAIMER_RTC) < 0)
 		return 1;
 
 	return rtc_failed(ps->gen_pmcon1);
@@ -201,7 +200,7 @@ int soc_get_rtc_failed(void)
 int vbnv_cmos_failed(void)
 {
 	uintptr_t pmc_bar = soc_read_pmc_base();
-	uint32_t gen_pmcon1 = read32((void *)(pmc_bar + GEN_PMCON1));
+	uint32_t gen_pmcon1 = read32p(pmc_bar + GEN_PMCON1);
 	int rtc_failure = rtc_failed(gen_pmcon1);
 
 	if (rtc_failure) {
@@ -213,7 +212,7 @@ int vbnv_cmos_failed(void)
 		/* RPS is write 0 to clear. */
 		gen_pmcon1 &= ~RPS;
 
-		write32((void *)(pmc_bar + GEN_PMCON1), gen_pmcon1);
+		write32p(pmc_bar + GEN_PMCON1, gen_pmcon1);
 	}
 
 	return rtc_failure;
@@ -222,7 +221,7 @@ int vbnv_cmos_failed(void)
 /* STM Support */
 uint16_t get_pmbase(void)
 {
-	return (uint16_t) ACPI_BASE_ADDRESS;
+	return (uint16_t)ACPI_BASE_ADDRESS;
 }
 
 void pmc_soc_set_afterg3_en(const bool on)

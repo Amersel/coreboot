@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <commonlib/bsd/helpers.h>
 #include <console/console.h>
 #include <device/device.h>
 #include <device/path.h>
@@ -7,6 +8,7 @@
 #include <device/resource.h>
 #include <stdlib.h>
 #include <string.h>
+#include <types.h>
 
 /**
  * Given a Local APIC ID, find the device structure.
@@ -133,6 +135,9 @@ u32 dev_path_encode(const struct device *dev)
 	case DEVICE_PATH_GPIO:
 		ret |= dev->path.gpio.id;
 		break;
+	case DEVICE_PATH_MDIO:
+		ret |= dev->path.mdio.addr;
+		break;
 	case DEVICE_PATH_NONE:
 	case DEVICE_PATH_MMIO:  /* don't care */
 	default:
@@ -220,6 +225,9 @@ const char *dev_path(const struct device *dev)
 			break;
 		case DEVICE_PATH_GPIO:
 			snprintf(buffer, sizeof(buffer), "GPIO: %d", dev->path.gpio.id);
+			break;
+		case DEVICE_PATH_MDIO:
+			snprintf(buffer, sizeof(buffer), "MDIO: %02x", dev->path.mdio.addr);
 			break;
 		default:
 			printk(BIOS_ERR, "Unknown device path type: %d\n",
@@ -522,7 +530,7 @@ void report_resource_stored(struct device *dev, const struct resource *resource,
 		snprintf(buf, sizeof(buf),
 			 "bus %02x ", dev->link_list->secondary);
 	}
-	printk(BIOS_DEBUG, "%s %02lx <- [0x%010llx - 0x%010llx] size 0x%08llx "
+	printk(BIOS_DEBUG, "%s %02lx <- [0x%016llx - 0x%016llx] size 0x%08llx "
 	       "gran 0x%02x %s%s%s\n", dev_path(dev), resource->index,
 		base, end, resource->size, resource->gran, buf,
 		resource_type(resource), comment);
@@ -584,6 +592,10 @@ void search_global_resources(unsigned long type_mask, unsigned long type,
 
 			/* If it is a subtractive resource ignore it. */
 			if (res->flags & IORESOURCE_SUBTRACTIVE)
+				continue;
+
+			/* If the resource is not assigned ignore it. */
+			if (!(res->flags & IORESOURCE_ASSIGNED))
 				continue;
 
 			search(gp, curdev, res);
@@ -800,7 +812,7 @@ void show_one_resource(int debug_level, struct device *dev,
 	end = resource_end(resource);
 	buf[0] = '\0';
 
-	printk(debug_level, "%s %02lx <- [0x%010llx - 0x%010llx] "
+	printk(debug_level, "%s %02lx <- [0x%016llx - 0x%016llx] "
 		  "size 0x%08llx gran 0x%02x %s%s%s\n", dev_path(dev),
 		  resource->index, base, end, resource->size, resource->gran,
 		  buf, resource_type(resource), comment);
@@ -912,10 +924,7 @@ int dev_count_cpu(void)
 	int count = 0;
 
 	for (cpu = all_devices; cpu; cpu = cpu->next) {
-		if ((cpu->path.type != DEVICE_PATH_APIC) ||
-		    (cpu->bus->dev->path.type != DEVICE_PATH_CPU_CLUSTER))
-			continue;
-		if (!cpu->enabled)
+		if (!is_enabled_cpu(cpu))
 			continue;
 		count++;
 	}
@@ -935,6 +944,15 @@ const char *dev_path_name(enum device_path_type type)
 	return type_name;
 }
 
+bool dev_path_hotplug(const struct device *dev)
+{
+	for (dev = dev->bus->dev; dev != dev->bus->dev; dev = dev->bus->dev) {
+		if (dev->hotplug_port)
+			return true;
+	}
+	return false;
+}
+
 void log_resource(const char *type, const struct device *dev, const struct resource *res,
 			const char *srcfile, const int line)
 {
@@ -942,4 +960,30 @@ void log_resource(const char *type, const struct device *dev, const struct resou
 			  "end: 0x%llx, size_kb: 0x%llx\n",
 			  srcfile, line, type, dev_path(dev), res->index, res->base,
 			  resource_end(res), res->size / KiB);
+}
+
+bool is_cpu(const struct device *cpu)
+{
+	return cpu->path.type == DEVICE_PATH_APIC &&
+	       cpu->bus->dev->path.type == DEVICE_PATH_CPU_CLUSTER;
+}
+
+bool is_enabled_cpu(const struct device *cpu)
+{
+	return is_cpu(cpu) && cpu->enabled;
+}
+
+bool is_pci(const struct device *pci)
+{
+	return pci->path.type == DEVICE_PATH_PCI;
+}
+
+bool is_enabled_pci(const struct device *pci)
+{
+	return is_pci(pci) && pci->enabled;
+}
+
+bool is_pci_dev_on_bus(const struct device *pci, unsigned int bus)
+{
+	return is_pci(pci) && pci->bus->secondary == bus;
 }

@@ -22,21 +22,19 @@ entries
 424	2	e	7	power_profile
 432	1	e	5	me_state
 440	4	h	0	me_state_counter
-448	1	e	1	smi_handler
 
 # coreboot config options: Devices
 504	1	e	1	wireless
 512	1	e	1	webcam
 520	1	e	1	microphone
 528	1	e	1	legacy_8254_timer
-536	1	e	1	usb_always_on
-544	1	e	1	thunderbolt
 
 # coreboot config options: EC
 600	3	e	4	kbl_timeout
 608	1	e	1	fn_ctrl_swap
 616	2	e	8	max_charge
 624	2	e	9	fan_mode
+632	1	e	1	mirror_flag
 
 # coreboot config options: southbridge
 800	2	e	6	power_on_after_fail

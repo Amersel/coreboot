@@ -1,12 +1,11 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
+/* SPDX-License-Identifier: GPL-2.0-only OR MIT */
 
 #ifndef SOC_MEDIATEK_MT8195_DEVAPC_H
 #define SOC_MEDIATEK_MT8195_DEVAPC_H
 
 #include <device/mmio.h>
 #include <soc/addressmap.h>
-
-void dapc_init(void);
+#include <soc/devapc_common.h>
 
 enum devapc_ao_offset {
 	SYS0_D0_APC_0 = 0x0,
@@ -31,39 +30,6 @@ enum scp_offset {
 /******************************************************************************
  * STRUCTURE DEFINITION
  ******************************************************************************/
-/* Common */
-enum trans_type {
-	NON_SECURE_TRANS = 0,
-	SECURE_TRANS,
-};
-
-enum devapc_perm_type {
-	NO_PROTECTION = 0,
-	SEC_RW_ONLY,
-	SEC_RW_NS_R,
-	FORBIDDEN,
-	PERM_NUM,
-};
-
-enum domain_id {
-	DOMAIN_0 = 0,
-	DOMAIN_1,
-	DOMAIN_2,
-	DOMAIN_3,
-	DOMAIN_4,
-	DOMAIN_5,
-	DOMAIN_6,
-	DOMAIN_7,
-	DOMAIN_8,
-	DOMAIN_9,
-	DOMAIN_10,
-	DOMAIN_11,
-	DOMAIN_12,
-	DOMAIN_13,
-	DOMAIN_14,
-	DOMAIN_15,
-};
-
 struct apc_infra_peri_dom_16 {
 	unsigned char d_permission[16];
 };
@@ -103,6 +69,8 @@ enum devapc_cfg_index {
  * Variable DEFINITION
  ******************************************************************************/
 #define MOD_NO_IN_1_DEVAPC		16
+#define DOMAIN_OFT			0x40
+#define IDX_OFT				0x4
 
 /******************************************************************************
  * Bit Field DEFINITION

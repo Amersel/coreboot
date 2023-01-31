@@ -106,12 +106,11 @@ chip soc/intel/tigerlake
 				register "generic.hid" = ""ELAN90FC""
 				register "generic.desc" = ""ELAN Touchscreen""
 				register "generic.irq" = "ACPI_IRQ_LEVEL_LOW(GPP_E7_IRQ)"
-				register "generic.probed" = "1"
+				register "generic.detect" = "1"
 				register "generic.reset_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPP_C10)"
 				register "generic.enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPP_F16)"
 				register "generic.reset_delay_ms" = "20"
 				register "generic.has_power_resource" = "1"
-				register "generic.disable_gpio_export_in_crs" = "1"
 				register "hid_desc_reg_offset" = "0x01"
 				device i2c 10 on end
 			end
@@ -122,7 +121,7 @@ chip soc/intel/tigerlake
 				register "generic.desc" = ""ELAN Touchpad""
 				register "generic.irq" = "ACPI_IRQ_WAKE_LEVEL_LOW(GPP_E15_IRQ)"
 				register "generic.wake" = "GPE0_DW2_15"
-				register "generic.probed" = "1"
+				register "generic.detect" = "1"
 				register "hid_desc_reg_offset" = "0x01"
 				device i2c 15 on end
 			end
@@ -140,6 +139,7 @@ chip soc/intel/tigerlake
 			probe AUDIO MAX98373_ALC5682_SNDW
 			probe AUDIO MAX98373_ALC5682I_I2S_UP4
 			probe AUDIO MAX98360_ALC5682I_I2S
+			probe AUDIO RT1011_ALC5682I_I2S
 		end
 		device ref pmc hidden
 			# The pmc_mux chip driver is a placeholder for the

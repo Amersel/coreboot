@@ -141,8 +141,8 @@ static void eventlog_print_type(const struct event_header *event)
 		{ELOG_TYPE_S0IX_ENTER, "S0ix Enter"},
 		{ELOG_TYPE_S0IX_EXIT, "S0ix Exit"},
 		{ELOG_TYPE_WAKE_SOURCE, "Wake Source"},
-		{ELOG_TYPE_CROS_DEVELOPER_MODE, "ChromeOS Developer Mode"},
-		{ELOG_TYPE_CROS_RECOVERY_MODE, "ChromeOS Recovery Mode"},
+		{ELOG_DEPRECATED_TYPE_CROS_DEVELOPER_MODE, "ChromeOS Developer Mode"},
+		{ELOG_DEPRECATED_TYPE_CROS_RECOVERY_MODE, "ChromeOS Recovery Mode"},
 		{ELOG_TYPE_MANAGEMENT_ENGINE, "Management Engine"},
 		{ELOG_TYPE_MANAGEMENT_ENGINE_EXT, "Management Engine Extra"},
 		{ELOG_TYPE_LAST_POST_CODE, "Last post code in previous boot"},
@@ -158,6 +158,7 @@ static void eventlog_print_type(const struct event_header *event)
 		{ELOG_TYPE_EC_DEVICE_EVENT, "EC Device"},
 		{ELOG_TYPE_EXTENDED_EVENT, "Extended Event"},
 		{ELOG_TYPE_CROS_DIAGNOSTICS, "Diagnostics Mode"},
+		{ELOG_TYPE_FW_VBOOT_INFO, "Firmware vboot info"},
 
 		{ELOG_TYPE_EOL, "End of log"},
 	};
@@ -352,105 +353,6 @@ static int eventlog_print_data(const struct event_header *event)
 		{ELOG_EC_DEVICE_EVENT_WIFI, "WiFi"},
 		{0, NULL},
 	};
-
-	static const struct valstr cros_recovery_reasons[] = {
-		{VB2_RECOVERY_LEGACY, "Legacy Utility"},
-		{VB2_RECOVERY_RO_MANUAL, "Recovery Button Pressed"},
-		{VB2_RECOVERY_RO_INVALID_RW, "RW Failed Signature Check"},
-		{VB2_RECOVERY_DEPRECATED_RO_S3_RESUME, "S3 Resume Failed"},
-		{VB2_RECOVERY_DEPRECATED_RO_TPM_ERROR, "TPM Error in RO Firmware"},
-		{VB2_RECOVERY_RO_SHARED_DATA, "Shared Data Error in RO Firmware"},
-		{VB2_RECOVERY_DEPRECATED_RO_TEST_S3, "Test Error from S3 Resume()"},
-		{VB2_RECOVERY_DEPRECATED_RO_TEST_LF, "Test Error from LoadFirmware()"},
-		{VB2_RECOVERY_DEPRECATED_RO_TEST_LFS, "Test Error from LoadFirmwareSetup()"},
-		{VB2_RECOVERY_DEPRECATED_RW_NOT_DONE, "RW firmware check not done"},
-		{VB2_RECOVERY_DEPRECATED_RW_DEV_FLAG_MISMATCH,
-		 "RW firmware developer flag mismatch"},
-		{VB2_RECOVERY_DEPRECATED_RW_REC_FLAG_MISMATCH,
-		 "RW firmware recovery flash mismatch"},
-		{VB2_RECOVERY_FW_KEYBLOCK, "RW firmware unable to verify keyblock"},
-		{VB2_RECOVERY_FW_KEY_ROLLBACK, "RW firmware key version rollback detected"},
-		{VB2_RECOVERY_DEPRECATED_RW_DATA_KEY_PARSE,
-		 "RW firmware unable to parse data key"},
-		{VB2_RECOVERY_FW_PREAMBLE, "RW firmware unable to verify preamble"},
-		{VB2_RECOVERY_FW_ROLLBACK, "RW firmware version rollback detected"},
-		{VB2_RECOVERY_DEPRECATED_FW_HEADER_VALID, "RW firmware header is valid"},
-		{VB2_RECOVERY_DEPRECATED_FW_GET_FW_BODY,
-		 "RW firmware unable to get firmware body"},
-		{VB2_RECOVERY_DEPRECATED_FW_HASH_WRONG_SIZE, "RW firmware hash is wrong size"},
-		{VB2_RECOVERY_FW_BODY, "RW firmware unable to verify firmware body"},
-		{VB2_RECOVERY_DEPRECATED_FW_VALID, "RW firmware is valid"},
-		{VB2_RECOVERY_DEPRECATED_FW_NO_RO_NORMAL,
-		 "RW firmware read-only normal path is not supported"},
-		{VB2_RECOVERY_RO_FIRMWARE, "Firmware Boot Failure"},
-		{VB2_RECOVERY_RO_TPM_REBOOT, "Recovery Mode TPM Reboot"},
-		{VB2_RECOVERY_EC_SOFTWARE_SYNC, "EC Software Sync Error"},
-		{VB2_RECOVERY_EC_UNKNOWN_IMAGE, "Unable to determine active EC image"},
-		{VB2_RECOVERY_DEPRECATED_EC_HASH,
-		 "EC software sync error obtaining EC image hash"},
-		{VB2_RECOVERY_DEPRECATED_EC_EXPECTED_IMAGE,
-		 "EC software sync error obtaining expected EC image from BIOS"},
-		{VB2_RECOVERY_EC_UPDATE, "EC software sync error updating EC"},
-		{VB2_RECOVERY_EC_JUMP_RW, "EC software sync unable to jump to EC-RW"},
-		{VB2_RECOVERY_EC_PROTECT, "EC software sync protection error"},
-		{VB2_RECOVERY_EC_EXPECTED_HASH,
-		 "EC software sync error obtaining expected EC hash from BIOS"},
-		{VB2_RECOVERY_DEPRECATED_EC_HASH_MISMATCH,
-		 "EC software sync error comparing expected EC hash and image"},
-		{VB2_RECOVERY_SECDATA_FIRMWARE_INIT, "Secure NVRAM (TPM) initialization error"},
-		{VB2_RECOVERY_GBB_HEADER, "Error parsing GBB header"},
-		{VB2_RECOVERY_TPM_CLEAR_OWNER, "Error trying to clear TPM owner"},
-		{VB2_RECOVERY_DEV_SWITCH, "Error reading or updating developer switch"},
-		{VB2_RECOVERY_FW_SLOT, "Error selecting RW firmware slot"},
-		{VB2_RECOVERY_AUXFW_UPDATE, "Error updating AUX firmware"},
-		{VB2_RECOVERY_INTEL_CSE_LITE_SKU, "Intel CSE Lite SKU fimrware failure"},
-		{VB2_RECOVERY_RO_UNSPECIFIED, "Unknown Error in RO Firmware"},
-		{VB2_RECOVERY_DEPRECATED_RW_DEV_SCREEN, "User Requested from Developer Screen"},
-		{VB2_RECOVERY_DEPRECATED_RW_NO_OS, "No OS Kernel Detected"},
-		{VB2_RECOVERY_RW_INVALID_OS, "OS kernel or rootfs failed signature check"},
-		{VB2_RECOVERY_DEPRECATED_RW_TPM_ERROR, "TPM Error in RW Firmware"},
-		{VB2_RECOVERY_DEPRECATED_RW_DEV_MISMATCH, "RW Dev Firmware but not Dev Mode"},
-		{VB2_RECOVERY_RW_SHARED_DATA, "Shared Data Error in RW Firmware"},
-		{VB2_RECOVERY_DEPRECATED_RW_TEST_LK, "Test Error from LoadKernel()"},
-		{VB2_RECOVERY_DEPRECATED_RW_NO_DISK, "No Bootable Disk Found"},
-		{VB2_RECOVERY_TPM_E_FAIL, "TPM_E_FAIL or TPM_E_FAILEDSELFTEST"},
-		{VB2_RECOVERY_RO_TPM_S_ERROR, "TPM setup error in read-only firmware"},
-		{VB2_RECOVERY_RO_TPM_W_ERROR, "TPM write error in read-only firmware"},
-		{VB2_RECOVERY_RO_TPM_L_ERROR, "TPM lock error in read-only firmware"},
-		{VB2_RECOVERY_RO_TPM_U_ERROR, "TPM update error in read-only firmware"},
-		{VB2_RECOVERY_RW_TPM_R_ERROR, "TPM read error in rewritable firmware"},
-		{VB2_RECOVERY_RW_TPM_W_ERROR, "TPM write error in rewritable firmware"},
-		{VB2_RECOVERY_RW_TPM_L_ERROR, "TPM lock error in rewritable firmware"},
-		{VB2_RECOVERY_EC_HASH_FAILED, "EC software sync unable to get EC image hash"},
-		{VB2_RECOVERY_EC_HASH_SIZE, "EC software sync invalid image hash size"},
-		{VB2_RECOVERY_LK_UNSPECIFIED, "Unspecified error while trying to load kernel"},
-		{VB2_RECOVERY_RW_NO_DISK, "No bootable storage device in system"},
-		{VB2_RECOVERY_RW_NO_KERNEL, "No bootable kernel found on disk"},
-		{VB2_RECOVERY_DEPRECATED_RW_BCB_ERROR, "BCB partition error on disk"},
-		{VB2_RECOVERY_SECDATA_KERNEL_INIT,
-		 "Kernel secure NVRAM (TPM) initialization error"},
-		{VB2_RECOVERY_DEPRECATED_FW_FASTBOOT, "Fastboot-mode requested in firmware"},
-		{VB2_RECOVERY_RO_TPM_REC_HASH_L_ERROR,
-		 "Recovery hash space lock error in RO firmware"},
-		{VB2_RECOVERY_TPM_DISABLE_FAILED,
-		 "Failed to disable TPM before running untrusted code"},
-		{VB2_RECOVERY_ALTFW_HASH_MISMATCH,
-		 "Verification of alternative firmware payload failed"},
-		{VB2_RECOVERY_SECDATA_FWMP_INIT, "FWMP secure data initialization failed"},
-		{VB2_RECOVERY_CR50_BOOT_MODE, "Failed to get boot mode from TPM/Cr50"},
-		{VB2_RECOVERY_ESCAPE_NO_BOOT,
-		 "Attempt to escape from NO_BOOT mode was detected"},
-		{VB2_RECOVERY_RW_UNSPECIFIED, "Unspecified/unknown error in RW firmware"},
-		{VB2_RECOVERY_DEPRECATED_KE_DM_VERITY, "DM-verity error"},
-		{VB2_RECOVERY_DEPRECATED_KE_UNSPECIFIED, "Unspecified/unknown error in kernel"},
-		{VB2_RECOVERY_US_TEST, "Recovery mode test from user-mode"},
-		{VB2_RECOVERY_DEPRECATED_BCB_USER_MODE, "User-mode requested recovery via BCB"},
-		{VB2_RECOVERY_DEPRECATED_US_FASTBOOT, "User-mode requested fastboot mode"},
-		{VB2_RECOVERY_TRAIN_AND_REBOOT,
-		 "User requested recovery for training memory and rebooting"},
-		{VB2_RECOVERY_US_UNSPECIFIED, "Unknown Error in User Mode"},
-		{0, NULL},
-	};
 	static const struct valstr me_path_types[] = {
 		{ELOG_ME_PATH_NORMAL, "Normal"},
 		{ELOG_ME_PATH_NORMAL, "S3 Wake"},
@@ -535,9 +437,54 @@ static int eventlog_print_data(const struct event_header *event)
 	};
 
 	static const struct valstr cros_diagnostics_types[] = {
-		{ELOG_CROS_LAUNCH_DIAGNOSTICS, "Launch Diagnostics"},
+		{ELOG_DEPRECATED_CROS_LAUNCH_DIAGNOSTICS, "Launch Diagnostics"},
+		{ELOG_CROS_DIAGNOSTICS_LOGS, "Diagnostics Logs"},
 		{0, NULL},
 	};
+
+	static const struct valstr cros_diagnostics_diag_types[] = {
+		{ELOG_CROS_DIAG_TYPE_NONE, "None"},
+		{ELOG_CROS_DIAG_TYPE_STORAGE_HEALTH, "Storage health info"},
+		{ELOG_CROS_DIAG_TYPE_STORAGE_TEST_SHORT, "Storage self-test (short)"},
+		{ELOG_CROS_DIAG_TYPE_STORAGE_TEST_EXTENDED, "Storage self-test (extended)"},
+		{ELOG_CROS_DIAG_TYPE_MEMORY_QUICK, "Memory check (quick)"},
+		{ELOG_CROS_DIAG_TYPE_MEMORY_FULL, "Memory check (full)"},
+		{0, NULL},
+	};
+
+	static const struct valstr cros_diagnostics_diag_results[] = {
+		{ELOG_CROS_DIAG_RESULT_PASSED, "Passed"},
+		{ELOG_CROS_DIAG_RESULT_ERROR, "Error"},
+		{ELOG_CROS_DIAG_RESULT_FAILED, "Failed"},
+		{ELOG_CROS_DIAG_RESULT_ABORTED, "Aborted"},
+		{0, NULL},
+	};
+
+	size_t elog_type_to_min_size[] = {
+		[ELOG_TYPE_LOG_CLEAR]		= sizeof(uint16_t),
+		[ELOG_TYPE_BOOT]		= sizeof(uint32_t),
+		[ELOG_TYPE_LAST_POST_CODE]	= sizeof(uint16_t),
+		[ELOG_TYPE_POST_EXTRA]		= sizeof(uint32_t),
+		[ELOG_TYPE_OS_EVENT]		= sizeof(uint32_t),
+		[ELOG_TYPE_ACPI_ENTER]		= sizeof(uint8_t),
+		[ELOG_TYPE_ACPI_WAKE]		= sizeof(uint8_t),
+		[ELOG_TYPE_ACPI_DEEP_WAKE]	= sizeof(uint8_t),
+		[ELOG_TYPE_WAKE_SOURCE]		= sizeof(struct elog_event_data_wake),
+		[ELOG_TYPE_EC_EVENT]		= sizeof(uint8_t),
+		[ELOG_TYPE_EC_DEVICE_EVENT]	= sizeof(uint8_t),
+		[ELOG_DEPRECATED_TYPE_CROS_RECOVERY_MODE] = sizeof(uint8_t),
+		[ELOG_TYPE_MANAGEMENT_ENGINE]	= sizeof(uint8_t),
+		[ELOG_TYPE_MEM_CACHE_UPDATE]	= sizeof(struct elog_event_mem_cache_update),
+		[ELOG_TYPE_EXTENDED_EVENT]	= sizeof(struct elog_event_extended_event),
+		[ELOG_TYPE_CROS_DIAGNOSTICS]	= sizeof(uint8_t),
+		[ELOG_TYPE_FW_VBOOT_INFO]	= sizeof(uint16_t),
+		[0xff]				= 0,
+	};
+
+	if (event->length <= sizeof(*event) + elog_type_to_min_size[event->type]) {
+		eventlog_printf("INVALID DATA (length = %u)", event->length - sizeof(*event));
+		return 0;
+	}
 
 	switch (event->type) {
 	case ELOG_TYPE_LOG_CLEAR: {
@@ -595,9 +542,9 @@ static int eventlog_print_data(const struct event_header *event)
 		eventlog_printf("%s", val2str(*dev_event, ec_device_event_types));
 		break;
 	}
-	case ELOG_TYPE_CROS_RECOVERY_MODE: {
+	case ELOG_DEPRECATED_TYPE_CROS_RECOVERY_MODE: {
 		const uint8_t *reason = event_get_data(event);
-		eventlog_printf("%s", val2str(*reason, cros_recovery_reasons));
+		eventlog_printf("%s", vb2_get_recovery_reason_string(*reason));
 		eventlog_printf("0x%02x", *reason);
 		break;
 	}
@@ -621,8 +568,66 @@ static int eventlog_print_data(const struct event_header *event)
 		break;
 	}
 	case ELOG_TYPE_CROS_DIAGNOSTICS: {
-		const uint8_t *type = event_get_data(event);
-		eventlog_printf("%s", val2str(*type, cros_diagnostics_types));
+		const uint8_t *data = event_get_data(event);
+		const uint8_t subtype = *data;
+		eventlog_printf("%s", val2str(subtype, cros_diagnostics_types));
+
+		/*
+		 * If the subtype is diagnostics logs, there will be many
+		 * elog_event_diag_log events after subtype:
+		 *
+		 * [event_header][(subtype)(log 1)(log 2)...(log n)][checksum]
+		 *
+		 * Parse them one by one.
+		 */
+		if (subtype == ELOG_CROS_DIAGNOSTICS_LOGS) {
+			size_t i, base_size, log_size, num_logs;
+			const union elog_event_cros_diag_log *log;
+
+			/*
+			 * base_size = event header + checksum + subtype;
+			 * log_size = event length - base_size.
+			 */
+			base_size = sizeof(*event) + 1 + sizeof(subtype);
+			/* Validity check to prevent log_size overflow */
+			if (event->length > base_size) {
+				log_size = event->length - base_size;
+				num_logs = log_size / sizeof(union elog_event_cros_diag_log);
+				log = (const union elog_event_cros_diag_log *)(data + 1);
+				for (i = 0; i < num_logs; i++) {
+					eventlog_printf("type=%s, result=%s, time=%um%us",
+						val2str(log->type,
+							cros_diagnostics_diag_types),
+						val2str(log->result,
+							cros_diagnostics_diag_results),
+						log->time_s / 60, log->time_s % 60);
+					log++;
+				}
+			}
+		}
+		break;
+	}
+	case ELOG_TYPE_FW_VBOOT_INFO: {
+		const union vb2_fw_boot_info *info = event_get_data(event);
+
+		eventlog_printf("boot_mode=%s", vb2_boot_mode_string(info->boot_mode));
+
+		if (info->boot_mode == VB2_BOOT_MODE_BROKEN_SCREEN ||
+		    info->boot_mode == VB2_BOOT_MODE_MANUAL_RECOVERY) {
+			if (event->length <= sizeof(*event) + sizeof(*info))
+				eventlog_printf("INVALID DATA (length = %u)",
+				  event->length - sizeof(*event));
+			else
+				eventlog_printf("recovery_reason=%#x/%#x (%s)",
+				  info->recovery_reason, info->recovery_subcode,
+				  vb2_get_recovery_reason_string(info->recovery_reason));
+		}
+
+		eventlog_printf("fw_tried=%s", vb2_slot_string(info->slot));
+		eventlog_printf("fw_try_count=%d", info->tries);
+		eventlog_printf("fw_prev_tried=%s", vb2_slot_string(info->prev_slot));
+		eventlog_printf("fw_prev_result=%s", vb2_result_string(info->prev_result));
+		break;
 	}
 	default:
 		break;

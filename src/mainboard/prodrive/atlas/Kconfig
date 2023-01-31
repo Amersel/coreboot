@@ -1,17 +1,30 @@
 config BOARD_PRODRIVE_ATLAS_BASEBOARD
 	def_bool n
 	select BOARD_ROMSIZE_KB_32768
-	select DRIVERS_UART_8250IO
+	select INTEL_LPSS_UART_FOR_CONSOLE
 	select EC_ACPI
-	select HAVE_ACPI_RESUME
+	select FSP_TYPE_IOT
 	select HAVE_ACPI_TABLES
 	select INTEL_GMA_HAVE_VBT
 	select MAINBOARD_HAS_TPM2
 	select MAINBOARD_USES_IFD_EC_REGION
 	select MEMORY_MAPPED_TPM
+	select PCIEXP_SUPPORT_RESIZABLE_BARS
 	select SOC_INTEL_ALDERLAKE_PCH_P
+	select SOC_INTEL_ALDERLAKE_S3
 
 if BOARD_PRODRIVE_ATLAS_BASEBOARD
+
+config ATLAS_ENABLE_SAGV
+	bool "Enable SaGv"
+	default n
+
+config ATLAS_ENABLE_IBECC
+	bool "Enable IBECC"
+	help
+	  Enables In Band Error Correction Code. It's only needed for endurance testing
+	  and therefore not always required.
+	default n
 
 config MAINBOARD_FAMILY
 	string
@@ -36,5 +49,22 @@ config UART_FOR_CONSOLE
 
 config CBFS_SIZE
 	default 0x800000
+
+# This platform has limited means to display POST codes
+config NO_POST
+	default y
+
+config ENABLE_BUZZER_SUPPORT
+	bool "Enable Buzzer support"
+	default y
+	select USE_LEGACY_8254_TIMER
+	help
+	  8254 timer is required for buzzer support on GPP_B14 (based on Intel doc 621483,
+	  26.1.1 - NMI_STS_CNT). However since 8254 timer clock gating has to be enabled for
+	  S0ix support, enabling buzzer will disable s0ix.
+
+config PCIEXP_DEFAULT_MAX_RESIZABLE_BAR_BITS
+	int
+	default 32
 
 endif #BOARD_PRODRIVE_ATLAS_BASEBOARD

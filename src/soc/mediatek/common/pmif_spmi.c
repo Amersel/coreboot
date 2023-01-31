@@ -8,9 +8,6 @@
 #include <soc/pmif_sw.h>
 #include <soc/spmi.h>
 
-#define PMIF_CMD_PER_3	(0x1 << PMIF_CMD_EXT_REG_LONG)
-#define PMIF_CMD_PER_1_3	((0x1 << PMIF_CMD_REG) | (0x1 << PMIF_CMD_EXT_REG_LONG))
-
 /* SPMI_MST, SPMI_SAMPL_CTRL */
 DEFINE_BIT(SAMPL_CK_POL, 0)
 DEFINE_BITFIELD(SAMPL_CK_DLY, 3, 1)
@@ -25,18 +22,10 @@ DEFINE_BIT(SPI_EINT_MODE_GATING_EN, 13)
 DEFINE_BITFIELD(SPM_SLEEP_REQ_SEL, 1, 0)
 DEFINE_BITFIELD(SCP_SLEEP_REQ_SEL, 10, 9)
 
-static const struct spmi_device spmi_dev[] = {
-	{
-		.slvid = SPMI_SLAVE_6,
-		.type = BUCK_CPU,
-		.type_id = BUCK_CPU_ID,
-	},
-	{
-		.slvid = SPMI_SLAVE_7,
-		.type = BUCK_GPU,
-		.type_id = BUCK_GPU_ID,
-	},
-};
+__weak void pmif_spmi_config(struct pmif *arb, int mstid)
+{
+	/* Do nothing. */
+}
 
 static int spmi_read_check(struct pmif *pmif_arb, int slvid)
 {
@@ -88,17 +77,18 @@ static int spmi_cali_rd_clock_polarity(struct pmif *pmif_arb, const struct spmi_
 
 static int spmi_mst_init(struct pmif *pmif_arb)
 {
-	int i;
+	size_t i;
 
 	if (!pmif_arb) {
 		printk(BIOS_ERR, "%s: null pointer for pmif dev.\n", __func__);
 		return -E_INVAL;
 	}
 
-	pmif_spmi_iocfg();
+	if (!CONFIG(PMIF_SPMI_IOCFG_DEFAULT_SETTING))
+		pmif_spmi_iocfg();
 	spmi_config_master();
 
-	for (i = 0; i < ARRAY_SIZE(spmi_dev); i++)
+	for (i = 0; i < spmi_dev_cnt; i++)
 		spmi_cali_rd_clock_polarity(pmif_arb, &spmi_dev[i]);
 
 	return 0;
@@ -139,23 +129,8 @@ static void pmif_spmi_enable_cmdIssue(int mstid, bool en)
 static void pmif_spmi_enable(int mstid)
 {
 	struct pmif *arb = get_pmif_controller(PMIF_SPMI, mstid);
-	u32 cmd_per;
 
-	/* clear all cmd permission for per channel */
-	write32(&arb->mtk_pmif->inf_cmd_per_0, 0);
-	write32(&arb->mtk_pmif->inf_cmd_per_1, 0);
-	write32(&arb->mtk_pmif->inf_cmd_per_2, 0);
-	write32(&arb->mtk_pmif->inf_cmd_per_3, 0);
-
-	/* enable if we need cmd 0~3 permission for per channel */
-	cmd_per = PMIF_CMD_PER_3 << 28 | PMIF_CMD_PER_3 << 24 |
-		PMIF_CMD_PER_3 << 20 | PMIF_CMD_PER_3 << 16 |
-		PMIF_CMD_PER_3 << 8 | PMIF_CMD_PER_3 << 4 |
-		PMIF_CMD_PER_1_3 << 0;
-	write32(&arb->mtk_pmif->inf_cmd_per_0, cmd_per);
-
-	cmd_per = PMIF_CMD_PER_3 << 4;
-	write32(&arb->mtk_pmif->inf_cmd_per_1, cmd_per);
+	pmif_spmi_config(arb, mstid);
 
 	/*
 	 * set bytecnt max limitation.

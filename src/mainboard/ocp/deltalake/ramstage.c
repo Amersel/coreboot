@@ -1,22 +1,26 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <assert.h>
+#include <commonlib/bsd/helpers.h>
 #include <console/console.h>
+#include <cpu/cpu.h>
+#include <cpxsp_dl_gpio.h>
+#include <device/device.h>
+#include <device/pci_def.h>
+#include <device/pci_ops.h>
 #include <drivers/ipmi/ipmi_ops.h>
 #include <drivers/ocp/dmi/ocp_dmi.h>
 #include <drivers/vpd/vpd.h>
-#include <security/intel/txt/txt.h>
-#include <soc/ramstage.h>
-#include <soc/soc_util.h>
-#include <stdio.h>
-#include <string.h>
-#include <smbios.h>
-#include <device/pci_def.h>
-#include <device/pci_ops.h>
-#include <soc/util.h>
 #include <hob_iiouds.h>
 #include <hob_memmap.h>
-#include <cpxsp_dl_gpio.h>
+#include <security/intel/txt/txt.h>
+#include <smbios.h>
+#include <soc/ramstage.h>
+#include <soc/soc_util.h>
+#include <soc/util.h>
+#include <stdio.h>
+#include <string.h>
+#include <types.h>
 
 #include "ipmi.h"
 #include "vpd.h"
@@ -25,21 +29,6 @@
 
 extern struct fru_info_str fru_strings;
 static char slot_id_str[SLOT_ID_LEN];
-
-/*
- * Update SMBIOS type 0 ec version.
- * In deltalake, BMC version is used to represent ec version.
- * In current version of OpenBMC, it follows IPMI v2.0 to define minor revision as BCD
- * encoded, so the format of it must be transferred before send to SMBIOS.
- */
-void smbios_ec_revision(uint8_t *ec_major_revision, uint8_t *ec_minor_revision)
-{
-	uint8_t bmc_major_revision, bmc_minor_revision;
-
-	ipmi_bmc_version(&bmc_major_revision, &bmc_minor_revision);
-	*ec_major_revision = bmc_major_revision & 0x7f; /* bit[6:0] Major Firmware Revision */
-	*ec_minor_revision = ((bmc_minor_revision / 16) * 10) + (bmc_minor_revision % 16);
-}
 
 /* Override SMBIOS 2 Location In Chassis from BMC */
 const char *smbios_mainboard_location_in_chassis(void)
@@ -124,7 +113,7 @@ static void dl_oem_smbios_strings(struct device *dev, struct smbios_type11 *t)
 
 	/* OEM string 7 is the register vendor ID in SPD for each DIMM strung together */
 	hob = get_system_memory_map();
-	assert(hob != NULL);
+	assert(hob);
 	/* There are at most 6 channels and 2 DIMMs per channel, but Delta Lake has 6 DIMMs,
 	   e.g. b300 0000 b300 0000 b300 0000 b300 0000 b300 0000 b300 0000 */
 	for (int ch = 0; ch < MAX_CH; ch++) {
@@ -323,20 +312,9 @@ void smbios_fill_dimm_locator(const struct dimm_info *dimm, struct smbios_type17
 	t->bank_locator = smbios_add_string(t->eos, buf);
 }
 
-unsigned int smbios_processor_family(struct cpuid_result res)
-{
-	return 0xb3; /* Xeon */
-}
-
-unsigned int smbios_processor_characteristics(void)
-{
-	/* 64-bit Capable, Multi-Core, Power/Performance Control */
-	return 0x8c; /* BIT2 + BIT3 + BIT7 */
-}
-
 static void mainboard_enable(struct device *dev)
 {
-	dev->ops->get_smbios_strings = dl_oem_smbios_strings,
+	dev->ops->get_smbios_strings = dl_oem_smbios_strings;
 	read_fru_areas(CONFIG_BMC_KCS_BASE, CONFIG_FRU_DEVICE_ID, 0, &fru_strings);
 	dev->ops->get_smbios_data = mainboard_smbios_data;
 }

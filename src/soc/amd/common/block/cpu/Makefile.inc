@@ -1,5 +1,8 @@
+## SPDX-License-Identifier: GPL-2.0-only
 subdirs-y += ./*
 ramstage-$(CONFIG_SOC_AMD_COMMON_BLOCK_UCODE) += update_microcode.c
+romstage-y += cpu.c
+ramstage-y += cpu.c
 
 ifeq ($(CONFIG_SOC_AMD_COMMON_BLOCK_UCODE),y)
 define add-ucode-as-cbfs

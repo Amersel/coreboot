@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/mmio.h>
+#include <device/mmio.h>
 #include <device/pci.h>
 #include <device/pci_def.h>
 #include <device/pci_ids.h>
@@ -40,10 +40,10 @@ void nc_fpga_remap(uint32_t new_mmio)
 
 void nc_fpga_post(uint8_t value)
 {
-	/* The function pci_earyl_device_probe is called in bootblock and romstage. Make sure
+	/* The function pci_early_device_probe is called in bootblock and romstage. Make sure
 	   that in these stages the initialization code was successful before the POST code
 	   value is written to the register. */
 	if ((ENV_BOOTBLOCK || ENV_ROMSTAGE) && nc_fpga_present == false)
 		return;
-	write32((void *)(fpga_bar + NC_FPGA_POST_OFFSET), value);
+	write32p(fpga_bar + NC_FPGA_POST_OFFSET, value);
 }

@@ -26,8 +26,8 @@ static void add_fixed_resources(struct device *dev, int index)
 	struct resource *resource;
 
 	resource = new_resource(dev, index++);
-	resource->base = (resource_t) HPET_BASE_ADDRESS;
-	resource->size = (resource_t) 0x00100000;
+	resource->base = (resource_t)HPET_BASE_ADDRESS;
+	resource->size = (resource_t)0x00100000;
 	resource->flags = IORESOURCE_MEM
 			| IORESOURCE_RESERVE
 			| IORESOURCE_FIXED
@@ -118,7 +118,7 @@ void northbridge_write_smram(u8 smram)
 {
 	struct device *dev = pcidev_on_root(0, 0);
 
-	if (dev == NULL)
+	if (!dev)
 		die("could not find pci 00:00.0!\n");
 
 	pci_write_config8(dev, SMRAM, smram);
@@ -145,7 +145,7 @@ static const char *northbridge_acpi_name(const struct device *dev)
 	if (dev->path.type == DEVICE_PATH_DOMAIN)
 		return "PCI0";
 
-	if (dev->path.type != DEVICE_PATH_PCI || dev->bus->secondary != 0)
+	if (!is_pci_dev_on_bus(dev, 0))
 		return NULL;
 
 	switch (dev->path.pci.devfn) {

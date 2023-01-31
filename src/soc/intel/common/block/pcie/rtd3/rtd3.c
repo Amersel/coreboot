@@ -13,25 +13,6 @@
 #include <soc/iomap.h>
 #include "chip.h"
 
-/*
- * The "ExternalFacingPort" and "HotPlugSupportInD3" properties are defined at
- * https://docs.microsoft.com/en-us/windows-hardware/drivers/pci/dsd-for-pcie-root-ports
- */
-#define PCIE_EXTERNAL_PORT_UUID "EFCC06CC-73AC-4BC3-BFF0-76143807C389"
-#define PCIE_EXTERNAL_PORT_PROPERTY "ExternalFacingPort"
-
-#define PCIE_HOTPLUG_IN_D3_UUID "6211E2C0-58A3-4AF3-90E1-927A4E0C55A4"
-#define PCIE_HOTPLUG_IN_D3_PROPERTY "HotPlugSupportInD3"
-
-/*
- * This UUID and the resulting ACPI Device Property is defined by the
- * Power Management for Storage Hardware Devices:
- *
- * https://docs.microsoft.com/en-us/windows-hardware/design/component-guidelines/power-management-for-storage-hardware-devices-intro
- */
-#define PCIE_RTD3_STORAGE_UUID "5025030F-842F-4AB4-A561-99A5189762D0"
-#define PCIE_RTD3_STORAGE_PROPERTY "StorageD3Enable"
-
 /* PCIe Root Port registers for link status and L23 control. */
 #define PCH_PCIE_CFG_LSTS 0x52	  /* Link Status Register */
 #define PCH_PCIE_CFG_SPR 0xe0	  /* Scratchpad */
@@ -143,9 +124,29 @@ static void pcie_rtd3_acpi_method_srck(unsigned int pcie_rp,
 static void
 pcie_rtd3_acpi_method_on(unsigned int pcie_rp,
 			 const struct soc_intel_common_block_pcie_rtd3_config *config,
-			 enum pcie_rp_type rp_type)
+			 enum pcie_rp_type rp_type,
+			 const struct device *dev)
 {
+	const struct device *parent = dev->bus->dev;
+
 	acpigen_write_method_serialized("_ON", 0);
+
+	/* The _STA returns current power status of device, so we can skip _ON
+	 * if _STA returns 1
+	 * Example:
+	 * Local0 = \_SB.PCI0.RP01.RTD3._STA ()
+	 * If ((Local0 == One))
+	 * {
+	 *   Return (One)
+	 * }
+	 */
+	acpigen_write_store();
+	acpigen_emit_namestring(acpi_device_path_join(parent, "RTD3._STA"));
+	acpigen_emit_byte(LOCAL0_OP);
+	acpigen_write_if_lequal_op_int(LOCAL0_OP, ONE_OP);
+	acpigen_write_return_op(ONE_OP);
+	acpigen_write_if_end();
+
 
 	/* When this feature is enabled, ONSK indicates if the previous _OFF was
 	 * skipped. If so, since the device was not in Off state, and the current
@@ -347,7 +348,7 @@ static void pcie_rtd3_acpi_fill_ssdt(const struct device *dev)
 		FIELDLIST_NAMESTR(ACPI_REG_PCI_L23_RDY_DETECT, 1),
 	};
 	int pcie_rp;
-	struct acpi_dp *dsd, *pkg;
+	struct acpi_dp *dsd;
 
 	if (!is_dev_enabled(parent)) {
 		printk(BIOS_ERR, "%s: root port not enabled\n", __func__);
@@ -448,22 +449,22 @@ static void pcie_rtd3_acpi_fill_ssdt(const struct device *dev)
 	}
 
 	pcie_rtd3_acpi_method_status(config);
-	pcie_rtd3_acpi_method_on(pcie_rp, config, rp_type);
+	pcie_rtd3_acpi_method_on(pcie_rp, config, rp_type, dev);
 	pcie_rtd3_acpi_method_off(pcie_rp, config, rp_type);
 	acpigen_pop_len(); /* PowerResource */
 
 	/* Indicate to the OS that device supports hotplug in D3. */
 	dsd = acpi_dp_new_table("_DSD");
-	pkg = acpi_dp_new_table(PCIE_HOTPLUG_IN_D3_UUID);
-	acpi_dp_add_integer(pkg, PCIE_HOTPLUG_IN_D3_PROPERTY, 1);
-	acpi_dp_add_package(dsd, pkg);
+	acpi_device_add_hotplug_support_in_d3(dsd);
 
 	/* Indicate to the OS if the device provides an External facing port. */
-	if (config->is_external) {
-		pkg = acpi_dp_new_table(PCIE_EXTERNAL_PORT_UUID);
-		acpi_dp_add_integer(pkg, PCIE_EXTERNAL_PORT_PROPERTY, 1);
-		acpi_dp_add_package(dsd, pkg);
-	}
+	if (config->add_acpi_external_facing_port)
+		acpi_device_add_external_facing_port(dsd);
+
+	/* Indicate to the OS if the device has DMA property. */
+	if (config->add_acpi_dma_property)
+		acpi_device_add_dma_property(dsd);
+
 	acpi_dp_write(dsd);
 
 	/*
@@ -477,11 +478,7 @@ static void pcie_rtd3_acpi_fill_ssdt(const struct device *dev)
 		acpigen_write_STA(ACPI_STATUS_DEVICE_ALL_ON);
 		acpigen_write_name_integer("_S0W", ACPI_DEVICE_SLEEP_D3_COLD);
 
-		dsd = acpi_dp_new_table("_DSD");
-		pkg = acpi_dp_new_table(PCIE_RTD3_STORAGE_UUID);
-		acpi_dp_add_integer(pkg, PCIE_RTD3_STORAGE_PROPERTY, 1);
-		acpi_dp_add_package(dsd, pkg);
-		acpi_dp_write(dsd);
+		acpi_device_add_storage_d3_enable(NULL);
 
 		acpigen_pop_len(); /* Device */
 

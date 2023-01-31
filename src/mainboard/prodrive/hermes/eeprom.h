@@ -38,6 +38,12 @@ struct __packed eeprom_board_layout {
 _Static_assert(sizeof(struct eeprom_board_layout) == (617 + sizeof(uint32_t)),
 		"struct eeprom_board_layout has invalid size!");
 
+struct __packed eeprom_reset_cause_regs {
+	uint32_t gblrst_cause0;
+	uint32_t gblrst_cause1;
+	uint32_t hpr_cause0;
+};
+
 struct __packed eeprom_board_settings {
 	uint32_t signature;
 	union {
@@ -59,6 +65,11 @@ struct __packed eeprom_board_settings {
 	};
 };
 
+enum {
+	PRIMARY_VIDEO_ASPEED = 0,
+	PRIMARY_VIDEO_INTEL  = 1,
+};
+
 _Static_assert(sizeof(struct eeprom_board_settings) == (12 + sizeof(uint32_t)),
 		"struct eeprom_board_settings has invalid size!");
 
@@ -68,32 +79,39 @@ struct __packed eeprom_bmc_settings {
 	uint8_t efp3_displayport;
 };
 
-#define HERMES_SERIAL_NUMBER_LENGTH	32
+#define HERMES_SN_PN_LENGTH	32
 
 /* The EEPROM on address 0x57 has the following vendor defined layout: */
 struct __packed eeprom_layout {
 	union {
-		uint8_t RawFSPMUPD[0x600];
+		uint8_t raw_fspm_upd[0x600];
 		FSPM_UPD mupd;
 	};
 	union {
-		uint8_t RawFSPSUPD[0xc00];
+		uint8_t raw_fsps_upd[0xc00];
 		FSPS_UPD supd;
 	};
 	union {
-		uint8_t RawBoardLayout[0x400];
-		struct eeprom_board_layout BoardLayout;
+		uint8_t raw_board_layout[0x400];
+		struct eeprom_board_layout board_layout;
 	};
-	char system_serial_number[HERMES_SERIAL_NUMBER_LENGTH];
-	char board_serial_number[HERMES_SERIAL_NUMBER_LENGTH];
-	uint8_t BootOrder[0x8c0];
+	char system_serial_number[HERMES_SN_PN_LENGTH];
+	char board_serial_number[HERMES_SN_PN_LENGTH];
+	uint8_t boot_order[0x200];
+	char board_part_number[HERMES_SN_PN_LENGTH];
+	char product_part_number[HERMES_SN_PN_LENGTH];
 	union {
-		uint8_t RawBoardSetting[0xf8];
-		struct eeprom_board_settings BoardSettings;
+		struct eeprom_reset_cause_regs reset_cause_regs;
+		uint8_t raw_reset_cause_registers[0x80];
+	};
+	uint8_t unused[0x600];
+	union {
+		uint8_t raw_board_settings[0xf8];
+		struct eeprom_board_settings board_settings;
 	};
 	union {
-		uint8_t RawBMCSetting[0x8];
-		struct eeprom_bmc_settings BMCSettings;
+		uint8_t raw_bmc_settings[0x8];
+		struct eeprom_bmc_settings bmc_settings;
 	};
 };
 
@@ -105,8 +123,10 @@ bool eeprom_read_buffer(void *blob, size_t read_offset, size_t size);
 int check_signature(const size_t offset, const uint64_t signature);
 struct eeprom_board_settings *get_board_settings(void);
 struct eeprom_bmc_settings *get_bmc_settings(void);
+const char *eeprom_read_serial(size_t offset, const char *fallback);
 uint8_t get_bmc_hsi(void);
 void report_eeprom_error(const size_t off);
+bool eeprom_write_byte(const uint8_t data, const uint16_t write_offset);
 bool write_board_settings(const struct eeprom_board_layout *new_layout);
 
 #define READ_EEPROM(section_type, section_name, dest, opt_name)				\
@@ -123,5 +143,5 @@ bool write_board_settings(const struct eeprom_board_layout *new_layout);
 		}									\
 	} while (0)
 
-#define READ_EEPROM_FSP_M(dest, opt_name) READ_EEPROM(FSPM_UPD, RawFSPMUPD, dest, opt_name)
-#define READ_EEPROM_FSP_S(dest, opt_name) READ_EEPROM(FSPS_UPD, RawFSPSUPD, dest, opt_name)
+#define READ_EEPROM_FSP_M(dest, opt_name) READ_EEPROM(FSPM_UPD, raw_fspm_upd, dest, opt_name)
+#define READ_EEPROM_FSP_S(dest, opt_name) READ_EEPROM(FSPS_UPD, raw_fsps_upd, dest, opt_name)

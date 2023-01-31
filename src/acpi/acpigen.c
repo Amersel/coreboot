@@ -256,7 +256,7 @@ static void acpigen_emit_multi_namestring(const char *name)
 	unsigned char *pathlen;
 	acpigen_emit_byte(MULTI_NAME_PREFIX);
 	acpigen_emit_byte(ZERO_OP);
-	pathlen = ((unsigned char *) acpigen_get_current()) - 1;
+	pathlen = ((unsigned char *)acpigen_get_current()) - 1;
 
 	while (name[0] != '\0') {
 		acpigen_emit_simple_namestring(name);
@@ -388,19 +388,22 @@ void acpigen_set_package_element_namestr(const char *package, unsigned int eleme
 	acpigen_emit_byte(ZERO_OP); /* Ignore Index() Destination */
 }
 
+void acpigen_write_processor_namestring(unsigned int cpu_index)
+{
+	char buffer[16];
+	snprintf(buffer, sizeof(buffer), CONFIG_ACPI_CPU_STRING, cpu_index);
+	acpigen_emit_namestring(buffer);
+}
+
 void acpigen_write_processor(u8 cpuindex, u32 pblock_addr, u8 pblock_len)
 {
 /*
 	Processor (\_SB.CPcpuindex, cpuindex, pblock_addr, pblock_len)
 	{
 */
-	char pscope[16];
 	acpigen_emit_ext_op(PROCESSOR_OP);
 	acpigen_write_len_f();
-
-	snprintf(pscope, sizeof(pscope),
-		 CONFIG_ACPI_CPU_STRING, (unsigned int) cpuindex);
-	acpigen_emit_namestring(pscope);
+	acpigen_write_processor_namestring(cpuindex);
 	acpigen_emit_byte(cpuindex);
 	acpigen_emit_dword(pblock_addr);
 	acpigen_emit_byte(pblock_len);
@@ -410,14 +413,13 @@ void acpigen_write_processor_package(const char *const name, const unsigned int 
 				     const unsigned int core_count)
 {
 	unsigned int i;
-	char pscope[16];
 
 	acpigen_write_name(name);
 	acpigen_write_package(core_count);
-	for (i = first_core; i < first_core + core_count; ++i) {
-		snprintf(pscope, sizeof(pscope), CONFIG_ACPI_CPU_STRING, i);
-		acpigen_emit_namestring(pscope);
-	}
+
+	for (i = first_core; i < first_core + core_count; ++i)
+		acpigen_write_processor_namestring(i);
+
 	acpigen_pop_len();
 }
 
@@ -428,10 +430,8 @@ void acpigen_write_processor_cnot(const unsigned int number_of_cores)
 
 	acpigen_write_method("\\_SB.CNOT", 1);
 	for (core_id = 0; core_id < number_of_cores; core_id++) {
-		char buffer[DEVICE_PATH_MAX];
-		snprintf(buffer, sizeof(buffer), CONFIG_ACPI_CPU_STRING, core_id);
 		acpigen_emit_byte(NOTIFY_OP);
-		acpigen_emit_namestring(buffer);
+		acpigen_write_processor_namestring(core_id);
 		acpigen_emit_byte(ARG0_OP);
 	}
 	acpigen_pop_len();
@@ -532,7 +532,7 @@ static void acpigen_write_field_offset(uint32_t offset, uint32_t current_bit_pos
 	acpigen_write_field_length(diff_bits);
 }
 
-static void acpigen_write_field_name(const char *name, uint32_t size)
+void acpigen_write_field_name(const char *name, uint32_t size)
 {
 	acpigen_emit_simple_namestring(name);
 	acpigen_write_field_length(size);
@@ -1402,6 +1402,33 @@ void acpigen_write_not(uint8_t arg, uint8_t res)
 	acpigen_emit_byte(res);
 }
 
+/* Concatenate (str1, str2, res) */
+void acpigen_concatenate_string_string(const char *str1, const char *str2, uint8_t res)
+{
+	acpigen_emit_byte(CONCATENATE_OP);
+	acpigen_write_string(str1);
+	acpigen_write_string(str2);
+	acpigen_emit_byte(res);
+}
+
+/* Concatenate (str, val, tmp_res) */
+void acpigen_concatenate_string_int(const char *str, uint64_t val, uint8_t res)
+{
+	acpigen_emit_byte(CONCATENATE_OP);
+	acpigen_write_string(str);
+	acpigen_write_integer(val);
+	acpigen_emit_byte(res);
+}
+
+/* Concatenate (str, src_res, dest_res) */
+void acpigen_concatenate_string_op(const char *str, uint8_t src_res, uint8_t dest_res)
+{
+	acpigen_emit_byte(CONCATENATE_OP);
+	acpigen_write_string(str);
+	acpigen_emit_byte(src_res);
+	acpigen_emit_byte(dest_res);
+}
+
 /* Store (str, DEBUG) */
 void acpigen_write_debug_string(const char *str)
 {
@@ -1432,6 +1459,33 @@ void acpigen_write_debug_namestr(const char *str)
 	acpigen_write_store();
 	acpigen_emit_namestring(str);
 	acpigen_emit_ext_op(DEBUG_OP);
+}
+
+/* Concatenate (str1, str2, tmp_res)
+   Store(tmp_res, DEBUG) */
+void acpigen_write_debug_concatenate_string_string(const char *str1, const char *str2,
+	uint8_t tmp_res)
+{
+	acpigen_concatenate_string_string(str1, str2, tmp_res);
+	acpigen_write_debug_op(tmp_res);
+}
+
+/* Concatenate (str1, val, tmp_res)
+   Store(tmp_res, DEBUG) */
+void acpigen_write_debug_concatenate_string_int(const char *str, uint64_t val,
+	uint8_t tmp_res)
+{
+	acpigen_concatenate_string_int(str, val, tmp_res);
+	acpigen_write_debug_op(tmp_res);
+}
+
+/* Concatenate (str1, res, tmp_res)
+   Store(tmp_res, DEBUG) */
+void acpigen_write_debug_concatenate_string_op(const char *str, uint8_t res,
+	uint8_t tmp_res)
+{
+	acpigen_concatenate_string_op(str, res, tmp_res);
+	acpigen_write_debug_op(tmp_res);
 }
 
 void acpigen_write_if(void)

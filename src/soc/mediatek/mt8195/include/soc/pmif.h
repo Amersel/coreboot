@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
+/* SPDX-License-Identifier: GPL-2.0-only OR MIT */
 
 #ifndef __MT8195_SOC_PMIF_H__
 #define __MT8195_SOC_PMIF_H__
@@ -6,6 +6,10 @@
 #include <device/mmio.h>
 #include <soc/pmif_common.h>
 #include <types.h>
+
+/* indicate which number SW channel start, by project */
+#define PMIF_SPMI_SW_CHAN	BIT(6)
+#define PMIF_SPMI_INF		0x2F7
 
 struct mtk_pmif_regs {
 	u32 init_done;

@@ -1,14 +1,13 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/io.h>
 #include <device/mmio.h>
 #include <bootstate.h>
 #include <console/console.h>
 #include <cpu/x86/smm.h>
 #include <delay.h>
 #include <device/pci.h>
+#include <gpio.h>
 #include <intelblocks/cse.h>
-#include <intelblocks/gpio.h>
 #include <intelblocks/lpc_lib.h>
 #include <intelblocks/pcr.h>
 #include <intelblocks/pmclib.h>
@@ -64,6 +63,13 @@ static void sa_finalize(void)
 		sa_lock_pam();
 }
 
+static void heci_finalize(void)
+{
+	heci_set_to_d0i3();
+	if (CONFIG(DISABLE_HECI1_AT_PRE_BOOT))
+		heci1_disable();
+}
+
 static void soc_finalize(void *unused)
 {
 	printk(BIOS_DEBUG, "Finalizing chipset.\n");
@@ -72,9 +78,9 @@ static void soc_finalize(void *unused)
 	apm_control(APM_CNT_FINALIZE);
 	tbt_finalize();
 	sa_finalize();
-	heci_set_to_d0i3();
-	if (CONFIG(DISABLE_HECI1_AT_PRE_BOOT))
-		heci1_disable();
+	if (CONFIG(USE_FSP_NOTIFY_PHASE_READY_TO_BOOT) &&
+			 CONFIG(USE_FSP_NOTIFY_PHASE_END_OF_FIRMWARE))
+		heci_finalize();
 
 	/* Indicate finalize step with post code */
 	post_code(POST_OS_BOOT);

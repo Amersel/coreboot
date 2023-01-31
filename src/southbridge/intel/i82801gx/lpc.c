@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <cpu/intel/speedstep.h>
 #include <console/console.h>
 #include <device/device.h>
 #include <device/pci.h>
@@ -33,7 +34,7 @@
  */
 static void i82801gx_enable_ioapic(struct device *dev)
 {
-	setup_ioapic(VIO_APIC_VADDR, 0x02);
+	register_new_ioapic_gsi0(VIO_APIC_VADDR);
 }
 
 static void i82801gx_enable_serial_irqs(struct device *dev)
@@ -86,7 +87,7 @@ static void i82801gx_pirq_init(struct device *dev)
 	for (irq_dev = all_devices; irq_dev; irq_dev = irq_dev->next) {
 		u8 int_pin = 0, int_line = 0;
 
-		if (!irq_dev->enabled || irq_dev->path.type != DEVICE_PATH_PCI)
+		if (!is_enabled_pci(irq_dev))
 			continue;
 
 		int_pin = pci_read_config8(irq_dev, PCI_INTERRUPT_PIN);
@@ -284,7 +285,6 @@ static void i82801gx_set_acpi_mode(struct device *dev)
 	}
 }
 
-#define SPIBASE 0x3020
 static void i82801gx_spi_init(void)
 {
 	u16 spicontrol;
@@ -352,19 +352,10 @@ static void lpc_init(struct device *dev)
 unsigned long acpi_fill_madt(unsigned long current)
 {
 	/* Local APICs */
-	current = acpi_create_madt_lapics(current);
+	current = acpi_create_madt_lapics_with_nmis(current);
 
 	/* IOAPIC */
-	current += acpi_create_madt_ioapic((acpi_madt_ioapic_t *) current, 2, IO_APIC_ADDR, 0);
-
-	/* LAPIC_NMI */
-	current += acpi_create_madt_lapic_nmi((acpi_madt_lapic_nmi_t *)
-				current, 0,
-				MP_IRQ_POLARITY_HIGH |
-				MP_IRQ_TRIGGER_EDGE, 0x01);
-	current += acpi_create_madt_lapic_nmi((acpi_madt_lapic_nmi_t *)
-				current, 1, MP_IRQ_POLARITY_HIGH |
-				MP_IRQ_TRIGGER_EDGE, 0x01);
+	current += acpi_create_madt_ioapic_from_hw((acpi_madt_ioapic_t *)current, IO_APIC_ADDR);
 
 	/* INT_SRC_OVR */
 	current += acpi_create_madt_irqoverride((acpi_madt_irqoverride_t *)
@@ -417,9 +408,6 @@ static void i82801gx_lpc_read_resources(struct device *dev)
 	}
 }
 
-#define SPIBAR16(x) RCBA16(0x3020 + x)
-#define SPIBAR32(x) RCBA32(0x3020 + x)
-
 static void lpc_final(struct device *dev)
 {
 	u16 tco1_cnt;
@@ -445,7 +433,7 @@ static void lpc_final(struct device *dev)
 	outw(tco1_cnt, DEFAULT_PMBASE + 0x60 + TCO1_CNT);
 
 	/* Indicate finalize step with post code */
-	outb(POST_OS_BOOT, 0x80);
+	post_code(POST_OS_BOOT);
 }
 
 static const char *lpc_acpi_name(const struct device *dev)
@@ -486,3 +474,13 @@ static const struct pci_driver ich7_lpc __pci_driver = {
 	.vendor	= PCI_VID_INTEL,
 	.devices = pci_device_ids,
 };
+
+bool southbridge_support_c5(void)
+{
+	return false;
+}
+
+bool southbridge_support_c6(void)
+{
+	return false;
+}

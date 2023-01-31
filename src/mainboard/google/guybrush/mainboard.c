@@ -4,9 +4,11 @@
 #include <acpi/acpigen.h>
 #include <amdblocks/acpimmio.h>
 #include <amdblocks/amd_pci_util.h>
+#include <amdblocks/psp.h>
 #include <baseboard/variants.h>
 #include <console/console.h>
 #include <device/device.h>
+#include <drivers/i2c/tpm/chip.h>
 #include <gpio.h>
 #include <soc/acpi.h>
 #include <variant/ec.h>
@@ -20,19 +22,8 @@
 #define METHOD_MAINBOARD_PTS		"\\_SB.MPTS"
 #define METHOD_MAINBOARD_S0X		"\\_SB.MS0X"
 
-/*
- * These arrays set up the FCH PCI_INTR registers 0xC00/0xC01.
- * This table is responsible for physically routing the PIC and
- * IOAPIC IRQs to the different PCI devices on the system.  It
- * is read and written via registers 0xC00/0xC01 as an
- * Index/Data pair.  These values are chipset and mainboard
- * dependent and should be updated accordingly.
- */
-static uint8_t fch_pic_routing[0x80];
-static uint8_t fch_apic_routing[0x80];
-
-_Static_assert(sizeof(fch_pic_routing) == sizeof(fch_apic_routing),
-	"PIC and APIC FCH interrupt tables must be the same size");
+/* The IRQ mapping in fch_irq_map ends up getting written to the indirect address space that is
+   accessed via I/O ports 0xc00/0xc01. */
 
 /*
  * This controls the device -> IRQ routing.
@@ -44,11 +35,7 @@ _Static_assert(sizeof(fch_pic_routing) == sizeof(fch_apic_routing),
  *  8: rtc0 <- soc/amd/common/acpi/lpc.asl
  *  9: acpi <- soc/amd/common/acpi/lpc.asl
  */
-static const struct fch_irq_routing {
-	uint8_t intr_index;
-	uint8_t pic_irq_num;
-	uint8_t apic_irq_num;
-} guybrush_fch[] = {
+static const struct fch_irq_routing fch_irq_map[] = {
 	{ PIRQ_A,	12,		PIRQ_NC },
 	{ PIRQ_B,	14,		PIRQ_NC },
 	{ PIRQ_C,	15,		PIRQ_NC },
@@ -78,25 +65,10 @@ static const struct fch_irq_routing {
 	{ PIRQ_HPET_H,	0x00,		0x00 },
 };
 
-static void init_tables(void)
+const struct fch_irq_routing *mb_get_fch_irq_mapping(size_t *length)
 {
-	const struct fch_irq_routing *entry;
-	int i;
-
-	memset(fch_pic_routing, PIRQ_NC, sizeof(fch_pic_routing));
-	memset(fch_apic_routing, PIRQ_NC, sizeof(fch_apic_routing));
-
-	for (i = 0; i < ARRAY_SIZE(guybrush_fch); i++) {
-		entry = guybrush_fch + i;
-		fch_pic_routing[entry->intr_index] = entry->pic_irq_num;
-		fch_apic_routing[entry->intr_index] = entry->apic_irq_num;
-	}
-}
-
-static void pirq_setup(void)
-{
-	intr_data_ptr = fch_apic_routing;
-	picr_data_ptr = fch_pic_routing;
+	*length = ARRAY_SIZE(fch_irq_map);
+	return fch_irq_map;
 }
 
 static void mainboard_configure_gpios(void)
@@ -104,7 +76,7 @@ static void mainboard_configure_gpios(void)
 	size_t base_num_gpios, override_num_gpios;
 	const struct soc_amd_gpio *base_gpios, *override_gpios;
 
-	base_gpios = variant_base_gpio_table(&base_num_gpios);
+	base_gpios = baseboard_gpio_table(&base_num_gpios);
 	override_gpios = variant_override_gpio_table(&override_num_gpios);
 
 	gpio_configure_pads_with_override(base_gpios, base_num_gpios, override_gpios,
@@ -115,11 +87,22 @@ void __weak variant_devtree_update(void)
 {
 }
 
+static void configure_psp_tpm_gpio(void)
+{
+	const struct device *cr50_dev = DEV_PTR(cr50);
+	struct drivers_i2c_tpm_config *cfg = config_of(cr50_dev);
+
+	psp_set_tpm_irq_gpio(cfg->irq_gpio.pins[0]);
+}
+
 static void mainboard_init(void *chip_info)
 {
 	mainboard_configure_gpios();
 	mainboard_ec_init();
 	variant_devtree_update();
+
+	/* Run this after variant_devtree_update so the IRQ is correct. */
+	configure_psp_tpm_gpio();
 }
 
 static void mainboard_write_blken(void)
@@ -197,10 +180,6 @@ static void mainboard_enable(struct device *dev)
 	printk(BIOS_INFO, "Mainboard " CONFIG_MAINBOARD_PART_NUMBER " Enable.\n");
 
 	dev->ops->acpi_fill_ssdt = mainboard_fill_ssdt;
-
-	init_tables();
-	/* Initialize the PIRQ data structures for consumption */
-	pirq_setup();
 
 	/* TODO: b/184678786 - Move into espi_config */
 	/* Unmask eSPI IRQ 1 (Keyboard) */

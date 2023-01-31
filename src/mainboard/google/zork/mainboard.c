@@ -1,20 +1,18 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 
-#include <string.h>
 #include <console/console.h>
 #include <device/device.h>
 #include <device/mmio.h>
 #include <acpi/acpi.h>
 #include <acpi/acpigen.h>
 #include <amdblocks/amd_pci_util.h>
-#include <amdblocks/gpio.h>
 #include <amdblocks/smi.h>
 #include <baseboard/variants.h>
 #include <boardid.h>
 #include <gpio.h>
 #include <smbios.h>
+#include <soc/acpi.h>
 #include <soc/cpu.h>
-#include <soc/gpio.h>
 #include <soc/pci_devs.h>
 #include <soc/platform_descriptors.h>
 #include <soc/southbridge.h>
@@ -31,19 +29,8 @@
 #define METHOD_MAINBOARD_WAK       "\\_SB.MWAK"
 #define METHOD_MAINBOARD_PTS       "\\_SB.MPTS"
 
-/***********************************************************
- * These arrays set up the FCH PCI_INTR registers 0xC00/0xC01.
- * This table is responsible for physically routing the PIC and
- * IOAPIC IRQs to the different PCI devices on the system.  It
- * is read and written via registers 0xC00/0xC01 as an
- * Index/Data pair.  These values are chipset and mainboard
- * dependent and should be updated accordingly.
- */
-static uint8_t fch_pic_routing[0x80];
-static uint8_t fch_apic_routing[0x80];
-
-_Static_assert(sizeof(fch_pic_routing) == sizeof(fch_apic_routing),
-	"PIC and APIC FCH interrupt tables must be the same size");
+/* The IRQ mapping in fch_irq_map ends up getting written to the indirect address space that is
+   accessed via I/O ports 0xc00/0xc01. */
 
 /*
  * This controls the device -> IRQ routing.
@@ -56,11 +43,7 @@ _Static_assert(sizeof(fch_pic_routing) == sizeof(fch_apic_routing),
  *  9: acpi <- soc/amd/common/acpi/lpc.asl
  * 12: i8042 <- ec/google/chromeec/acpi/superio.asl
  */
-static const struct fch_irq_routing {
-	uint8_t intr_index;
-	uint8_t pic_irq_num;
-	uint8_t apic_irq_num;
-} fch_pirq[] = {
+static const struct fch_irq_routing fch_irq_map[] = {
 	{ PIRQ_A,	6,		PIRQ_NC },
 	{ PIRQ_B,	13,		PIRQ_NC },
 	{ PIRQ_C,	14,		PIRQ_NC },
@@ -70,7 +53,7 @@ static const struct fch_irq_routing {
 	{ PIRQ_G,	13,		PIRQ_NC },
 	{ PIRQ_H,	6,		PIRQ_NC },
 
-	{ PIRQ_SCI,	9,		9 },
+	{ PIRQ_SCI,	ACPI_SCI_IRQ,	ACPI_SCI_IRQ },
 	{ PIRQ_EMMC,	5,		5 },
 	{ PIRQ_GPIO,	7,		7 },
 	{ PIRQ_I2C2,	10,		10 },
@@ -85,26 +68,10 @@ static const struct fch_irq_routing {
 	{ PIRQ_MISC2,	0x00,		0x00 },
 };
 
-static void init_tables(void)
+const struct fch_irq_routing *mb_get_fch_irq_mapping(size_t *length)
 {
-	const struct fch_irq_routing *entry;
-	int i;
-
-	memset(fch_pic_routing, PIRQ_NC, sizeof(fch_pic_routing));
-	memset(fch_apic_routing, PIRQ_NC, sizeof(fch_apic_routing));
-
-	for (i = 0; i < ARRAY_SIZE(fch_pirq); i++) {
-		entry = fch_pirq + i;
-		fch_pic_routing[entry->intr_index] = entry->pic_irq_num;
-		fch_apic_routing[entry->intr_index] = entry->apic_irq_num;
-	}
-}
-
-/* PIRQ Setup */
-static void pirq_setup(void)
-{
-	intr_data_ptr = fch_apic_routing;
-	picr_data_ptr = fch_pic_routing;
+	*length = ARRAY_SIZE(fch_irq_map);
+	return fch_irq_map;
 }
 
 static void mainboard_configure_gpios(void)
@@ -112,7 +79,7 @@ static void mainboard_configure_gpios(void)
 	size_t base_num_gpios, override_num_gpios;
 	const struct soc_amd_gpio *base_gpios, *override_gpios;
 
-	base_gpios = variant_base_gpio_table(&base_num_gpios);
+	base_gpios = baseboard_gpio_table(&base_num_gpios);
 	override_gpios = variant_override_gpio_table(&override_num_gpios);
 
 	gpio_configure_pads_with_override(base_gpios, base_num_gpios, override_gpios,
@@ -198,12 +165,7 @@ static void mainboard_fill_ssdt(const struct device *dev)
  *************************************************/
 static void mainboard_enable(struct device *dev)
 {
-	init_tables();
-	/* Initialize the PIRQ data structures for consumption */
-	pirq_setup();
-
 	dev->ops->acpi_fill_ssdt = mainboard_fill_ssdt;
-
 }
 
 static void mainboard_final(void *chip_info)

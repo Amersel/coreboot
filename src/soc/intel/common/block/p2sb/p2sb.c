@@ -131,7 +131,7 @@ static void read_resources(struct device *dev)
 	mmio_resource_kb(dev, PCI_BASE_ADDRESS_0, P2SB_BAR / KiB, P2SB_SIZE / KiB);
 }
 
-static const struct device_operations device_ops = {
+const struct device_operations p2sb_ops = {
 	.read_resources		= read_resources,
 	.set_resources		= noop_set_resources,
 	.ops_pci		= &pci_dev_ops_pci,
@@ -144,12 +144,8 @@ static const unsigned short pci_device_ids[] = {
 	PCI_DID_INTEL_GLK_P2SB,
 	PCI_DID_INTEL_LWB_P2SB,
 	PCI_DID_INTEL_LWB_P2SB_SUPER,
-	PCI_DID_INTEL_SKL_LP_P2SB,
-	PCI_DID_INTEL_SKL_P2SB,
-	PCI_DID_INTEL_KBL_P2SB,
 	PCI_DID_INTEL_CNL_P2SB,
 	PCI_DID_INTEL_CNP_H_P2SB,
-	PCI_DID_INTEL_ICL_P2SB,
 	PCI_DID_INTEL_CMP_P2SB,
 	PCI_DID_INTEL_CMP_H_P2SB,
 	PCI_DID_INTEL_TGL_P2SB,
@@ -159,11 +155,12 @@ static const unsigned short pci_device_ids[] = {
 	PCI_DID_INTEL_ADP_P_P2SB,
 	PCI_DID_INTEL_ADP_S_P2SB,
 	PCI_DID_INTEL_ADP_M_P2SB,
+	PCI_DID_INTEL_SPR_SP_P2SB,
 	0,
 };
 
 static const struct pci_driver pmc __pci_driver = {
-	.ops		= &device_ops,
+	.ops		= &p2sb_ops,
 	.vendor		= PCI_VID_INTEL,
 	.devices	= pci_device_ids,
 };

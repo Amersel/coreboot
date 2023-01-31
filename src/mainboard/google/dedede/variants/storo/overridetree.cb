@@ -7,6 +7,10 @@ fw_config
 end
 
 chip soc/intel/jasperlake
+	# Disable PCIe Root Port 8 (index 7)
+	register "PcieRpEnable[7]" = "0"
+	# Disable PCIe Clock Source 4 (index 3)
+	register "PcieClkSrcUsage[3]" = "0xff"
 
 	# USB Port Configuration
 	register "usb2_ports[5]" = "USB2_PORT_MID(OC_SKIP)" # User Facing Camera
@@ -176,7 +180,7 @@ chip soc/intel/jasperlake
 				register "desc" = ""ELAN Touchpad""
 				register "irq" = "ACPI_IRQ_WAKE_EDGE_LOW(GPP_B3_IRQ)"
 				register "wake" = "GPE0_DW0_03"
-				register "probed" = "1"
+				register "detect" = "1"
 				device i2c 15 on end
 			end
 		end #I2C 0
@@ -196,7 +200,7 @@ chip soc/intel/jasperlake
 				register "generic.hid" = ""ELAN9008""
 				register "generic.desc" = ""ELAN Touchscreen""
 				register "generic.irq" = "ACPI_IRQ_LEVEL_LOW(GPP_D4_IRQ)"
-				register "generic.probed" = "1"
+				register "generic.detect" = "1"
 				register "generic.reset_gpio" =
 							"ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPP_D5)"
 				register "generic.enable_gpio" =

@@ -28,11 +28,13 @@ $$(VBOOT_LIB_$(1)): $(obj)/config.h
 	CC="$$(CC_$(1))" \
 	CFLAGS="$$(VBOOT_CFLAGS_$(1))" VBOOT2="y" \
 	EC_EFS="$(CONFIG_VBOOT_EC_EFS)" \
-	X86_SHA_EXT="$(CONFIG_VBOOT_X86_SHA256_ACCELERATION)" \
+	X86_SHA_EXT="$(if $(CONFIG_ARCH_$(call toupper,$(1))_X86_32)$(CONFIG_ARCH_$(call toupper,$(1))_X86_64),$\
+			$(CONFIG_VBOOT_X86_SHA256_ACCELERATION))" \
 	$(MAKE) -C $(VBOOT_SOURCE) \
 		BUILD=$$(abspath $$(dir $$(VBOOT_LIB_$(1)))) \
 		V=$(V) \
-		fwlib
+		fwlib \
+		$(if $(CONFIG_SBOM_VBOOT),$$(abspath $$(dir $$(VBOOT_LIB_$(1))))/vboot_host.pc)
 
 $(1)-srcs += $$(VBOOT_LIB_$(1))
 
@@ -59,6 +61,7 @@ bootblock-y += vbnv.c
 verstage-y += vbnv.c
 romstage-y += vbnv.c
 ramstage-y += vbnv.c
+postcar-y += vbnv.c
 
 romstage-$(CONFIG_VBOOT_EARLY_EC_SYNC) += ec_sync.c
 
@@ -66,16 +69,24 @@ bootblock-$(CONFIG_VBOOT_VBNV_CMOS) += vbnv_cmos.c
 verstage-$(CONFIG_VBOOT_VBNV_CMOS) += vbnv_cmos.c
 romstage-$(CONFIG_VBOOT_VBNV_CMOS) += vbnv_cmos.c
 ramstage-$(CONFIG_VBOOT_VBNV_CMOS) += vbnv_cmos.c
+postcar-$(CONFIG_VBOOT_VBNV_CMOS) += vbnv_cmos.c
 
+$(call src-to-obj,bootblock,$(dir)/vbnv_flash.c) : $(obj)/fmap_config.h
+$(call src-to-obj,verstage,$(dir)/vbnv_flash.c) : $(obj)/fmap_config.h
+$(call src-to-obj,romstage,$(dir)/vbnv_flash.c) : $(obj)/fmap_config.h
+$(call src-to-obj,ramstage,$(dir)/vbnv_flash.c) : $(obj)/fmap_config.h
+$(call src-to-obj,postcar,$(dir)/vbnv_flash.c) : $(obj)/fmap_config.h
 bootblock-$(CONFIG_VBOOT_VBNV_CMOS_BACKUP_TO_FLASH) += vbnv_flash.c
 verstage-$(CONFIG_VBOOT_VBNV_CMOS_BACKUP_TO_FLASH) += vbnv_flash.c
 romstage-$(CONFIG_VBOOT_VBNV_CMOS_BACKUP_TO_FLASH) += vbnv_flash.c
 ramstage-$(CONFIG_VBOOT_VBNV_CMOS_BACKUP_TO_FLASH) += vbnv_flash.c
+postcar-$(CONFIG_VBOOT_VBNV_CMOS_BACKUP_TO_FLASH) += vbnv_flash.c
 
 bootblock-$(CONFIG_VBOOT_VBNV_FLASH) += vbnv_flash.c
 verstage-$(CONFIG_VBOOT_VBNV_FLASH) += vbnv_flash.c
 romstage-$(CONFIG_VBOOT_VBNV_FLASH) += vbnv_flash.c
 ramstage-$(CONFIG_VBOOT_VBNV_FLASH) += vbnv_flash.c
+postcar-$(CONFIG_VBOOT_VBNV_FLASH) += vbnv_flash.c
 
 bootblock-y += vboot_loader.c
 romstage-y += vboot_loader.c
@@ -291,6 +302,8 @@ endif
 
 fmap-section-offset-cmd = $(FUTILITY) dump_fmap -p $(obj)/coreboot.rom | \
 					grep '^$(1) ' | cut '-d ' -f2
+fmap-section-size-cmd =   $(FUTILITY) dump_fmap -p $(obj)/coreboot.rom | \
+					grep '^$(1) ' | cut '-d ' -f3
 
 ifeq ($(CONFIG_VBOOT_GSCVD),y)
 #
@@ -344,39 +357,21 @@ files_added:: $(FUTILITY)
 		$(obj)/coreboot.rom
 endif
 
-# Extract FW_MAIN_? region and minimize it if the last file is empty, so it
-# doesn't contain this empty file (that can have a significant size),
-# improving a lot on hash times due to a smaller amount of data loaded from
-# firmware storage.
-# When passing the minimized image to vbutil_firmware, its length is recorded
-# in the keyblock, and coreboot's vboot code clips the region_device to match,
-# which prevents any potential extension attacks.
-$(obj)/FW_MAIN_%.bin: $(obj)/coreboot.rom
-	$(CBFSTOOL) $< truncate -r $(basename $(notdir $@)) > $@.tmp.size
-	$(CBFSTOOL) $< read -r $(basename $(notdir $@)) -f $@.tmp
-	head -c $$( printf "%d" $$(cat $@.tmp.size)) $@.tmp > $@.tmp2
-	mv $@.tmp2 $@
-	rm -f $@.tmp $@.tmp.size
-
-$(obj)/VBLOCK_%.bin: $(obj)/FW_MAIN_%.bin $(FUTILITY)
-	$(FUTILITY) vbutil_firmware \
-		--vblock $@ \
-		--keyblock "$(CONFIG_VBOOT_KEYBLOCK)" \
+ifneq (,$(filter y,$(CONFIG_VBOOT_SLOTS_RW_A) $(CONFIG_VBOOT_SLOTS_RW_AB)))
+files_added:: $(obj)/coreboot.rom $(FUTILITY) $(CBFSTOOL)
+	CBFSTOOL="$(CBFSTOOL)" \
+	$(FUTILITY) sign \
 		--signprivate "$(CONFIG_VBOOT_FIRMWARE_PRIVKEY)" \
-		--version $(CONFIG_VBOOT_KEYBLOCK_VERSION) \
-		--fv $< \
+		--keyblock "$(CONFIG_VBOOT_KEYBLOCK)" \
 		--kernelkey "$(CONFIG_VBOOT_KERNEL_KEY)" \
-		--flags $(CONFIG_VBOOT_KEYBLOCK_PREAMBLE_FLAGS)
-
-ifeq ($(CONFIG_VBOOT_SLOTS_RW_AB),y)
-files_added:: $(obj)/VBLOCK_A.bin $(obj)/VBLOCK_B.bin
-	$(CBFSTOOL) $(obj)/coreboot.rom write -u -r VBLOCK_A -f $(obj)/VBLOCK_A.bin
-	$(CBFSTOOL) $(obj)/coreboot.rom write -u -r VBLOCK_B -f $(obj)/VBLOCK_B.bin
-	@printf "    FLASHMAP Layout generated for RO, A and B partition.\n"
-else ifeq ($(CONFIG_VBOOT_SLOTS_RW_A),y)
-files_added:: $(obj)/VBLOCK_A.bin
-	$(CBFSTOOL) $(obj)/coreboot.rom write -u -r VBLOCK_A -f $(obj)/VBLOCK_A.bin
-	@printf "    FLASHMAP Layout generated for RO and A partition.\n"
+		--version $(CONFIG_VBOOT_KEYBLOCK_VERSION) \
+		--flags $(CONFIG_VBOOT_KEYBLOCK_PREAMBLE_FLAGS) \
+		$(obj)/coreboot.rom
+	if [ "$(CONFIG_VBOOT_SLOTS_RW_AB)" = 'y' ]; then \
+		printf "    FLASHMAP Layout generated for RO, A and B partition.\n"; \
+	elif [ "$(CONFIG_VBOOT_SLOTS_RW_A)" = 'y' ]; then \
+		printf "    FLASHMAP Layout generated for RO and A partition.\n"; \
+	fi
 else
 files_added::
 	@printf "    FLASHMAP Layout generated for RO partition only.\n"

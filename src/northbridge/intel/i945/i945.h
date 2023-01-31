@@ -3,12 +3,10 @@
 #ifndef NORTHBRIDGE_INTEL_I945_H
 #define NORTHBRIDGE_INTEL_I945_H
 
-#define DEFAULT_X60BAR		0xfed13000
-
+#include <northbridge/intel/common/fixed_bars.h>
 #include <southbridge/intel/i82801gx/i82801gx.h>
 
-/* Everything below this line is ignored in the DSDT */
-#ifndef __ACPI__
+#define DEFAULT_X60BAR		0xfed13000
 
 /* Display defines for the interrupt 15h handler */
 #define INT15_5F35_CL_DISPLAY_DEFAULT		0
@@ -85,12 +83,6 @@
 #define GTTADR		0x1c
 #define BSM		0x5c
 #define GCFC		0xf0	/* Graphics Clock Frequency & Gating Control */
-
-/*
- * MCHBAR
- */
-
-#include <northbridge/intel/common/fixed_bars.h>
 
 /* Chipset Control Registers */
 #define FSBPMC3		0x40	/* 32bit */
@@ -352,7 +344,5 @@ void mainboard_pre_raminit_config(int s3_resume);
 void mainboard_late_rcba_config(void);
 /* Optional: mainboard callback to get SPD map */
 void mainboard_get_spd_map(u8 spd_map[4]);
-
-#endif /* __ACPI__ */
 
 #endif /* NORTHBRIDGE_INTEL_I945_H */

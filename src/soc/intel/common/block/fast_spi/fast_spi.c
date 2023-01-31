@@ -210,7 +210,7 @@ void fast_spi_set_strap_msg_data(uint32_t soft_reset_data)
 	/* Write Soft Reset Data register at SPIBAR0 offset 0xF8[0:15] */
 	write32(spibar + SPIBAR_RESET_DATA, soft_reset_data);
 
-	/* Set Strap Mux Select  set to '1' */
+	/* Set Strap Mux Select set to '1' */
 	ssms = read32(spibar + SPIBAR_RESET_CTRL);
 	ssms |= SPIBAR_RESET_CTRL_SSMC;
 	write32(spibar + SPIBAR_RESET_CTRL, ssms);
@@ -522,7 +522,6 @@ static void fast_spi_fill_ssdt(const struct device *dev)
 	acpigen_pop_len(); /* Scope */
 }
 
-
 static void fast_spi_read_resources(struct device *dev)
 {
 	/* Read standard PCI resources. */
@@ -530,6 +529,11 @@ static void fast_spi_read_resources(struct device *dev)
 
 	/* Add SPI flash MMIO window as a reserved resource. */
 	mmio_resource_kb(dev, 0, FLASH_BASE_ADDR / KiB, FLASH_MMIO_SIZE / KiB);
+	/* Add extended SPI flash MMIO window as reserved resource if enabled. */
+	if (CONFIG(FAST_SPI_SUPPORTS_EXT_BIOS_WINDOW)) {
+		mmio_resource_kb(dev, 1, CONFIG_EXT_BIOS_WIN_BASE / KiB,
+				 CONFIG_EXT_BIOS_WIN_SIZE / KiB);
+	}
 }
 
 static struct device_operations fast_spi_dev_ops = {
@@ -538,10 +542,27 @@ static struct device_operations fast_spi_dev_ops = {
 	.enable_resources		= pci_dev_enable_resources,
 	.acpi_fill_ssdt			= fast_spi_fill_ssdt,
 	.acpi_name			= fast_spi_acpi_name,
+	.ops_pci			= &pci_dev_ops_pci,
 };
 
 static const unsigned short pci_device_ids[] = {
+	PCI_DID_INTEL_ADP_M_N_HWSEQ_SPI,
+	PCI_DID_INTEL_ADP_P_HWSEQ_SPI,
+	PCI_DID_INTEL_ADP_S_HWSEQ_SPI,
 	PCI_DID_INTEL_APL_HWSEQ_SPI,
+	PCI_DID_INTEL_GLK_HWSEQ_SPI,
+	PCI_DID_INTEL_CMP_HWSEQ_SPI,
+	PCI_DID_INTEL_CMP_H_HWSEQ_SPI,
+	PCI_DID_INTEL_CNL_HWSEQ_SPI,
+	PCI_DID_INTEL_CNP_H_HWSEQ_SPI,
+	PCI_DID_INTEL_ICP_HWSEQ_SPI,
+	PCI_DID_INTEL_JSP_HWSEQ_SPI,
+	PCI_DID_INTEL_LWB_SPI,
+	PCI_DID_INTEL_LWB_SPI_SUPER,
+	PCI_DID_INTEL_MCC_SPI0,
+	PCI_DID_INTEL_MTL_HWSEQ_SPI,
+	PCI_DID_INTEL_SPR_HWSEQ_SPI,
+	PCI_DID_INTEL_TGP_SPI0,
 	0
 };
 

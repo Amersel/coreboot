@@ -1,9 +1,11 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
+/* SPDX-License-Identifier: GPL-2.0-only OR MIT */
 
 #include <bootmem.h>
+#include <console/console.h>
 #include <device/device.h>
 #include <device/pci.h>
 #include <soc/apusys.h>
+#include <soc/apusys_devapc.h>
 #include <soc/devapc.h>
 #include <soc/dfd.h>
 #include <soc/emi.h>
@@ -30,6 +32,7 @@ static void soc_init(struct device *dev)
 {
 	mtk_mmu_disable_l2c_sram();
 	dapc_init();
+	start_apusys_devapc();
 	apusys_init();
 	mcupm_init();
 	sspm_init();
@@ -58,8 +61,12 @@ static void enable_soc_dev(struct device *dev)
 {
 	if (dev->path.type == DEVICE_PATH_CPU_CLUSTER)
 		dev->ops = &soc_ops;
-	else if (dev->path.type == DEVICE_PATH_DOMAIN)
-		dev->ops = &pci_domain_ops;
+	else if (dev->path.type == DEVICE_PATH_DOMAIN) {
+		if (mainboard_needs_pcie_init())
+			dev->ops = &pci_domain_ops;
+		else
+			printk(BIOS_DEBUG, "Skip setting PCIe ops\n");
+	}
 }
 
 struct chip_operations soc_mediatek_mt8195_ops = {

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <commonlib/clamp.h>
+#include <commonlib/bsd/clamp.h>
 #include <console/console.h>
 #include <console/usb.h>
 #include <cpu/intel/model_206ax/model_206ax.h>
@@ -555,7 +555,7 @@ static void dram_freq(ramctr_timing *ctrl)
 		 * Exit early to prevent a system hang.
 		 */
 		reg1 = mchbar_read32(MC_BIOS_DATA);
-		val2 = (u8) reg1;
+		val2 = (u8)reg1;
 		if (val2)
 			return;
 
@@ -577,7 +577,7 @@ static void dram_freq(ramctr_timing *ctrl)
 
 		/* Step 3 - Verify lock frequency */
 		reg1 = mchbar_read32(MC_BIOS_DATA);
-		val2 = (u8) reg1;
+		val2 = (u8)reg1;
 		if (val2 >= ctrl->FRQ) {
 			printk(BIOS_DEBUG, "MPLL frequency is set at : %d MHz\n",
 			       (1000 << 8) / ctrl->tCK);

@@ -2,7 +2,10 @@
 
 #include <arch/io.h>
 #include <boot/coreboot_tables.h>
+#include <commonlib/bsd/helpers.h>
 #include <console/uart.h>
+#include <stdint.h>
+
 #include "uart8250reg.h"
 
 /* Should support 8250, 16450, 16550, 16550A type UARTs */
@@ -106,16 +109,13 @@ void uart_tx_flush(unsigned int idx)
 	uart8250_tx_flush(uart_platform_base(idx));
 }
 
-void uart_fill_lb(void *data)
+enum cb_err fill_lb_serial(struct lb_serial *serial)
 {
-	struct lb_serial serial;
-	serial.type = LB_SERIAL_TYPE_IO_MAPPED;
-	serial.baseaddr = uart_platform_base(CONFIG_UART_FOR_CONSOLE);
-	serial.baud = get_uart_baudrate();
-	serial.regwidth = 1;
-	serial.input_hertz = uart_platform_refclk();
-	serial.uart_pci_addr = CONFIG_UART_PCI_ADDR;
-	lb_add_serial(&serial, data);
+	serial->type = LB_SERIAL_TYPE_IO_MAPPED;
+	serial->baseaddr = uart_platform_base(CONFIG_UART_FOR_CONSOLE);
+	serial->baud = get_uart_baudrate();
+	serial->regwidth = 1;
+	serial->input_hertz = uart_platform_refclk();
 
-	lb_add_console(LB_TAG_CONSOLE_SERIAL8250, data);
+	return CB_SUCCESS;
 }

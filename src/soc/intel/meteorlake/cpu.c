@@ -1,25 +1,25 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/cpu.h>
+#include <assert.h>
 #include <console/console.h>
-#include <device/pci.h>
+#include <cpu/cpu.h>
+#include <cpu/intel/common/common.h>
+#include <cpu/intel/smm_reloc.h>
+#include <cpu/intel/turbo.h>
 #include <cpu/x86/lapic.h>
 #include <cpu/x86/mp.h>
 #include <cpu/x86/msr.h>
-#include <cpu/intel/smm_reloc.h>
-#include <cpu/intel/turbo.h>
-#include <cpu/intel/common/common.h>
+#include <device/pci.h>
 #include <fsp/api.h>
+#include <intelblocks/acpi.h>
 #include <intelblocks/cpulib.h>
 #include <intelblocks/mp_init.h>
 #include <intelblocks/msr.h>
-#include <intelblocks/acpi.h>
 #include <soc/cpu.h>
 #include <soc/msr.h>
 #include <soc/pci_devs.h>
 #include <soc/soc_chip.h>
 #include <soc/soc_info.h>
-#include <assert.h>
 
 bool cpu_soc_is_in_untrusted_mode(void)
 {
@@ -27,6 +27,15 @@ bool cpu_soc_is_in_untrusted_mode(void)
 
 	msr = rdmsr(MSR_BIOS_DONE);
 	return !!(msr.lo & ENABLE_IA_UNTRUSTED);
+}
+
+void cpu_soc_bios_done(void)
+{
+	msr_t msr;
+
+	msr = rdmsr(MSR_BIOS_DONE);
+	msr.lo |= ENABLE_IA_UNTRUSTED;
+	wrmsr(MSR_BIOS_DONE, msr);
 }
 
 uint8_t get_supported_lpm_mask(void)
@@ -78,15 +87,17 @@ enum core_type get_soc_cpu_type(void)
 		return CPUID_CORE_TYPE_INTEL_CORE;
 }
 
-void soc_get_scaling_factor(u16 *big_core_scal_factor, u16 *small_core_scal_factor)
-{
-	*big_core_scal_factor = 127;
-	*small_core_scal_factor = 100;
-}
-
 bool soc_is_nominal_freq_supported(void)
 {
 	return true;
+}
+
+static void enable_x2apic(void)
+{
+	if (!CONFIG(X2APIC_LATE_WORKAROUND))
+		return;
+
+	enable_lapic_mode(true);
 }
 
 /* All CPUs including BSP will run the following function. */
@@ -97,6 +108,8 @@ void soc_core_init(struct device *cpu)
 	 * of these banks are core vs package scope. For now every CPU clears
 	 * every bank. */
 	mca_configure();
+
+	enable_x2apic();
 
 	enable_lapic_tpr();
 
@@ -113,6 +126,9 @@ void soc_core_init(struct device *cpu)
 
 	/* Enable Turbo */
 	enable_turbo();
+
+	if (CONFIG(INTEL_TME) && is_tme_supported())
+		set_tme_core_activate();
 }
 
 static void per_cpu_smm_trigger(void)

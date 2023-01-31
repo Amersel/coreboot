@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 #include <stdint.h>
 #include <lib.h>
 #include <console/console.h>
@@ -22,7 +24,7 @@ static void phys_memory_barrier(void)
 #else
 static void write_phys(uintptr_t addr, u32 value)
 {
-	write32((void *)addr, value);
+	write32p(addr, value);
 }
 
 static void phys_memory_barrier(void)
@@ -33,7 +35,7 @@ static void phys_memory_barrier(void)
 
 static u32 read_phys(uintptr_t addr)
 {
-	return read32((void *)addr);
+	return read32p(addr);
 }
 
 /**
@@ -108,7 +110,7 @@ static int ram_bitset_nodie(uintptr_t start)
 		}
 	}
 	if (failures) {
-		post_code(0xea);
+		post_code(POST_RAM_FAILURE);
 		printk(BIOS_DEBUG, "\nDRAM did _NOT_ verify!\n");
 		return 1;
 	}
@@ -198,7 +200,7 @@ void quick_ram_check_or_die(uintptr_t dst)
 
 	write_phys(dst, backup);
 	if (fail) {
-		post_code(0xea);
+		post_code(POST_RAM_FAILURE);
 		die("RAM INIT FAILURE!\n");
 	}
 	phys_memory_barrier();

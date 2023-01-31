@@ -100,7 +100,7 @@ void fb_init(unsigned long int fb_size, void *lcdbase,
 {
 	unsigned int val;
 
-	fb_size = ALIGN(fb_size, 4096);
+	fb_size = ALIGN_UP(fb_size, 4096);
 
 	write32(&exynos_disp_ctrl->vidcon1, pd->ivclk | pd->fixvclk);
 	val = ENVID_ON | ENVID_F_ON | (pd->clkval_f << CLKVAL_F_OFFSET);
@@ -174,7 +174,7 @@ static int s5p_dp_config_video(struct s5p_dp_device *dp,
 	} while (!stopwatch_expired(&sw));
 
 	if (!timeout) {
-		printk(BIOS_ERR, "Video Clock Not ok after %ldus.\n",
+		printk(BIOS_ERR, "Video Clock Not ok after %lldus.\n",
 				stopwatch_duration_usecs(&sw));
 		return -ERR_VIDEO_CLOCK_BAD;
 	}

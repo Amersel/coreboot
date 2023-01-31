@@ -21,7 +21,7 @@
 #include <commonlib/bsd/cbmem_id.h>
 #include <commonlib/loglevel.h>
 #include <commonlib/timestamp_serialized.h>
-#include <commonlib/tcpa_log_serialized.h>
+#include <commonlib/tpm_log_serialized.h>
 #include <commonlib/coreboot_tables.h>
 
 #ifdef __OpenBSD__
@@ -235,7 +235,7 @@ static int find_cbmem_entry(uint32_t id, uint64_t *addr, size_t *size)
 
 	while (offset < mapping_size(&lbtable_mapping)) {
 		const struct lb_record *lbr;
-		const struct lb_cbmem_entry *lbe;
+		struct lb_cbmem_entry lbe;
 
 		lbr = (const void *)(table + offset);
 		offset += lbr->size;
@@ -243,12 +243,12 @@ static int find_cbmem_entry(uint32_t id, uint64_t *addr, size_t *size)
 		if (lbr->tag != LB_TAG_CBMEM_ENTRY)
 			continue;
 
-		lbe = (const void *)lbr;
-		if (lbe->id != id)
+		aligned_memcpy(&lbe, lbr, sizeof(lbe));
+		if (lbe.id != id)
 			continue;
 
-		*addr = lbe->address;
-		*size = lbe->entry_size;
+		*addr = lbe.address;
+		*size = lbe.entry_size;
 		ret = 0;
 		break;
 	}
@@ -267,7 +267,7 @@ static int find_cbmem_entry(uint32_t id, uint64_t *addr, size_t *size)
 
 static struct lb_cbmem_ref timestamps;
 static struct lb_cbmem_ref console;
-static struct lb_cbmem_ref tcpa_log;
+static struct lb_cbmem_ref tpm_cb_log;
 static struct lb_memory_range cbmem;
 
 /* This is a work-around for a nasty problem introduced by initially having
@@ -336,9 +336,9 @@ static int parse_cbtable_entries(const struct mapping *table_mapping)
 			console = parse_cbmem_ref((struct lb_cbmem_ref *)lbr_p);
 			continue;
 		}
-		case LB_TAG_TCPA_LOG: {
-			debug("    Found tcpa log table.\n");
-			tcpa_log =
+		case LB_TAG_TPM_CB_LOG: {
+			debug("    Found TPM CB log table.\n");
+			tpm_cb_log =
 			    parse_cbmem_ref((struct lb_cbmem_ref *)lbr_p);
 			continue;
 		}
@@ -843,35 +843,35 @@ static void timestamp_add_now(uint32_t timestamp_id)
 	unmap_memory(&timestamp_mapping);
 }
 
-/* dump the tcpa log table */
-static void dump_tcpa_log(void)
+/* dump the TPM CB log table */
+static void dump_tpm_cb_log(void)
 {
-	const struct tcpa_table *tclt_p;
+	const struct tpm_cb_log_table *tclt_p;
 	size_t size;
-	struct mapping tcpa_mapping;
+	struct mapping log_mapping;
 
-	if (tcpa_log.tag != LB_TAG_TCPA_LOG) {
-		fprintf(stderr, "No tcpa log found in coreboot table.\n");
+	if (tpm_cb_log.tag != LB_TAG_TPM_CB_LOG) {
+		fprintf(stderr, "No TPM log found in coreboot table.\n");
 		return;
 	}
 
 	size = sizeof(*tclt_p);
-	tclt_p = map_memory(&tcpa_mapping, tcpa_log.cbmem_addr, size);
+	tclt_p = map_memory(&log_mapping, tpm_cb_log.cbmem_addr, size);
 	if (!tclt_p)
-		die("Unable to map tcpa log header\n");
+		die("Unable to map TPM log header\n");
 
 	size += tclt_p->num_entries * sizeof(tclt_p->entries[0]);
 
-	unmap_memory(&tcpa_mapping);
+	unmap_memory(&log_mapping);
 
-	tclt_p = map_memory(&tcpa_mapping, tcpa_log.cbmem_addr, size);
+	tclt_p = map_memory(&log_mapping, tpm_cb_log.cbmem_addr, size);
 	if (!tclt_p)
-		die("Unable to map full tcpa log table\n");
+		die("Unable to map full TPM log table\n");
 
-	printf("coreboot TCPA log:\n\n");
+	printf("coreboot TPM log:\n\n");
 
 	for (uint16_t i = 0; i < tclt_p->num_entries; i++) {
-		const struct tcpa_entry *tce = &tclt_p->entries[i];
+		const struct tpm_cb_log_entry *tce = &tclt_p->entries[i];
 
 		printf(" PCR-%u ", tce->pcr);
 
@@ -881,7 +881,7 @@ static void dump_tcpa_log(void)
 		printf(" %s [%s]\n", tce->digest_type, tce->name);
 	}
 
-	unmap_memory(&tcpa_mapping);
+	unmap_memory(&log_mapping);
 }
 
 struct cbmem_console {
@@ -1128,7 +1128,7 @@ static void dump_cbmem_raw(unsigned int id)
 
 	while (offset < mapping_size(&lbtable_mapping)) {
 		const struct lb_record *lbr;
-		const struct lb_cbmem_entry *lbe;
+		struct lb_cbmem_entry lbe;
 
 		lbr = (const void *)(table + offset);
 		offset += lbr->size;
@@ -1136,11 +1136,11 @@ static void dump_cbmem_raw(unsigned int id)
 		if (lbr->tag != LB_TAG_CBMEM_ENTRY)
 			continue;
 
-		lbe = (const void *)lbr;
-		if (lbe->id == id) {
-			debug("found id for raw dump %0x", lbe->id);
-			base = lbe->address;
-			size = lbe->entry_size;
+		aligned_memcpy(&lbe, lbr, sizeof(lbe));
+		if (lbe.id == id) {
+			debug("found id for raw dump %0x", lbe.id);
+			base = lbe.address;
+			size = lbe.entry_size;
 			break;
 		}
 	}
@@ -1185,11 +1185,10 @@ static void cbmem_print_entry(int n, uint32_t id, uint64_t base, uint64_t size)
 
 	printf("%2d. ", n);
 	if (name == NULL)
-		printf("\t\t%08x", id);
-	else
-		printf("%s\t%08x", name, id);
+		name = "(unknown)";
+	printf("%-20s  %08x", name, id);
 	printf("  %08" PRIx64 " ", base);
-	printf("  %08" PRIx64 "\n", size);
+	printf(" %08" PRIx64 "\n", size);
 }
 
 static void dump_cbmem_toc(void)
@@ -1204,14 +1203,15 @@ static void dump_cbmem_toc(void)
 		return;
 
 	printf("CBMEM table of contents:\n");
-	printf("    NAME          ID           START      LENGTH\n");
+	printf("    %-20s  %-8s  %-8s  %-8s\n", "NAME", "ID", "START",
+			"LENGTH");
 
 	i = 0;
 	offset = 0;
 
 	while (offset < mapping_size(&lbtable_mapping)) {
 		const struct lb_record *lbr;
-		const struct lb_cbmem_entry *lbe;
+		struct lb_cbmem_entry lbe;
 
 		lbr = (const void *)(table + offset);
 		offset += lbr->size;
@@ -1219,8 +1219,8 @@ static void dump_cbmem_toc(void)
 		if (lbr->tag != LB_TAG_CBMEM_ENTRY)
 			continue;
 
-		lbe = (const void *)lbr;
-		cbmem_print_entry(i, lbe->id, lbe->address, lbe->entry_size);
+		aligned_memcpy(&lbe, lbr, sizeof(lbe));
+		cbmem_print_entry(i, lbe.id, lbe.address, lbe.entry_size);
 		i++;
 	}
 }
@@ -1339,7 +1339,7 @@ static void print_usage(const char *name, int exit_code)
 	     "   -T | --parseable-timestamps:      print parseable timestamps\n"
 	     "   -S | --stacked-timestamps:        print stacked timestamps (e.g. for flame graph tools)\n"
 	     "   -a | --add-timestamp ID:          append timestamp with ID\n"
-	     "   -L | --tcpa-log                   print TCPA log\n"
+	     "   -L | --tcpa-log                   print TPM log\n"
 	     "   -V | --verbose:                   verbose (debugging) output\n"
 	     "   -v | --version:                   print the version\n"
 	     "   -h | --help:                      print this help\n"
@@ -1677,7 +1677,7 @@ int main(int argc, char** argv)
 		dump_timestamps(timestamp_type);
 
 	if (print_tcpa_log)
-		dump_tcpa_log();
+		dump_tpm_cb_log();
 
 	unmap_memory(&lbtable_mapping);
 

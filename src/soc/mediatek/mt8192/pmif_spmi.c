@@ -21,6 +21,21 @@ DEFINE_BIT(PDN_SPMI_MST, 15)
 /* TOPCKGEN, CLK_CFG_UPDATE2 */
 DEFINE_BIT(SPMI_MST_CK_UPDATE, 30)
 
+const struct spmi_device spmi_dev[] = {
+	{
+		.slvid = SPMI_SLAVE_6,
+		.type = BUCK_CPU,
+		.type_id = BUCK_CPU_ID,
+	},
+	{
+		.slvid = SPMI_SLAVE_7,
+		.type = BUCK_GPU,
+		.type_id = BUCK_GPU_ID,
+	},
+};
+
+const size_t spmi_dev_cnt = ARRAY_SIZE(spmi_dev);
+
 int spmi_config_master(void)
 {
 	/* Software reset */
@@ -39,6 +54,27 @@ int spmi_config_master(void)
 	write32(&mtk_spmi_mst->mst_req_en, 1);
 
 	return 0;
+}
+
+void pmif_spmi_config(struct pmif *arb, int mstid)
+{
+	u32 cmd_per;
+
+	/* Clear all cmd permission for per channel */
+	write32(&arb->mtk_pmif->inf_cmd_per_0, 0);
+	write32(&arb->mtk_pmif->inf_cmd_per_1, 0);
+	write32(&arb->mtk_pmif->inf_cmd_per_2, 0);
+	write32(&arb->mtk_pmif->inf_cmd_per_3, 0);
+
+	/* Enable if we need cmd 0~3 permission for per channel */
+	cmd_per = PMIF_CMD_PER_3 << 28 | PMIF_CMD_PER_3 << 24 |
+		  PMIF_CMD_PER_3 << 20 | PMIF_CMD_PER_3 << 16 |
+		  PMIF_CMD_PER_3 << 8 | PMIF_CMD_PER_3 << 4 |
+		  PMIF_CMD_PER_1_3 << 0;
+	write32(&arb->mtk_pmif->inf_cmd_per_0, cmd_per);
+
+	cmd_per = PMIF_CMD_PER_3 << 4;
+	write32(&arb->mtk_pmif->inf_cmd_per_1, cmd_per);
 }
 
 void pmif_spmi_iocfg(void)

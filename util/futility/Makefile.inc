@@ -1,3 +1,4 @@
+## SPDX-License-Identifier: GPL-2.0-only
 additional-dirs += $(objutil)/futility
 
 VBOOT_FUTILITY = $(VBOOT_HOST_BUILD)/futility/futility
@@ -9,6 +10,7 @@ $(VBOOT_FUTILITY): | check-openssl-presence
 	unset CFLAGS LDFLAGS; $(MAKE) -C $(VBOOT_SOURCE) \
 		BUILD=$(VBOOT_HOST_BUILD) \
 		CC="$(HOSTCC)" \
+		WERROR="-Werror -Wno-deprecated-declarations" \
 		PKG_CONFIG="$(HOSTPKGCONFIG)" \
 		V=$(V) \
 		USE_FLASHROM=0 \

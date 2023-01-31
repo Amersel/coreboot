@@ -12,31 +12,9 @@ chip soc/intel/alderlake
 	# GPE configuration
 	register "pmc_gpe0_dw1" = "GPP_H"
 
-	# +-----------+-------+-------+---------+-------------+----------+
-	# | Setting   | AC LL | DC LL | ICC MAX | TDC Current | TDC Time |
-	# |           |(mOhms)|(mOhms)|   (A)   |     (A)     |   (msec) |
-	# +-----------+-------+-------+---------+-------------+----------+
-	# |    IA     |  2.8  |  2.8  |    80   |      43     |  28000   |
-	# +-----------+-------+-------+---------+-------------+----------+
-	# |    GT     |  3.2  |  3.2  |    40   |      23     |  28000   |
-	# +-----------+-------+-------+---------+-------------+----------+
-	register "domain_vr_config[VR_DOMAIN_IA]" = "{
-		.vr_config_enable = 1,
-		.ac_loadline = 280,
-		.dc_loadline = 280,
-		.icc_max = VR_CFG_AMP(80),
-		.tdc_timewindow = 28000,
-		.tdc_currentlimit = VR_CFG_TDC_AMP(43),
-	}"
-
-	register "domain_vr_config[VR_DOMAIN_GT]" = "{
-		.vr_config_enable = 1,
-		.ac_loadline = 320,
-		.dc_loadline = 320,
-		.icc_max = VR_CFG_AMP(40),
-		.tdc_timewindow = 28000,
-		.tdc_currentlimit = VR_CFG_TDC_AMP(23),
-	}"
+	# As per Intel Advisory doc#723158, the change is required to prevent possible
+	# display flickering issue.
+	register "usb2_phy_sus_pg_disable" = "1"
 
 	# Intel Common SoC Config
 	#+-------------------+---------------------------+
@@ -95,6 +73,8 @@ chip soc/intel/alderlake
 		.tdp_pl1_override = 30,
 	}"
 
+	register "tcc_offset" = "6"
+
 	device domain 0 on
 		device ref dtt on
 			chip drivers/intel/dptf
@@ -108,68 +88,63 @@ chip soc/intel/alderlake
 				## Active Policy
 				register "policies.active" = "{
 					[0] = {
-						.target = DPTF_CPU,
+						.target = DPTF_TEMP_SENSOR_0,
 						.thresholds = {
-								TEMP_PCT(80, 97),
-								TEMP_PCT(65, 93),
-								TEMP_PCT(58, 86),
-								TEMP_PCT(50, 80),
-								TEMP_PCT(45, 64),
-								TEMP_PCT(43, 52),
-								TEMP_PCT(40, 47),
+								TEMP_PCT(90, 97),
+								TEMP_PCT(60, 80),
+								TEMP_PCT(55, 70),
+								TEMP_PCT(50, 64),
+								TEMP_PCT(45, 54),
+								TEMP_PCT(42, 47),
+								TEMP_PCT(38, 43),
 								TEMP_PCT(35, 40),
+								TEMP_PCT(33, 36),
+								TEMP_PCT(30, 32),
 						}
 					},
 					[1] = {
-						.target = DPTF_TEMP_SENSOR_0,
+						.target = DPTF_TEMP_SENSOR_1,
 						.thresholds = {
-								TEMP_PCT(75, 97),
-								TEMP_PCT(70, 93),
-								TEMP_PCT(60, 86),
-								TEMP_PCT(52, 80),
-								TEMP_PCT(47, 64),
-								TEMP_PCT(43, 52),
-								TEMP_PCT(40, 47),
+								TEMP_PCT(90, 97),
+								TEMP_PCT(60, 80),
+								TEMP_PCT(55, 70),
+								TEMP_PCT(50, 64),
+								TEMP_PCT(45, 54),
+								TEMP_PCT(42, 47),
+								TEMP_PCT(38, 43),
 								TEMP_PCT(35, 40),
+								TEMP_PCT(33, 36),
+								TEMP_PCT(30, 32),
 						}
 					},
 					[2] = {
-						.target = DPTF_TEMP_SENSOR_1,
+						.target = DPTF_TEMP_SENSOR_2,
 						.thresholds = {
-								TEMP_PCT(75, 97),
-								TEMP_PCT(70, 93),
-								TEMP_PCT(60, 86),
-								TEMP_PCT(52, 80),
-								TEMP_PCT(47, 64),
-								TEMP_PCT(43, 52),
-								TEMP_PCT(40, 47),
+								TEMP_PCT(90, 97),
+								TEMP_PCT(60, 80),
+								TEMP_PCT(55, 70),
+								TEMP_PCT(50, 64),
+								TEMP_PCT(45, 54),
+								TEMP_PCT(42, 47),
+								TEMP_PCT(38, 43),
 								TEMP_PCT(35, 40),
+								TEMP_PCT(33, 36),
+								TEMP_PCT(30, 32),
 						}
 					},
 					[3] = {
-						.target = DPTF_TEMP_SENSOR_2,
-						.thresholds = {
-								TEMP_PCT(75, 97),
-								TEMP_PCT(70, 93),
-								TEMP_PCT(60, 86),
-								TEMP_PCT(52, 80),
-								TEMP_PCT(47, 64),
-								TEMP_PCT(43, 52),
-								TEMP_PCT(40, 47),
-								TEMP_PCT(35, 40),
-						}
-					},
-					[4] = {
 						.target = DPTF_TEMP_SENSOR_3,
 						.thresholds = {
-								TEMP_PCT(75, 97),
-								TEMP_PCT(70, 93),
-								TEMP_PCT(60, 86),
-								TEMP_PCT(52, 80),
-								TEMP_PCT(47, 64),
-								TEMP_PCT(43, 52),
-								TEMP_PCT(40, 47),
+								TEMP_PCT(90, 97),
+								TEMP_PCT(60, 80),
+								TEMP_PCT(55, 70),
+								TEMP_PCT(50, 64),
+								TEMP_PCT(45, 54),
+								TEMP_PCT(42, 47),
+								TEMP_PCT(38, 43),
 								TEMP_PCT(35, 40),
+								TEMP_PCT(33, 36),
+								TEMP_PCT(30, 32),
 						}
 					}
 				}"
@@ -186,10 +161,10 @@ chip soc/intel/alderlake
 				## Critical Policy
 				register "policies.critical" = "{
 					[0] = DPTF_CRITICAL(CPU,               100, SHUTDOWN),
-					[1] = DPTF_CRITICAL(TEMP_SENSOR_0,      93, SHUTDOWN),
-					[2] = DPTF_CRITICAL(TEMP_SENSOR_1,      93, SHUTDOWN),
-					[3] = DPTF_CRITICAL(TEMP_SENSOR_2,      93, SHUTDOWN),
-					[4] = DPTF_CRITICAL(TEMP_SENSOR_3,      93, SHUTDOWN),
+					[1] = DPTF_CRITICAL(TEMP_SENSOR_0,      97, SHUTDOWN),
+					[2] = DPTF_CRITICAL(TEMP_SENSOR_1,      97, SHUTDOWN),
+					[3] = DPTF_CRITICAL(TEMP_SENSOR_2,      97, SHUTDOWN),
+					[4] = DPTF_CRITICAL(TEMP_SENSOR_3,      97, SHUTDOWN),
 				}"
 
 				register "controls.power_limits" = "{
@@ -222,16 +197,26 @@ chip soc/intel/alderlake
 				}"
 				## Fan Performance Control (Percent, Speed, Noise, Power)
 				register "controls.fan_perf" = "{
-					[0] = {  90, 6700, 220, 2200, },
-					[1] = {  80, 5800, 180, 1800, },
-					[2] = {  70, 5000, 145, 1450, },
-					[3] = {  60, 4900, 115, 1150, },
-					[4] = {  50, 3838,  90,  900, },
-					[5] = {  40, 2904,  55,  550, },
-					[6] = {  30, 2337,  30,  300, },
-					[7] = {  20, 1608,  15,  150, },
-					[8] = {  10,  800,  10,  100, },
-					[9] = {   0,    0,   0,   50, }
+					[0] = {  100, 6060, 0, 0, },
+					[1] = {   90, 5585, 0, 0, },
+					[2] = {   80, 4964, 0, 0, },
+					[3] = {   70, 4237, 0, 0, },
+					[4] = {   64, 3963, 0, 0, },
+					[5] = {   60, 3510, 0, 0, },
+					[6] = {   54, 3212, 0, 0, },
+					[7] = {   50, 2808, 0, 0, },
+					[8] = {   48, 2776, 0, 0, },
+					[9] = {   47, 2715, 0, 0, },
+					[10] = {  45, 2566, 0, 0, },
+					[11] = {  43, 2415, 0, 0, },
+					[12] = {  40, 2010, 0, 0, },
+					[13] = {  36, 1813, 0, 0, },
+					[14] = {  35, 1686, 0, 0, },
+					[15] = {  32, 1404, 0, 0, },
+					[16] = {  30, 1160, 0, 0, },
+					[17] = {  20,  760, 0, 0, },
+					[18] = {  10,  760, 0, 0, },
+					[19] = {   0,    0, 0, 0, }
 				}"
 
 				## Fan options
@@ -250,6 +235,7 @@ chip soc/intel/alderlake
 			}"
 			chip drivers/wifi/generic
 				register "wake" = "GPE0_DW1_03"
+				register "add_acpi_dma_property" = "true"
 				device pci 00.0 on end
 			end
 			chip soc/intel/common/block/pcie/rtd3
@@ -280,6 +266,7 @@ chip soc/intel/alderlake
 				register "customized_leds" = "0x05af"
 				register "wake" = "GPE0_DW0_07" #GPP_A7
 				register "device_index" = "0"
+				register "add_acpi_dma_property" = "true"
 				device pci 00.0 on end
 			end
 		end # RTL8111K Ethernet NIC

@@ -3,24 +3,31 @@
 #ifndef _AMD_FW_TOOL_H_
 #define _AMD_FW_TOOL_H_
 
+#include <commonlib/bsd/compiler.h>
+#include <commonlib/bsd/helpers.h>
+#include <openssl/sha.h>
 #include <stdint.h>
 #include <stdbool.h>
 
 typedef enum _amd_fw_type {
-	AMD_FW_PSP_PUBKEY = 0,
-	AMD_FW_PSP_BOOTLOADER = 1,
-	AMD_FW_PSP_SMU_FIRMWARE = 8,
-	AMD_FW_PSP_RECOVERY = 3,
-	AMD_FW_PSP_RTM_PUBKEY = 5,
-	AMD_FW_PSP_SECURED_OS = 2,
-	AMD_FW_PSP_NVRAM = 4,
-	AMD_FW_PSP_SECURED_DEBUG = 9,
-	AMD_FW_PSP_TRUSTLETS = 12,
-	AMD_FW_PSP_TRUSTLETKEY = 13,
-	AMD_FW_PSP_SMU_FIRMWARE2 = 18,
-	AMD_PSP_FUSE_CHAIN = 11,
-	AMD_FW_PSP_SMUSCS = 95,
+	AMD_FW_PSP_PUBKEY = 0x00,
+	AMD_FW_PSP_BOOTLOADER = 0x01,
+	AMD_FW_PSP_SECURED_OS = 0x02,
+	AMD_FW_PSP_RECOVERY = 0x03,
+	AMD_FW_PSP_NVRAM = 0x04,
+	AMD_FW_PSP_RTM_PUBKEY = 0x05,
+	AMD_FW_PSP_SMU_FIRMWARE = 0x08,
+	AMD_FW_PSP_SECURED_DEBUG = 0x09,
+	AMD_FW_ABL_PUBKEY = 0x0a,
+	AMD_PSP_FUSE_CHAIN = 0x0b,
+	AMD_FW_PSP_TRUSTLETS = 0x0c,
+	AMD_FW_PSP_TRUSTLETKEY = 0x0d,
+	AMD_FW_PSP_SMU_FIRMWARE2 = 0x12,
 	AMD_DEBUG_UNLOCK = 0x13,
+	AMD_BOOT_DRIVER = 0x1b,
+	AMD_SOC_DRIVER = 0x1c,
+	AMD_DEBUG_DRIVER = 0x1d,
+	AMD_INTERFACE_DRIVER = 0x1f,
 	AMD_HW_IPCFG = 0x20,
 	AMD_WRAPPED_IKEK = 0x21,
 	AMD_TOKEN_UNLOCK = 0x22,
@@ -28,6 +35,7 @@ typedef enum _amd_fw_type {
 	AMD_MP2_FW = 0x25,
 	AMD_DRIVER_ENTRIES = 0x28,
 	AMD_FW_KVM_IMAGE = 0x29,
+	AMD_FW_MP5 = 0x2a,
 	AMD_S0I3_DRIVER = 0x2d,
 	AMD_ABL0 = 0x30,
 	AMD_ABL1 = 0x31,
@@ -37,9 +45,12 @@ typedef enum _amd_fw_type {
 	AMD_ABL5 = 0x35,
 	AMD_ABL6 = 0x36,
 	AMD_ABL7 = 0x37,
+	AMD_SEV_DATA = 0x38,
+	AMD_SEV_CODE = 0x39,
 	AMD_FW_PSP_WHITELIST = 0x3a,
 	AMD_VBIOS_BTLOADER = 0x3c,
 	AMD_FW_L2_PTR = 0x40,
+	AMD_FW_DXIO = 0x42,
 	AMD_FW_USB_PHY = 0x44,
 	AMD_FW_TOS_SEC_POLICY = 0x45,
 	AMD_FW_DRTM_TA = 0x47,
@@ -56,9 +67,26 @@ typedef enum _amd_fw_type {
 	AMD_FW_DMCU_ISR = 0x59,
 	AMD_FW_MSMU = 0x5a,
 	AMD_FW_SPIROM_CFG = 0x5c,
+	AMD_FW_MPIO = 0x5d,
+	AMD_FW_TPMLITE = 0x5f,
+	AMD_FW_PSP_SMUSCS = 0x5f,
 	AMD_FW_DMCUB = 0x71,
 	AMD_FW_PSP_BOOTLOADER_AB = 0x73,
+	AMD_RIB = 0x76,
+	AMD_FW_AMF_SRAM = 0x85,
+	AMD_FW_AMF_DRAM = 0x86,
+	AMD_FW_AMF_WLAN = 0x88,
+	AMD_FW_AMF_MFD = 0x89,
+	AMD_FW_MPDMA_TF = 0x8c,
 	AMD_TA_IKEK = 0x8d,
+	AMD_FW_MPCCX = 0x90,
+	AMD_FW_GMI3_PHY = 0x91,
+	AMD_FW_MPDMA_PM = 0x92,
+	AMD_FW_LSDMA = 0x94,
+	AMD_FW_C20_MP = 0x95,
+	AMD_FW_FCFG_TABLE = 0x98,
+	AMD_FW_MINIMSMU = 0x9a,
+	AMD_FW_SRAM_FW_EXT = 0x9d,
 	AMD_FW_IMC = 0x200,	/* Large enough to be larger than the top BHD entry type. */
 	AMD_FW_GEC,
 	AMD_FW_XHCI,
@@ -67,7 +95,8 @@ typedef enum _amd_fw_type {
 } amd_fw_type;
 
 typedef enum _amd_bios_type {
-	AMD_BIOS_RTM_PUBKEY = 5,
+	AMD_BIOS_RTM_PUBKEY = 0x05,
+	AMD_BIOS_SIG = 0x07,
 	AMD_BIOS_APCB = 0x60,
 	AMD_BIOS_APOB = 0x61,
 	AMD_BIOS_BIN = 0x62,
@@ -152,7 +181,16 @@ typedef struct _psp_directory_header {
 typedef struct _psp_directory_entry {
 	uint8_t type;
 	uint8_t subprog;
-	uint16_t rsvd;
+	union {
+		uint16_t rsvd;
+		struct {
+			uint8_t rom_id:2;
+			uint8_t writable:1;
+			uint8_t inst:4;
+			uint8_t rsvd_1:1;
+			uint8_t rsvd_2:8;
+		} __attribute__((packed));
+	};
 	uint32_t size;
 	uint64_t addr:62; /* or a value in some cases */
 	uint64_t address_mode:2;
@@ -163,7 +201,7 @@ typedef struct _psp_directory_table {
 	psp_directory_entry entries[];
 } __attribute__((packed, aligned(16))) psp_directory_table;
 
-#define MAX_PSP_ENTRIES 0x1f
+#define MAX_PSP_ENTRIES 0x2f
 
 typedef struct _psp_combo_header {
 	uint32_t cookie;
@@ -222,6 +260,8 @@ typedef struct _bios_directory_table {
 	bios_directory_entry entries[];
 } bios_directory_table;
 
+#define MAX_BIOS_ENTRIES 0x2f
+
 #define BDT_LVL1 (1 << 0)
 #define BDT_LVL2 (1 << 1)
 #define BDT_LVL1_AB (1 << 2)
@@ -269,13 +309,72 @@ typedef struct _ish_directory_table {
 #define PSP_LVL2_AB (1 << 3)
 #define PSP_BOTH (PSP_LVL1 | PSP_LVL2)
 #define PSP_BOTH_AB (PSP_LVL1_AB | PSP_LVL2_AB)
+
+typedef struct _amd_fw_entry_hash {
+	uint16_t fw_id;
+	uint16_t subtype;
+	uint32_t sha_len;
+	uint8_t sha[SHA384_DIGEST_LENGTH];
+} amd_fw_entry_hash;
+
 typedef struct _amd_fw_entry {
 	amd_fw_type type;
+	/* Mendocino and later SoCs use fw_id instead of fw_type. fw_type is still around
+	   for backwards compatibility. fw_id can be populated from the PSP binary file. */
+	uint16_t fw_id;
 	char *filename;
 	uint8_t subprog;
+	uint8_t inst;
+	uint64_t dest;
+	size_t size;
 	int level;
 	uint64_t other;
+	/* If the binary is signed and the tool is invoked to keep the signed binaries separate,
+	   then this field is populated with the offset of the concerned PSP binary (relative to
+	   BIOS or PSP Directory table). */
+	uint64_t addr_signed;
+	uint32_t file_size;
+	/* Some files that don't have amd_fw_header have to be skipped from hashing. These files
+	   include but not limited to: *iKek*, *.tkn, *.stkn */
+	bool skip_hashing;
+	uint32_t num_hash_entries;
+	amd_fw_entry_hash *hash_entries;
 } amd_fw_entry;
+
+/* Most PSP binaries, if not all, have the following header format. */
+struct amd_fw_header {
+	uint8_t reserved_0[20];
+	uint32_t fw_size_signed;
+	uint8_t reserved_18[24];
+	/* 1 if the image is signed, 0 otherwise */
+	uint32_t sig_opt;
+	uint32_t sig_id;
+	uint8_t sig_param[16];
+	uint32_t comp_opt;
+	uint8_t reserved_4c[4];
+	uint32_t uncomp_size;
+	uint32_t comp_size;
+	/* Starting MDN fw_id is populated instead of fw_type. */
+	uint16_t fw_id;
+	uint8_t reserved_5a[18];
+	uint32_t size_total;
+	uint8_t reserved_70[12];
+	/* Starting MDN fw_id is populated instead of fw_type. fw_type will still be around
+	   for backwards compatibility. */
+	uint8_t fw_type;
+	uint8_t fw_subtype;
+	uint8_t fw_subprog;
+	uint8_t reserved_7f;
+	uint8_t reserved_80[128];
+} __packed;
+
+struct psp_fw_hash_table {
+	uint16_t version;
+	uint16_t no_of_entries_256;
+	uint16_t no_of_entries_384;
+	/* The next 2 elements are pointers to arrays of SHA256 and SHA384 entries. */
+	/* It does not make sense to store pointers in the CBFS file */
+} __packed;
 
 typedef struct _amd_cb_config {
 	bool have_whitelist;
@@ -299,7 +398,5 @@ uint8_t process_config(FILE *config, amd_cb_config *cb_config, uint8_t print_dep
 
 #define LINE_EOF (1)
 #define LINE_TOO_LONG (2)
-
-#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 #endif	/* _AMD_FW_TOOL_H_ */

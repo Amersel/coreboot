@@ -1,24 +1,20 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <types.h>
-#include <console/console.h>
 #include <acpi/acpi.h>
 #include <acpi/acpigen.h>
-#include <arch/cpu.h>
+#include <console/console.h>
+#include <cpu/cpu.h>
 #include <cpu/intel/fsb.h>
 #include <cpu/intel/speedstep.h>
 #include <device/device.h>
+#include <types.h>
 
 static int determine_total_number_of_cores(void)
 {
 	struct device *cpu;
 	int count = 0;
 	for (cpu = all_devices; cpu; cpu = cpu->next) {
-		if ((cpu->path.type != DEVICE_PATH_APIC) ||
-			(cpu->bus->dev->path.type != DEVICE_PATH_CPU_CLUSTER)) {
-			continue;
-		}
-		if (!cpu->enabled)
+		if (!is_enabled_cpu(cpu))
 			continue;
 		count++;
 	}

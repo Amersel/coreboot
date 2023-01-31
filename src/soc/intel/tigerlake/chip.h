@@ -5,15 +5,14 @@
 
 #include <drivers/i2c/designware/dw_i2c.h>
 #include <drivers/intel/gma/gma.h>
+#include <gpio.h>
 #include <intelblocks/cfg.h>
-#include <intelblocks/gpio.h>
 #include <intelblocks/gspi.h>
 #include <intelblocks/lpc_lib.h>
 #include <intelblocks/pcie_rp.h>
 #include <intelblocks/power_limit.h>
 #include <intelblocks/tcss.h>
 #include <soc/gpe.h>
-#include <soc/gpio.h>
 #include <soc/pch.h>
 #include <soc/pci_devs.h>
 #include <soc/pmc.h>
@@ -24,6 +23,24 @@
 #define MAX_HD_AUDIO_DMIC_LINKS 2
 #define MAX_HD_AUDIO_SNDW_LINKS 4
 #define MAX_HD_AUDIO_SSP_LINKS  6
+
+/* Define config parameters for In-Band ECC (IBECC). */
+#define MAX_IBECC_REGIONS	8
+
+enum ibecc_mode {
+	IBECC_PER_REGION,
+	IBECC_NONE,
+	IBECC_ALL
+};
+
+struct ibecc_config {
+	bool enable;
+	bool parity_en;
+	enum ibecc_mode mode;
+	bool region_enable[MAX_IBECC_REGIONS];
+	uint16_t region_base[MAX_IBECC_REGIONS];
+	uint16_t region_mask[MAX_IBECC_REGIONS];
+};
 
 /* The first two are for TGL-U */
 enum soc_intel_tigerlake_power_limits {
@@ -151,6 +168,9 @@ struct soc_intel_tigerlake_config {
 
 	/* TCC activation offset */
 	uint32_t tcc_offset;
+
+	/* In-Band ECC (IBECC) configuration */
+	struct ibecc_config ibecc;
 
 	/* System Agent dynamic frequency support. Only effects ULX/ULT CPUs.
 	 * When enabled memory will be training at two different frequencies.
@@ -410,9 +430,6 @@ struct soc_intel_tigerlake_config {
 	 * Only override CPU flex ratio to not boot with non-turbo max.
 	 */
 	uint8_t cpu_ratio_override;
-
-	/* HyperThreadingDisable : Yes (1) / No (0) */
-	uint8_t HyperThreadingDisable;
 
 	/*
 	 * Enable(0)/Disable(1) DMI Power Optimizer on PCH side.

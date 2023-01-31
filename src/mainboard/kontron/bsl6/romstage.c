@@ -1,13 +1,12 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <option.h>
-#include <stdint.h>
-#include <string.h>
 #include <assert.h>
-#include <spd_bin.h>
-#include <soc/romstage.h>
 #include <fsp/soc_binding.h>
 #include <pc80/mc146818rtc.h>
+#include <soc/romstage.h>
+#include <spd_bin.h>
+#include <stdint.h>
+#include <string.h>
 #include <variant.h>
 
 /* Rcomp resistor */
@@ -38,6 +37,8 @@ void mainboard_memory_init_params(FSPM_UPD *mupd)
 
 	memory_params->DqPinsInterleaved = true;
 	memory_params->CaVrefConfig = 2;
+
+	memory_params->UserBd = BOARD_TYPE_MOBILE;
 
 	variant_memory_init_params(mupd);
 }

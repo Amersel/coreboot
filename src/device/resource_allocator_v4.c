@@ -1,9 +1,11 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <commonlib/bsd/helpers.h>
 #include <console/console.h>
 #include <device/device.h>
 #include <memrange.h>
 #include <post.h>
+#include <types.h>
 
 static const char *resource2str(const struct resource *res)
 {
@@ -69,6 +71,10 @@ static void update_bridge_resource(const struct device *bridge, struct resource 
 		if (!child_res->size)
 			continue;
 
+		/* Resources with 0 limit can't be assigned anything. */
+		if (!child_res->limit)
+			continue;
+
 		/*
 		 * Propagate the resource alignment to the bridge resource. The
 		 * condition can only be true for the first (largest) resource. For all
@@ -84,15 +90,14 @@ static void update_bridge_resource(const struct device *bridge, struct resource 
 			bridge_res->align = child_res->align;
 
 		/*
-		 * Propagate the resource limit to the bridge resource only if child
-		 * resource limit is non-zero. If a downstream device has stricter
-		 * requirements w.r.t. limits for any resource, that constraint needs to
-		 * be propagated back up to the downstream bridges of the domain. This
-		 * guarantees that the resource allocation which starts at the domain
-		 * level takes into account all these constraints thus working on a
-		 * global view.
+		 * Propagate the resource limit to the bridge resource. If a downstream
+		 * device has stricter requirements w.r.t. limits for any resource, that
+		 * constraint needs to be propagated back up to the downstream bridges
+		 * of the domain. This guarantees that the resource allocation which
+		 * starts at the domain level takes into account all these constraints
+		 * thus working on a global view.
 		 */
-		if (child_res->limit && (child_res->limit < bridge_res->limit))
+		if (child_res->limit < bridge_res->limit)
 			bridge_res->limit = child_res->limit;
 
 		/*
@@ -369,6 +374,9 @@ static void print_resource_ranges(const struct device *dev, const struct memrang
 static void allocate_child_resources(struct bus *bus, struct memranges *ranges,
 				     unsigned long type_mask, unsigned long type_match)
 {
+	const bool allocate_top_down =
+		bus->dev->path.type == DEVICE_PATH_DOMAIN &&
+		CONFIG(RESOURCE_ALLOCATION_TOP_DOWN);
 	struct resource *resource = NULL;
 	const struct device *dev;
 
@@ -378,7 +386,7 @@ static void allocate_child_resources(struct bus *bus, struct memranges *ranges,
 			continue;
 
 		if (memranges_steal(ranges, resource->limit, resource->size, resource->align,
-				    type_match, &resource->base) == false) {
+				    type_match, &resource->base, allocate_top_down) == false) {
 			printk(BIOS_ERR, "  ERROR: Resource didn't fit!!! ");
 			printk(BIOS_DEBUG, "  %s %02lx *  size: 0x%llx limit: %llx %s\n",
 			       dev_path(dev), resource->index,

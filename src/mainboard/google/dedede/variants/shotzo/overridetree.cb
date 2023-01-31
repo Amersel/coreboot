@@ -22,19 +22,81 @@ chip soc/intel/jasperlake
 		},
 		.i2c[2] = {
 			.speed = I2C_SPEED_FAST,
+			.speed_config[0] = {
+				.speed = I2C_SPEED_FAST,
+				.scl_lcnt = 185,
+				.scl_hcnt = 95,
+			}
 		},
 		.i2c[4] = {
 			.speed = I2C_SPEED_FAST,
+			.speed_config[0] = {
+				.speed = I2C_SPEED_FAST,
+				.scl_lcnt = 185,
+				.scl_hcnt = 95,
+			}
 		},
 	}"
 
 	register "disable_external_bypass_vr" = "1"    # Does not support external vnn power rail
+
+	register "power_limits_config" = "{
+		.tdp_pl1_override = 7,
+		.tdp_pl2_override = 25,
+	}"
+
+	register "tcc_offset" = "5"	# TCC of 100C
 
 	# USB Port Configuration
 	register "usb2_ports[5]" = "USB2_PORT_MID(OC_SKIP)"     # Camera
 	register "usb2_ports[6]" = "USB2_PORT_MID(OC_SKIP)"     # Lan
 
 	device domain 0 on
+		device pci 04.0 on
+			chip drivers/intel/dptf
+				# Default DPTF Policy for all drawcia boards if not overridden
+				register "options.tsr[0].desc" = ""Ambient""
+
+				## Passive Policy
+				register "policies.passive" = "{
+					[0] = DPTF_PASSIVE(CPU,		CPU,	       85, 60000),
+					[1] = DPTF_PASSIVE(CPU,		TEMP_SENSOR_0, 65, 60000),
+				}"
+
+				## Critical Policy
+				register "policies.critical" = "{
+					[0] = DPTF_CRITICAL(CPU,           105, SHUTDOWN),
+					[1] = DPTF_CRITICAL(TEMP_SENSOR_0,  78, SHUTDOWN),
+				}"
+
+				register "controls.power_limits" = "{
+					.pl1 = {
+						.min_power = 6000,
+						.max_power = 6500,
+						.time_window_min = 1 * MSECS_PER_SEC,
+						.time_window_max = 1 * MSECS_PER_SEC,
+						.granularity = 100,
+					},
+					.pl2 = {
+						.min_power = 25000,
+						.max_power = 25000,
+						.time_window_min = 1 * MSECS_PER_SEC,
+						.time_window_max = 1 * MSECS_PER_SEC,
+						.granularity = 1000,
+					}
+				}"
+
+				## Charger Performance Control (Control, mA)
+				register "controls.charger_perf" = "{
+					[0] = { 255, 3000 },
+					[1] = {  24, 1500 },
+					[2] = {  16, 1000 },
+					[3] = {   8,  500 }
+				}"
+
+				device generic 0 on end
+			end
+		end # SA Thermal device
 		device pci 14.0 on
 			chip drivers/usb/acpi
 				device usb 0.0 on
@@ -115,15 +177,14 @@ chip soc/intel/jasperlake
 			chip drivers/i2c/hid
 				register "generic.hid" = ""ILTK0001""
 				register "generic.desc" = ""ILITEK Touchscreen""
-				register "generic.irq" = "ACPI_IRQ_EDGE_LOW(GPP_D4_IRQ)"
-				register "generic.probed" = "1"
+				register "generic.irq" = "ACPI_IRQ_LEVEL_LOW(GPP_D4_IRQ)"
+				register "generic.detect" = "1"
 				register "generic.reset_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPP_D5)"
-				register "generic.reset_delay_ms" = "20"
+				register "generic.reset_delay_ms" = "400"
 				register "generic.enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPP_D6)"
 				register "generic.enable_delay_ms" = "12"
 				register "generic.wake" = "GPE0_DW2_04"
 				register "generic.has_power_resource" = "1"
-				register "generic.disable_gpio_export_in_crs" = "1"
 				register "hid_desc_reg_offset" = "0x01"
 				device i2c 41 on end
 			end

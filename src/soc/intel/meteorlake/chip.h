@@ -4,8 +4,8 @@
 #define _SOC_CHIP_H_
 
 #include <drivers/i2c/designware/dw_i2c.h>
+#include <gpio.h>
 #include <intelblocks/cfg.h>
-#include <intelblocks/gpio.h>
 #include <intelblocks/gspi.h>
 #include <intelblocks/power_limit.h>
 #include <intelblocks/pcie_rp.h>
@@ -22,6 +22,7 @@ enum soc_intel_meteorlake_power_limits {
 	MTL_P_POWER_LIMITS_1,
 	MTL_P_POWER_LIMITS_2,
 	MTL_P_POWER_LIMITS_3,
+	MTL_P_POWER_LIMITS_4,
 	MTL_POWER_LIMITS_COUNT
 };
 
@@ -40,6 +41,25 @@ enum ddi_ports {
 enum ddi_port_flags {
 	DDI_ENABLE_DDC = 1 << 0,
 	DDI_ENABLE_HPD = 1 << 1,
+};
+
+/*
+ * The Max Pkg Cstate
+ * Values 0 - C0/C1, 1 - C2, 2 - C3, 3 - C6, 4 - C7, 5 - C7S, 6 - C8, 7 - C9, 8 - C10,
+ * 254 - CPU Default , 255 - Auto.
+ */
+enum pkgcstate_limit {
+	LIMIT_C0_C1		= 0,
+	LIMIT_C2		= 1,
+	LIMIT_C3		= 2,
+	LIMIT_C6		= 3,
+	LIMIT_C7		= 4,
+	LIMIT_C7S		= 5,
+	LIMIT_C8		= 6,
+	LIMIT_C9		= 7,
+	LIMIT_C10		= 8,
+	LIMIT_CPUDEFAULT	= 254,
+	LIMIT_AUTO		= 255,
 };
 
 /* Bit values for use in LpmStateEnableMask. */
@@ -102,19 +122,15 @@ struct soc_intel_meteorlake_config {
 
 	/* System Agent dynamic frequency support. Only effects ULX/ULT CPUs.
 	 * When enabled memory will be training at two different frequencies.
-	 * 0:Disabled, 1:FixedPoint0, 2:FixedPoint1, 3:FixedPoint2,
-	 * 4:FixedPoint3, 5:Enabled */
+	 * 0:Disabled, 1:Enabled
+	 */
 	enum {
-		SaGv_Disabled,
-		SaGv_FixedPoint0,
-		SaGv_FixedPoint1,
-		SaGv_FixedPoint2,
-		SaGv_FixedPoint3,
-		SaGv_Enabled,
-	} SaGv;
+		SAGV_DISABLED,
+		SAGV_ENABLED,
+	} sagv;
 
 	/* Rank Margin Tool. 1:Enable, 0:Disable */
-	uint8_t RMT;
+	uint8_t rmt;
 
 	/* USB related */
 	struct usb2_port_config usb2_ports[CONFIG_SOC_INTEL_USB2_DEV_MAX];
@@ -125,7 +141,8 @@ struct soc_intel_meteorlake_config {
 	uint16_t usb3_wake_enable_bitmap;
 	/* Program OC pins for TCSS */
 	struct tcss_port_config tcss_ports[MAX_TYPE_C_PORTS];
-	uint8_t tbt_pcie_port_disable[4];
+	/* Validate TBT firmware authenticated and loaded into IMR */
+	bool tbt_authentication;
 
 	/* SATA related */
 	uint8_t sata_mode;
@@ -324,6 +341,13 @@ struct soc_intel_meteorlake_config {
 	 * Default 0.
 	 */
 	uint8_t lan_clk;
+
+	/*
+	 * Enable or Disable Package C-state Demotion.
+	 * Default is set to 0.
+	 * Set this to 1 in order to disable Package C-state demotion.
+	 */
+	bool disable_package_c_state_demotion;
 };
 
 typedef struct soc_intel_meteorlake_config config_t;

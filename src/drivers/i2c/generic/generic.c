@@ -17,10 +17,10 @@ static bool i2c_generic_add_gpios_to_crs(struct drivers_i2c_generic_config *cfg)
 {
 	/*
 	 * Return false if:
-	 * 1. Request to explicitly disable export of GPIOs in CRS, or
+	 * 1. GPIOs are exported via a power resource, or
 	 * 2. Both reset and enable GPIOs are not provided.
 	 */
-	if (cfg->disable_gpio_export_in_crs ||
+	if (cfg->has_power_resource ||
 	    ((cfg->reset_gpio.pin_count == 0) &&
 	     (cfg->enable_gpio.pin_count == 0)))
 		return false;
@@ -62,7 +62,7 @@ void i2c_generic_fill_ssdt(const struct device *dev,
 		return;
 
 	if (!config->hid) {
-		printk(BIOS_ERR, "%s: ERROR: HID required\n", dev_path(dev));
+		printk(BIOS_ERR, "%s: HID required but not set\n", dev_path(dev));
 		return;
 	}
 

@@ -14,21 +14,84 @@ fw_config
 	end
 end
 chip soc/intel/alderlake
+	# As per Intel Advisory doc#723158, the change is required to prevent possible
+	# display flickering issue.
+	register "usb2_phy_sus_pg_disable" = "1"
 	# Enable HDMI2 in PortA, HDMI1 in PortB, HDMI/DP in Port2
 	register "ddi_ports_config" = "{
 		[DDI_PORT_A] = DDI_ENABLE_HPD | DDI_ENABLE_DDC,
 		[DDI_PORT_B] = DDI_ENABLE_HPD | DDI_ENABLE_DDC,
 		[DDI_PORT_1] = DDI_ENABLE_HPD,
-		[DDI_PORT_2] = DDI_ENABLE_HPD,
+		[DDI_PORT_2] = DDI_ENABLE_HPD | DDI_ENABLE_DDC,
 		[DDI_PORT_3] = DDI_ENABLE_HPD,
 	}"
 	register "usb2_ports[1]" = "USB2_PORT_EMPTY" 		# Disable USB2 Port2
 	register "usb2_ports[2]" = "USB2_PORT_TYPE_C(OC2)"  	# USB2 Port3
 	register "usb2_ports[3]" = "USB2_PORT_SHORT(OC_SKIP)"	# Enable USB2 Port4
 	register "usb2_ports[8]" = "USB2_PORT_EMPTY"		# Disable USB2 Port9
+	register "usb3_ports[2]" = "{
+		.enable           = 1,
+		.ocpin            = OC_SKIP,
+		.tx_de_emp        = 0x2B,
+		.tx_downscale_amp = 0x00,
+	}" # Type-A port A2
 	register "tcss_ports[3]" = "TCSS_PORT_EMPTY"		# Disable TCP3
 	register "tcc_offset" = "0"	# TCC of 100C
+	register "power_limits_config[ADL_P_142_242_282_15W_CORE]" = "{
+		.tdp_pl1_override = 55,
+	}"
+	register "power_limits_config[ADL_P_282_482_28W_CORE]" = "{
+		.tdp_pl1_override = 64,
+	}"
 	device domain 0 on
+		device ref dtt on
+			chip drivers/intel/dptf
+				## sensor information
+				register "options.tsr[0].desc" = ""SSD""
+				register "options.tsr[1].desc" = ""CPU_VR""
+				register "options.tsr[2].desc" = ""DIMM""
+
+
+				## Passive Policy
+				register "policies.passive" = "{
+					[0] = DPTF_PASSIVE(CPU,		CPU,           95, 5000),
+					[1] = DPTF_PASSIVE(CPU,		TEMP_SENSOR_0, 75, 5000),
+					[2] = DPTF_PASSIVE(CPU,		TEMP_SENSOR_1, 75, 5000),
+					[3] = DPTF_PASSIVE(CPU,		TEMP_SENSOR_2, 75, 5000),
+				}"
+
+				## Critical Policy
+				register "policies.critical" = "{
+					[0] = DPTF_CRITICAL(CPU,               105, SHUTDOWN),
+					[1] = DPTF_CRITICAL(TEMP_SENSOR_0,      85, SHUTDOWN),
+					[2] = DPTF_CRITICAL(TEMP_SENSOR_1,      85, SHUTDOWN),
+					[3] = DPTF_CRITICAL(TEMP_SENSOR_2,      85, SHUTDOWN),
+				}"
+
+				register "controls.power_limits" = "{
+					.pl1 = {
+							.min_power = 15000,
+							.max_power = 55000,
+							.time_window_min = 28 * MSECS_PER_SEC,
+							.time_window_max = 32 * MSECS_PER_SEC,
+							.granularity = 200,
+						},
+					.pl2 = {
+							.min_power = 55000,
+							.max_power = 55000,
+							.time_window_min = 28 * MSECS_PER_SEC,
+							.time_window_max = 32 * MSECS_PER_SEC,
+							.granularity = 1000,
+						}
+				}"
+
+				register "oem_data.oem_variables" = "{
+						[0] = 0x1
+				}"
+
+				device generic 0 alias dptf_policy on end
+			end
+		end
 		device ref tcss_dma0 on
 			chip drivers/intel/usb4/retimer
 				register "dfp[0].power_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPP_E4)"
@@ -94,9 +157,10 @@ chip soc/intel/alderlake
 		end # IntelI225V Ethernet NIC
 		device ref pcie_rp7 on
 			chip drivers/net
-				register "customized_leds" = "0x05af"
+				register "customized_leds" = "0x0482"
 				register "wake" = "GPE0_DW0_07"
 				register "device_index" = "0"
+				register "add_acpi_dma_property" = "true"
 				device pci 00.0 on end
 			end
 		end # RTL8111K Ethernet NIC

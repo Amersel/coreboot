@@ -75,17 +75,21 @@ chip soc/intel/alderlake
 	# Disable C state auto-demotion for all brya baseboards
 	register "disable_c1_state_auto_demotion" = "1"
 
+	# FIXME: To be enabled in future based on PNP impact data.
+	# Disable Package C-state demotion for brya baseboard.
+	register "disable_package_c_state_demotion" = "1"
+
 	# Intel Common SoC Config
 	#+-------------------+---------------------------+
 	#| Field             |  Value                    |
 	#+-------------------+---------------------------+
 	#| GSPI1             | Fingerprint MCU           |
 	#| I2C0              | Audio and WFC             |
-	#| I2C1              | Touchscreen               |
-	#| I2C2              | SAR0                      |
-	#| I2C3              | cr50 TPM. Early init is   |
+	#| I2C1              | cr50 TPM. Early init is   |
 	#|                   | required to set up a BAR  |
 	#|                   | for TPM communication     |
+	#| I2C2              | SAR0                      |
+	#| I2C3              | Touchscreen               |
 	#| I2C5              | Trackpad                  |
 	#+-------------------+---------------------------+
 	register "common_soc_config" = "{
@@ -122,10 +126,6 @@ chip soc/intel/alderlake
 		},
 	}"
 
-	# set EPP to 45%: 45 * 256/100 = 115 = 0x73
-	register "enable_energy_perf_pref" = "true"
-	register "energy_perf_pref_value" = "0x73"
-
 	device domain 0 on
 		device ref igpu on end
 		device ref dtt on end
@@ -140,7 +140,7 @@ chip soc/intel/alderlake
 		device ref cnvi_wifi on
 			chip drivers/wifi/generic
 				register "wake" = "GPE0_PME_B0"
-				register "is_untrusted" = "true"
+				register "add_acpi_dma_property" = "true"
 				device generic 0 on end
 			end
 		end

@@ -10,13 +10,22 @@ fw_config
 	field UFC 4 5
 		option UFC_USB			0
 		option UFC_MIPI_OVTI2740	1
+		option UFC_MIPI_ZYDRON		2
 	end
 	field STYLUS 6
 		option STYLUS_ABSENT		0
 		option STYLUS_PRESENT		1
 	end
+	field ZYDRON_UFC 36 37
+		option UFC_MIPI_OVTI2740        0
+		option UFC_MIPI_HI556           1
+	end
 end
 chip soc/intel/alderlake
+	register "domain_vr_config[VR_DOMAIN_IA]" = "{
+		.enable_fast_vmode = 1,
+	}"
+
 	register "sagv" = "SaGv_Enabled"
 
 	# As per Intel Advisory doc#723158, the change is required to prevent possible
@@ -197,6 +206,8 @@ chip soc/intel/alderlake
 				register "cio2_prt[0]" = "1"
 				device generic 0 on
 					probe UFC UFC_MIPI_OVTI2740
+					probe ZYDRON_UFC UFC_MIPI_HI556
+					probe ZYDRON_UFC UFC_MIPI_OVTI2740
 				end
 			end
 		end
@@ -319,6 +330,46 @@ chip soc/intel/alderlake
 
 				device i2c 36 on
 					probe UFC UFC_MIPI_OVTI2740
+					probe ZYDRON_UFC UFC_MIPI_OVTI2740
+				end
+			end
+			chip drivers/intel/mipi_camera
+				register "acpi_hid" = ""INT3537""
+				register "acpi_uid" = "0"
+				register "acpi_name" = ""CAM0""
+				register "chip_name" = ""Hi-556 Camera""
+				register "device_type" = "INTEL_ACPI_CAMERA_SENSOR"
+				register "has_power_resource" = "1"
+
+				register "ssdb.lanes_used" = "2"
+				register "ssdb.link_used" = "1"
+				register "num_freq_entries" = "1"
+				register "link_freq[0]" = "437 * MHz" # 437 MHz
+				register "remote_name" = ""IPU0""
+				register "max_dstate_for_probe" = "ACPI_DEVICE_SLEEP_D3_COLD"
+
+				#Controls
+				register "clk_panel.clks[0].clknum" = "IMGCLKOUT_3"
+				register "clk_panel.clks[0].freq" = "FREQ_19_2_MHZ"
+
+				register "gpio_panel.gpio[0].gpio_num" = "GPP_C4" #power
+				register "gpio_panel.gpio[1].gpio_num" = "GPP_F20" #reset
+
+				#_ON
+				register "on_seq.ops_cnt" = "4"
+				register "on_seq.ops[0]" = "SEQ_OPS_CLK_ENABLE(0, 0)"
+				register "on_seq.ops[1]" = "SEQ_OPS_GPIO_ENABLE(0, 5)"
+				register "on_seq.ops[2]" = "SEQ_OPS_GPIO_DISABLE(1, 5)"
+				register "on_seq.ops[3]" = "SEQ_OPS_GPIO_ENABLE(1, 5)"
+
+				#_OFF
+				register "off_seq.ops_cnt" = "3"
+				register "off_seq.ops[0]" = "SEQ_OPS_CLK_DISABLE(0, 0)"
+				register "off_seq.ops[1]" = "SEQ_OPS_GPIO_DISABLE(1, 0)"
+				register "off_seq.ops[2]" = "SEQ_OPS_GPIO_DISABLE(0, 0)"
+
+				device i2c 20 on
+					probe ZYDRON_UFC UFC_MIPI_HI556
 				end
 			end
 			chip drivers/intel/mipi_camera
@@ -336,6 +387,8 @@ chip soc/intel/alderlake
 
 				device i2c 50 on
 					probe UFC UFC_MIPI_OVTI2740
+					probe ZYDRON_UFC UFC_MIPI_HI556
+					probe ZYDRON_UFC UFC_MIPI_OVTI2740
 				end
                         end
 		end
@@ -357,7 +410,6 @@ chip soc/intel/alderlake
 							"ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPP_C6)"
 				register "generic.stop_off_delay_ms" = "1"
 				register "generic.has_power_resource" = "1"
-				register "generic.disable_gpio_export_in_crs" = "1"
 				register "hid_desc_reg_offset" = "0x01"
 				device i2c 0x10 on end
 			end
@@ -383,15 +435,16 @@ chip soc/intel/alderlake
 				register "desc" = ""ELAN Touchpad""
 				register "irq" = "ACPI_IRQ_WAKE_LEVEL_LOW(GPP_F14_IRQ)"
 				register "wake" = "GPE0_DW2_14"
-				register "probed" = "1"
+				register "detect" = "1"
 				device i2c 15 on end
 			end
 			chip drivers/i2c/hid
-				register "generic.hid" = ""PNP0C50""
+				register "generic.hid" = ""SYNA0000""
+				register "generic.cid" = ""ACPI0C50""
 				register "generic.desc" = ""Synaptics Touchpad""
 				register "generic.irq" = "ACPI_IRQ_WAKE_LEVEL_LOW(GPP_F14_IRQ)"
 				register "generic.wake" = "GPE0_DW2_14"
-				register "generic.probed" = "1"
+				register "generic.detect" = "1"
 				register "hid_desc_reg_offset" = "0x20"
 				device i2c 0x2c on end
 			end
@@ -407,6 +460,10 @@ chip soc/intel/alderlake
 				register "compat_string" = ""google,cros-ec-spi""
 				register "irq" = "ACPI_IRQ_WAKE_LEVEL_LOW(GPP_F15_IRQ)"
 				register "wake" = "GPE0_DW2_15"
+				register "has_power_resource" = "1"
+				register "reset_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPP_D1)"
+				register "enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPP_D2)"
+				register "enable_delay_ms" = "3"
 				device spi 0 on end
 			end # FPMCU
 		end

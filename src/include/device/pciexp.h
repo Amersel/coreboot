@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 #ifndef DEVICE_PCIEXP_H
 #define DEVICE_PCIEXP_H
 /* (c) 2005 Linux Networx GPL see COPYING for details */
@@ -30,9 +32,10 @@ void pciexp_hotplug_scan_bridge(struct device *dev);
 
 extern struct device_operations default_pciexp_hotplug_ops_bus;
 
-unsigned int pciexp_find_extended_cap(const struct device *dev, unsigned int cap);
-unsigned int pciexp_find_next_extended_cap(const struct device *dev, unsigned int cap,
-					   unsigned int offset);
+unsigned int pciexp_find_extended_cap(const struct device *dev, unsigned int cap,
+				      unsigned int offset);
+unsigned int pciexp_find_ext_vendor_cap(const struct device *dev, unsigned int cap,
+					unsigned int offset);
 
 static inline bool pciexp_is_downstream_port(int type)
 {
@@ -40,6 +43,9 @@ static inline bool pciexp_is_downstream_port(int type)
 	       type == PCI_EXP_TYPE_DOWNSTREAM ||
 	       type == PCI_EXP_TYPE_PCIE_BRIDGE;
 }
+
+struct device *pcie_find_dsn(const uint64_t serial, const uint16_t vid,
+	struct device *from);
 
 bool pciexp_get_ltr_max_latencies(struct device *dev, u16 *max_snoop, u16 *max_nosnoop);
 

@@ -4,8 +4,8 @@
 #include <device/mmio.h>
 #include <device/device.h>
 #include <device/pci_ops.h>
+#include <gpio.h>
 #include <intelblocks/fast_spi.h>
-#include <intelblocks/gpio.h>
 #include <intelblocks/gspi.h>
 #include <intelblocks/lpc_lib.h>
 #include <intelblocks/p2sb.h>
@@ -13,7 +13,6 @@
 #include <intelblocks/pmclib.h>
 #include <intelblocks/rtc.h>
 #include <soc/bootblock.h>
-#include <soc/gpio.h>
 #include <soc/iomap.h>
 #include <soc/lpc.h>
 #include <soc/p2sb.h>
@@ -56,7 +55,7 @@ static void soc_config_pwrmbase(void)
 	pci_or_config16(PCH_DEV_PMC, PCI_COMMAND, (PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER));
 
 	/* Enable PWRM in PMC */
-	setbits32((void *) PCH_PWRM_BASE_ADDRESS + ACTL, PWRM_EN);
+	setbits32((void *)PCH_PWRM_BASE_ADDRESS + ACTL, PWRM_EN);
 }
 
 void bootblock_pch_early_init(void)

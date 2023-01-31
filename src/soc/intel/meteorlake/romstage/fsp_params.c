@@ -2,8 +2,10 @@
 
 #include <assert.h>
 #include <console/console.h>
+#include <cpu/intel/cpu_ids.h>
 #include <cpu/x86/msr.h>
 #include <device/device.h>
+#include <drivers/wifi/generic/wifi.h>
 #include <fsp/fsp_debug_event.h>
 #include <fsp/util.h>
 #include <intelblocks/cpulib.h>
@@ -26,17 +28,28 @@ static void pcie_rp_init(FSP_M_CONFIG *m_cfg, uint32_t en_mask,
 			const struct pcie_rp_config *cfg, size_t cfg_count)
 {
 	size_t i;
+	static unsigned int clk_req_mapping = 0;
 
 	for (i = 0; i < cfg_count; i++) {
+		if (CONFIG(SOC_INTEL_COMPLIANCE_TEST_MODE)) {
+			m_cfg->PcieClkSrcUsage[i] = FSP_CLK_FREE_RUNNING;
+			continue;
+		}
 		if (!(en_mask & BIT(i)))
 			continue;
 		if (cfg[i].flags & PCIE_RP_CLK_SRC_UNUSED)
 			continue;
-		/* flags 0 means, RP config is not specify from devicetree */
-		if (cfg[i].flags == 0)
+		if (!cfg[i].flags && cfg[i].clk_src == 0 && cfg[i].clk_req == 0) {
+			printk(BIOS_WARNING, "Missing root port clock structure definition\n");
 			continue;
-		if (!(cfg[i].flags & PCIE_RP_CLK_REQ_UNUSED))
+		}
+		if (clk_req_mapping & (1 << cfg[i].clk_req))
+			printk(BIOS_WARNING, "Found overlapped clkreq assignment on clk req %d\n"
+				, cfg[i].clk_req);
+		if (!(cfg[i].flags & PCIE_RP_CLK_REQ_UNUSED)) {
 			m_cfg->PcieClkSrcClkReq[cfg[i].clk_src] = cfg[i].clk_req;
+			clk_req_mapping |= 1 << cfg[i].clk_req;
+		}
 		m_cfg->PcieClkSrcUsage[cfg[i].clk_src] = i;
 	}
 }
@@ -109,8 +122,8 @@ static void fill_fspm_igd_params(FSP_M_CONFIG *m_cfg,
 static void fill_fspm_mrc_params(FSP_M_CONFIG *m_cfg,
 		const struct soc_intel_meteorlake_config *config)
 {
-	m_cfg->SaGv = config->SaGv;
-	m_cfg->RMT = config->RMT;
+	m_cfg->SaGv = config->sagv;
+	m_cfg->RMT = config->rmt;
 }
 
 static void fill_fspm_cpu_params(FSP_M_CONFIG *m_cfg,
@@ -134,7 +147,7 @@ static void fill_fspm_security_params(FSP_M_CONFIG *m_cfg,
 {
 	/* Disable BIOS Guard */
 	m_cfg->BiosGuard = 0;
-	m_cfg->TmeEnable = CONFIG(INTEL_TME);
+	m_cfg->TmeEnable = CONFIG(INTEL_TME) && is_tme_supported();
 }
 
 static void fill_fspm_uart_params(FSP_M_CONFIG *m_cfg,
@@ -172,6 +185,9 @@ static void fill_fspm_misc_params(FSP_M_CONFIG *m_cfg,
 
 	/* Skip GPIO configuration from FSP */
 	m_cfg->GpioOverride = 0x1;
+
+	/* Skip MBP HOB */
+	m_cfg->SkipMbpHob = !CONFIG(FSP_PUBLISH_MBP_HOB);
 }
 
 static void fill_fspm_audio_params(FSP_M_CONFIG *m_cfg,
@@ -195,6 +211,19 @@ static void fill_fspm_audio_params(FSP_M_CONFIG *m_cfg,
 	memset(m_cfg->PchHdaAudioLinkSndwEnable, 0, sizeof(m_cfg->PchHdaAudioLinkSndwEnable));
 }
 
+static void fill_fspm_cnvi_params(FSP_M_CONFIG *m_cfg,
+		const struct soc_intel_meteorlake_config *config)
+{
+	/* CNVi DDR RFI Mitigation */
+	const struct device_path path[] = {
+		{ .type = DEVICE_PATH_PCI, .pci.devfn = PCI_DEVFN_CNVI_WIFI },
+		{ .type = DEVICE_PATH_GENERIC, .generic.id = 0 } };
+	const struct device *dev = find_dev_nested_path(pci_root_bus(), path,
+							ARRAY_SIZE(path));
+	if (is_dev_enabled(dev))
+		m_cfg->CnviDdrRfim = wifi_generic_cnvi_ddr_rfim_enabled(dev);
+}
+
 static void fill_fspm_ish_params(FSP_M_CONFIG *m_cfg,
 		const struct soc_intel_meteorlake_config *config)
 {
@@ -212,7 +241,7 @@ static void fill_fspm_tcss_params(FSP_M_CONFIG *m_cfg,
 
 	/* TCSS DMA */
 	m_cfg->TcssDma0En = is_devfn_enabled(PCI_DEVFN_TCSS_DMA0);
-	m_cfg->TcssDma1En = 0;
+	m_cfg->TcssDma1En = is_devfn_enabled(PCI_DEVFN_TCSS_DMA1);
 
 	/* Enable TCSS port */
 	max_port = get_max_tcss_port();
@@ -225,10 +254,10 @@ static void fill_fspm_tcss_params(FSP_M_CONFIG *m_cfg,
 static void fill_fspm_usb4_params(FSP_M_CONFIG *m_cfg,
 		const struct soc_intel_meteorlake_config *config)
 {
-	memset(&m_cfg->TcssItbtPcie0En, 0, sizeof(m_cfg->TcssItbtPcie0En)*4);
-
-	m_cfg->TcssItbtPcie0En = !(config->tbt_pcie_port_disable[0]);
-	m_cfg->TcssItbtPcie1En = !(config->tbt_pcie_port_disable[1]);
+	m_cfg->TcssItbtPcie0En = is_devfn_enabled(PCI_DEVFN_TBT0);
+	m_cfg->TcssItbtPcie1En = is_devfn_enabled(PCI_DEVFN_TBT1);
+	m_cfg->TcssItbtPcie2En = is_devfn_enabled(PCI_DEVFN_TBT2);
+	m_cfg->TcssItbtPcie3En = is_devfn_enabled(PCI_DEVFN_TBT3);
 }
 
 static void fill_fspm_vtd_params(FSP_M_CONFIG *m_cfg,
@@ -246,11 +275,10 @@ static void fill_fspm_trace_params(FSP_M_CONFIG *m_cfg,
 		const struct soc_intel_meteorlake_config *config)
 {
 	/* Set debug probe type */
-	m_cfg->PlatformDebugConsent = CONFIG_SOC_INTEL_METEORLAKE_DEBUG_CONSENT;
+	m_cfg->PlatformDebugOption = CONFIG_SOC_INTEL_METEORLAKE_DEBUG_CONSENT;
 
 	/* CrashLog config */
 	if (CONFIG(SOC_INTEL_CRASHLOG)) {
-		m_cfg->CpuCrashLogDevice = 1;
 		m_cfg->CpuCrashLogEnable = 1;
 	}
 }
@@ -258,7 +286,7 @@ static void fill_fspm_trace_params(FSP_M_CONFIG *m_cfg,
 static void soc_memory_init_params(FSP_M_CONFIG *m_cfg,
 		const struct soc_intel_meteorlake_config *config)
 {
-	const void (*const fill_fspm_params[])(FSP_M_CONFIG *m_cfg,
+	void (*fill_fspm_params[])(FSP_M_CONFIG *m_cfg,
 			const struct soc_intel_meteorlake_config *config) = {
 		fill_fspm_igd_params,
 		fill_fspm_mrc_params,
@@ -269,6 +297,7 @@ static void soc_memory_init_params(FSP_M_CONFIG *m_cfg,
 		fill_fspm_smbus_params,
 		fill_fspm_misc_params,
 		fill_fspm_audio_params,
+		fill_fspm_cnvi_params,
 		fill_fspm_pcie_rp_params,
 		fill_fspm_ish_params,
 		fill_fspm_tcss_params,

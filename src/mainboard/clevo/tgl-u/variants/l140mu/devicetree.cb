@@ -2,7 +2,6 @@ chip soc/intel/tigerlake
 	device cpu_cluster 0 on
 		register "tcc_offset" = "12"
 		register "eist_enable" = "true"
-		device lapic 0 on end
 	end
 	device domain 0 on
 		subsystemid 0x1558 0x14a1 inherit
@@ -139,7 +138,7 @@ chip soc/intel/tigerlake
 				register "generic.hid" = ""ELAN040D""
 				register "generic.desc" = ""ELAN Touchpad""
 				register "generic.irq" = "ACPI_IRQ_LEVEL_LOW(GPP_B3_IRQ)"
-				register "generic.probed" = "true"
+				register "generic.detect" = "1"
 				register "hid_desc_reg_offset" = "0x01"
 				device i2c 15 on end
 			end
@@ -203,6 +202,10 @@ chip soc/intel/tigerlake
 			end
 		end
 		device ref pch_espi on
+			chip ec/clevo/it5570e
+				device generic 0 on end
+				register "pl2_on_battery" = "15"
+			end
 			chip drivers/pc80/tpm
 				device pnp 0c31.0 on end
 			end

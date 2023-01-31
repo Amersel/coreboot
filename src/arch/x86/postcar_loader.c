@@ -9,9 +9,10 @@
 #include <program_loading.h>
 #include <reset.h>
 #include <rmodule.h>
+#include <security/vboot/vboot_common.h>
 #include <stage_cache.h>
 #include <timestamp.h>
-#include <security/vboot/vboot_common.h>
+#include <types.h>
 
 static size_t var_mtrr_ctx_size(void)
 {
@@ -19,7 +20,7 @@ static size_t var_mtrr_ctx_size(void)
 	return sizeof(struct var_mtrr_context) + mtrr_count * 2 * sizeof(msr_t);
 }
 
-static int postcar_frame_init(struct postcar_frame *pcf)
+static enum cb_err postcar_frame_init(struct postcar_frame *pcf)
 {
 	memset(pcf, 0, sizeof(*pcf));
 
@@ -28,13 +29,13 @@ static int postcar_frame_init(struct postcar_frame *pcf)
 	ctx = cbmem_add(CBMEM_ID_ROMSTAGE_RAM_STACK, var_mtrr_ctx_size());
 	if (ctx == NULL) {
 		printk(BIOS_ERR, "Couldn't add var_mtrr_ctx setup in cbmem.\n");
-		return -1;
+		return CB_ERR;
 	}
 
 	pcf->mtrr = ctx;
 	var_mtrr_context_init(pcf->mtrr);
 
-	return 0;
+	return CB_SUCCESS;
 }
 
 void postcar_frame_add_mtrr(struct postcar_frame *pcf,
@@ -63,7 +64,7 @@ static void run_postcar_phase(struct postcar_frame *pcf);
 
 /* prepare_and_run_postcar() determines the stack to use after
  * cache-as-ram is torn down as well as the MTRR settings to use. */
-void prepare_and_run_postcar(void)
+void __noreturn prepare_and_run_postcar(void)
 {
 	struct postcar_frame pcf;
 
@@ -76,6 +77,7 @@ void prepare_and_run_postcar(void)
 
 	run_postcar_phase(&pcf);
 	/* We do not return here. */
+	die("Failed to load postcar\n!");
 }
 
 static void finalize_load(uintptr_t *reloc_params, uintptr_t mtrr_frame_ptr)

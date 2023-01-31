@@ -17,23 +17,31 @@ enum mem_types {
 	READONLY_TAG,
 	INSERTED_TAG,
 	HOLE_TAG,
+	UNASSIGNED_TAG,
 	END_OF_RESOURCES
 };
 
 /* Indices of entries matters, since it must reflect mem_types enum */
 struct resource res_mock_1[] = {
+	[UNASSIGNED_TAG] = {.base = 0x0,
+			    .size = 0x8000,
+			    .next = &res_mock_1[CACHEABLE_TAG],
+			    .flags = IORESOURCE_MEM | IORESOURCE_PREFETCH},
 	[CACHEABLE_TAG] = {.base = 0xE000,
 			   .size = 0xF2000,
 			   .next = &res_mock_1[RESERVED_TAG],
-			   .flags = IORESOURCE_CACHEABLE | IORESOURCE_MEM},
+			   .flags = IORESOURCE_CACHEABLE | IORESOURCE_MEM |
+				   IORESOURCE_ASSIGNED },
 	[RESERVED_TAG] = {.base = 4ULL * GiB,
 			  .size = 4ULL * KiB,
 			  .next = &res_mock_1[READONLY_TAG],
-			  .flags = IORESOURCE_RESERVE | IORESOURCE_MEM},
+			  .flags = IORESOURCE_RESERVE | IORESOURCE_MEM |
+				  IORESOURCE_ASSIGNED },
 	[READONLY_TAG] = {.base = 0xFF0000,
 			  .size = 0x10000,
 			  .next = NULL,
-			  .flags = IORESOURCE_READONLY | IORESOURCE_MEM}
+			  .flags = IORESOURCE_READONLY | IORESOURCE_MEM |
+				  IORESOURCE_ASSIGNED }
 };
 
 /* Boundary 1 byte below 4GiB and 1 byte above 4GiB. */
@@ -41,15 +49,18 @@ struct resource res_mock_2[] = {
 	[CACHEABLE_TAG] = {.base = 0x1000000,
 			   .size = 4ULL * GiB - 0x1000001ULL,
 			   .next = &res_mock_2[RESERVED_TAG],
-			   .flags = IORESOURCE_CACHEABLE | IORESOURCE_MEM},
+			   .flags = IORESOURCE_CACHEABLE | IORESOURCE_MEM |
+				   IORESOURCE_ASSIGNED },
 	[RESERVED_TAG] = {.base = 4ULL * GiB + 1ULL,
 			  .size = 4ULL * GiB,
 			  .next = &res_mock_2[READONLY_TAG],
-			  .flags = IORESOURCE_RESERVE | IORESOURCE_MEM},
+			  .flags = IORESOURCE_RESERVE | IORESOURCE_MEM |
+				  IORESOURCE_ASSIGNED },
 	[READONLY_TAG] = {.base = 0,
 			  .size = 0x10000,
 			  .next = NULL,
-			  .flags = IORESOURCE_READONLY | IORESOURCE_MEM}
+			  .flags = IORESOURCE_READONLY | IORESOURCE_MEM |
+				  IORESOURCE_ASSIGNED }
 };
 
 /* Boundary crossing 4GiB. */
@@ -57,15 +68,18 @@ struct resource res_mock_3[] = {
 	[CACHEABLE_TAG] = {.base = 0xD000,
 			   .size = 0xF3000,
 			   .next = &res_mock_3[RESERVED_TAG],
-			   .flags = IORESOURCE_CACHEABLE | IORESOURCE_MEM},
+			   .flags = IORESOURCE_CACHEABLE | IORESOURCE_MEM |
+				   IORESOURCE_ASSIGNED },
 	[RESERVED_TAG] = {.base = 1ULL * GiB,
 			  .size = 4ULL * GiB,
 			  .next = &res_mock_3[READONLY_TAG],
-			  .flags = IORESOURCE_RESERVE | IORESOURCE_MEM},
+			  .flags = IORESOURCE_RESERVE | IORESOURCE_MEM |
+				  IORESOURCE_ASSIGNED },
 	[READONLY_TAG] = {.base = 0xFF0000,
 			  .size = 0x10000,
 			  .next = NULL,
-			  .flags = IORESOURCE_READONLY | IORESOURCE_MEM}
+			  .flags = IORESOURCE_READONLY | IORESOURCE_MEM |
+				  IORESOURCE_ASSIGNED}
 };
 
 
@@ -77,7 +91,7 @@ struct device *all_devices = &mock_device;
 int setup_test_1(void **state)
 {
 	*state = res_mock_1;
-	mock_device.resource_list = &res_mock_1[CACHEABLE_TAG];
+	mock_device.resource_list = &res_mock_1[UNASSIGNED_TAG];
 
 	return 0;
 }
@@ -119,6 +133,12 @@ resource_t get_aligned_end(struct resource *res, struct range_entry *entry)
  * Example memory ranges (res_mock1) for test_memrange_basic.
  * Ranges marked with asterisks (***) are not added to the test_memrange.
  *
+ *     +-------UNASSIGNED_TAG--------+ <-0x0
+ *     |                             |
+ *     +-----------------------------+ <-0x8000
+ *
+ *
+ *
  *     +--------CACHEABLE_TAG--------+ <-0xE000
  *     |                             |
  *     |                             |
@@ -143,16 +163,22 @@ static void test_memrange_basic(void **state)
 	int counter = 0;
 	const unsigned long cacheable = IORESOURCE_CACHEABLE;
 	const unsigned long reserved = IORESOURCE_RESERVE;
+	const unsigned long prefetchable = IORESOURCE_PREFETCH;
 	struct range_entry *ptr;
 	struct memranges test_memrange;
 	struct resource *res_mock = *state;
 	resource_t prev_base = 0;
 
-	memranges_init(&test_memrange, cacheable, cacheable, CACHEABLE_TAG);
+	memranges_init_empty(&test_memrange, NULL, 0);
+	memranges_add_resources(&test_memrange, prefetchable, prefetchable, UNASSIGNED_TAG);
+	memranges_add_resources(&test_memrange, cacheable, cacheable, CACHEABLE_TAG);
 	memranges_add_resources(&test_memrange, reserved, reserved, RESERVED_TAG);
 
-	/* There should be two entries, since cacheable and
-	   reserved regions are not neighbors */
+	/* There should be two entries, since cacheable and reserved regions are not neighbors.
+	   Besides these two, a region with an unassigned tag is defined, to emulate an unmapped
+	   PCI BAR resource. This resource is not mapped into host physical address and hence
+	   should not be picked up by memranges_add_resources().*/
+
 	memranges_each_entry(ptr, &test_memrange)
 	{
 		assert_in_range(range_entry_tag(ptr), CACHEABLE_TAG, RESERVED_TAG);
@@ -431,24 +457,25 @@ static void test_memrange_holes(void **state)
 }
 
 /*
- * This test verifies memranges_steal() function. Simple check is done by attempt so steal some
- * memory from region with READONLY_TAG.
+ * This test verifies memranges_steal() function. Simple check is done by attempt
+ * to steal some memory from the top of region with CACHEABLE_TAG and some from
+ * the bottom of region with READONLY_TAG.
  *
  * Example memory ranges (res_mock1) for test_memrange_steal.
- * Space marked with (/) is not covered by any region at the end of the test.
+ * Space marked with (/) is stolen during the test.
  *
  *     +--------CACHEABLE_TAG--------+ <-0xE000
  *     |                             |
  *     |                             |
+ *     |/////////////////////////////|             <-stolen_base
+ *     +-----------------------------+ <-0x100000  <-stolen_base + 0x4000
+ *
+ *
+ *
+ *     +--------READONLY_TAG---------+ <-0xFF0000  <-stolen_base
+ *     |/////////////////////////////|             <-stolen_base + 0x4000
  *     |                             |
- *     +-----------------------------+ <-0x100000
- *
- *
- *
- *     +--------READONLY_TAG---------+ <-0xFF0000
  *     |                             |
- *     |/////////////////////////////| <-stolen_base
- *     |/////////////////////////////| <-stolen_base + 0x4000
  *     +-----------------------------+ <-0x1000000
  *
  *
@@ -475,13 +502,27 @@ static void test_memrange_steal(void **state)
 
 	status = memranges_steal(&test_memrange,
 				 res_mock[RESERVED_TAG].base + res_mock[RESERVED_TAG].size,
-				 stolen_range_size, 12, READONLY_TAG, &stolen);
+				 stolen_range_size, 12, CACHEABLE_TAG, &stolen, true);
+	assert_true(status);
+	assert_in_range(stolen, res_mock[CACHEABLE_TAG].base,
+			res_mock[CACHEABLE_TAG].base + res_mock[CACHEABLE_TAG].size);
+	status = memranges_steal(&test_memrange,
+				 res_mock[RESERVED_TAG].base + res_mock[RESERVED_TAG].size,
+				 stolen_range_size, 12, READONLY_TAG, &stolen, false);
 	assert_true(status);
 	assert_in_range(stolen, res_mock[READONLY_TAG].base,
 			res_mock[READONLY_TAG].base + res_mock[READONLY_TAG].size);
 
 	memranges_each_entry(ptr, &test_memrange)
 	{
+		if (range_entry_tag(ptr) == CACHEABLE_TAG) {
+			assert_int_equal(range_entry_end(ptr),
+					 ALIGN_DOWN(ALIGN_UP(res_mock[CACHEABLE_TAG].base
+								+ res_mock[CACHEABLE_TAG].size,
+							     MEMRANGE_ALIGN)
+							- stolen_range_size,
+						    MEMRANGE_ALIGN));
+		}
 		if (range_entry_tag(ptr) == READONLY_TAG) {
 			assert_int_equal(range_entry_base(ptr),
 					 ALIGN_DOWN(res_mock[READONLY_TAG].base, MEMRANGE_ALIGN)
@@ -492,20 +533,23 @@ static void test_memrange_steal(void **state)
 	assert_int_equal(count, 3);
 	count = 0;
 
-	/* Check if inserting range in previously stolen area will merge it. */
+	/* Check if inserting ranges in previously stolen areas will merge them. */
+	memranges_insert(&test_memrange,
+			 res_mock[CACHEABLE_TAG].base + res_mock[CACHEABLE_TAG].size
+				- stolen_range_size - 0x12,
+			 stolen_range_size, CACHEABLE_TAG);
 	memranges_insert(&test_memrange, res_mock[READONLY_TAG].base + 0xCC, stolen_range_size,
 			 READONLY_TAG);
 	memranges_each_entry(ptr, &test_memrange)
 	{
-		if (range_entry_tag(ptr) == READONLY_TAG) {
-			assert_int_equal(
-				range_entry_base(ptr),
-				ALIGN_DOWN(res_mock[READONLY_TAG].base, MEMRANGE_ALIGN));
-			assert_int_equal(
-				range_entry_end(ptr),
-				ALIGN_UP(range_entry_base(ptr) + res_mock[READONLY_TAG].size,
-					 MEMRANGE_ALIGN));
-		}
+		const unsigned long tag = range_entry_tag(ptr);
+		assert_true(tag == CACHEABLE_TAG || tag == READONLY_TAG || tag == RESERVED_TAG);
+		assert_int_equal(
+			range_entry_base(ptr),
+			ALIGN_DOWN(res_mock[tag].base, MEMRANGE_ALIGN));
+		assert_int_equal(
+			range_entry_end(ptr),
+			ALIGN_UP(res_mock[tag].base + res_mock[tag].size, MEMRANGE_ALIGN));
 		count++;
 	}
 	assert_int_equal(count, 3);

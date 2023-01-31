@@ -16,17 +16,18 @@ enum mtk_regulator {
 	MTK_REGULATOR_VDRAM1,
 	MTK_REGULATOR_VMCH,
 	MTK_REGULATOR_VMC,
+	MTK_REGULATOR_VPROC11,
 	MTK_REGULATOR_VPROC12,
+	MTK_REGULATOR_VSRAM_PROC11,
 	MTK_REGULATOR_VSRAM_PROC12,
 	MTK_REGULATOR_VRF12,
 	MTK_REGULATOR_VCN33,
 	MTK_REGULATOR_NUM,
 };
 
-void mainboard_set_regulator_vol(enum mtk_regulator regulator,
-				 uint32_t voltage_uv);
-uint32_t mainboard_get_regulator_vol(enum mtk_regulator regulator);
-int mainboard_enable_regulator(enum mtk_regulator regulator, uint8_t enable);
-uint8_t mainboard_regulator_is_enabled(enum mtk_regulator regulator);
+void mainboard_set_regulator_voltage(enum mtk_regulator regulator, uint32_t voltage_uv);
+uint32_t mainboard_get_regulator_voltage(enum mtk_regulator regulator);
+int mainboard_enable_regulator(enum mtk_regulator regulator, bool enable);
+bool mainboard_regulator_is_enabled(enum mtk_regulator regulator);
 
 #endif /* SOC_MEDIATEK_COMMON_REGULATOR_H */

@@ -39,6 +39,8 @@
 
 #if ENV_X86
 
+#define APU_I2C0_BASE			0xfedc2000
+#define APU_I2C1_BASE			0xfedc3000
 #define APU_I2C2_BASE			0xfedc4000
 #define APU_I2C3_BASE			0xfedc5000
 #define APU_I2C4_BASE			0xfedc6000
@@ -78,6 +80,6 @@
 #define BIOSRAM_INDEX			0xcd4
 #define BIOSRAM_DATA			0xcd5
 #define AB_INDX				0xcd8
-#define AB_DATA				(AB_INDX+4)
+#define AB_DATA				(AB_INDX + 4)
 
 #endif /* AMD_PICASSO_IOMAP_H */

@@ -277,6 +277,26 @@ static int create_smbios_type17_for_dimm(struct dimm_info *dimm,
 	return smbios_full_table_len(&t->header, t->eos);
 }
 
+static int create_smbios_type17_for_empty_slot(struct dimm_info *dimm,
+					       unsigned long *current, int *handle,
+					       int type16_handle)
+{
+	struct smbios_type17 *t = smbios_carve_table(*current, SMBIOS_MEMORY_DEVICE,
+						     sizeof(*t), *handle);
+	t->phys_memory_array_handle = type16_handle;
+	/* no handle for error information */
+	t->memory_error_information_handle = 0xfffe;
+	t->total_width = 0xffff; /* Unknown */
+	t->data_width = 0xffff; /* Unknown */
+	t->form_factor = 0x2; /* Unknown */
+	smbios_fill_dimm_locator(dimm, t); /* Device and Bank */
+	t->memory_type = 0x2; /* Unknown */
+	t->type_detail = 0x2; /* Unknown */
+
+	*handle += 1;
+	return smbios_full_table_len(&t->header, t->eos);
+}
+
 #define VERSION_VPD "firmware_version"
 static const char *vpd_get_bios_version(void)
 {
@@ -351,11 +371,10 @@ static int smbios_write_type0(unsigned long *current, int handle)
 	rom_size = MIN(CONFIG_ROM_SIZE, 16 * MiB);
 	t->bios_rom_size = (rom_size / 65535) - 1;
 
-	if (CONFIG_ROM_SIZE >= 1 * GiB) {
+	if (CONFIG_ROM_SIZE >= 1 * GiB)
 		t->extended_bios_rom_size = DIV_ROUND_UP(CONFIG_ROM_SIZE, GiB) | (1 << 14);
-	} else {
+	else
 		t->extended_bios_rom_size = DIV_ROUND_UP(CONFIG_ROM_SIZE, MiB);
-	}
 
 	t->system_bios_major_release = coreboot_major_revision;
 	t->system_bios_minor_release = coreboot_minor_revision;
@@ -382,15 +401,21 @@ static int smbios_write_type0(unsigned long *current, int handle)
 static int get_socket_type(void)
 {
 	if (CONFIG(CPU_INTEL_SLOT_1))
-		return 0x08;
+		return PROCESSOR_UPGRADE_SLOT_1;
 	if (CONFIG(CPU_INTEL_SOCKET_MPGA604))
-		return 0x13;
+		return PROCESSOR_UPGRADE_SOCKET_MPGA604;
 	if (CONFIG(CPU_INTEL_SOCKET_LGA775))
-		return 0x15;
-	if (CONFIG(XEON_SP_COMMON_BASE))
-		return 0x36;
+		return PROCESSOR_UPGRADE_SOCKET_LGA775;
+	if (CONFIG(SOC_INTEL_ALDERLAKE))
+		return PROCESSOR_UPGRADE_SOCKET_LGA1700;
+	if (CONFIG(SOC_INTEL_SKYLAKE_SP))
+		return PROCESSOR_UPGRADE_SOCKET_LGA3647_1;
+	if (CONFIG(SOC_INTEL_COOPERLAKE_SP))
+		return PROCESSOR_UPGRADE_SOCKET_LGA4189;
+	if (CONFIG(SOC_INTEL_SAPPHIRERAPIDS_SP))
+		return PROCESSOR_UPGRADE_SOCKET_LGA4677;
 
-	return 0x02; /* Unknown */
+	return PROCESSOR_UPGRADE_UNKNOWN;
 }
 
 unsigned int __weak smbios_processor_external_clock(void)
@@ -558,9 +583,9 @@ static int smbios_write_type4(unsigned long *current, int handle)
 		res = cpuid_ext(0xb, 0);
 		leaf_b_threads = res.ebx;
 		/* if hyperthreading is not available, pretend this is 1 */
-		if (leaf_b_threads == 0) {
+		if (leaf_b_threads == 0)
 			leaf_b_threads = 1;
-		}
+
 		t->core_count2 = leaf_b_cores / leaf_b_threads;
 		t->core_count = t->core_count2 > 0xff ? 0xff : t->core_count2;
 		t->thread_count2 = leaf_b_cores;
@@ -946,15 +971,19 @@ static int smbios_write_type17(unsigned long *current, int *handle, int type16)
 
 	printk(BIOS_INFO, "Create SMBIOS type 17\n");
 	for (i = 0; i < meminfo->dimm_cnt && i < ARRAY_SIZE(meminfo->dimm); i++) {
-		struct dimm_info *dimm;
-		dimm = &meminfo->dimm[i];
+		struct dimm_info *d = &meminfo->dimm[i];
 		/*
 		 * Windows 10 GetPhysicallyInstalledSystemMemory functions reads SMBIOS tables
 		 * type 16 and type 17. The type 17 tables need to point to a type 16 table.
 		 * Otherwise, the physical installed memory size is guessed from the system
 		 * memory map, which results in a slightly smaller value than the actual size.
 		 */
-		const int len = create_smbios_type17_for_dimm(dimm, current, handle, type16);
+		int len;
+		if (d->dimm_size > 0)
+			len = create_smbios_type17_for_dimm(d, current, handle, type16);
+		else
+			len = create_smbios_type17_for_empty_slot(d, current, handle, type16);
+
 		*current += len;
 		totallen += len;
 	}
@@ -1045,12 +1074,44 @@ static int smbios_write_type20(unsigned long *current, int *handle,
 	for (i = 0; i < meminfo->dimm_cnt && i < ARRAY_SIZE(meminfo->dimm); i++) {
 		struct dimm_info *dimm;
 		dimm = &meminfo->dimm[i];
+		if (dimm->dimm_size == 0)
+			continue;
+
 		u32 end_addr = start_addr + (dimm->dimm_size << 10) - 1;
 		totallen += smbios_write_type20_table(current, handle, start_addr, end_addr,
 				type17_handle, type19_handle);
 		start_addr = end_addr + 1;
 	}
 	return totallen;
+}
+
+int smbios_write_type28(unsigned long *current, int *handle,
+			const char *name,
+			const enum smbios_temp_location location,
+			const enum smbios_temp_status status,
+			u16 max_value, u16 min_value,
+			u16 resolution, u16 tolerance,
+			u16 accuracy,
+			u32 oem,
+			u16 nominal_value)
+{
+	struct smbios_type28 *t = smbios_carve_table(*current, SMBIOS_TEMPERATURE_PROBE,
+						     sizeof(*t), *handle);
+
+	t->description = smbios_add_string(t->eos, name ? name : "Temperature");
+	t->location_and_status = location | (status << 5);
+	t->maximum_value = max_value;
+	t->minimum_value = min_value;
+	t->resolution = resolution;
+	t->tolerance = tolerance;
+	t->accuracy = accuracy;
+	t->oem_defined = oem;
+	t->nominal_value = nominal_value;
+
+	const int len = smbios_full_table_len(&t->header, t->eos);
+	*current += len;
+	*handle += 1;
+	return len;
 }
 
 static int smbios_write_type32(unsigned long *current, int handle)
@@ -1086,6 +1147,55 @@ int smbios_write_type38(unsigned long *current, int *handle,
 	return len;
 }
 
+int smbios_write_type39(unsigned long *current, int *handle,
+			u8 unit_group, const char *loc, const char *dev_name,
+			const char *man, const char *serial_num,
+			const char *tag_num, const char *part_num,
+			const char *rev_lvl, u16 max_pow_cap,
+			const struct power_supply_ch *ps_ch)
+{
+	struct smbios_type39 *t = smbios_carve_table(*current,
+						SMBIOS_SYSTEM_POWER_SUPPLY,
+						sizeof(*t), *handle);
+
+	uint16_t val = 0;
+	uint16_t ps_type, ps_status, vol_switch, ps_unplug, ps_present, hot_rep;
+
+	t->power_unit_group = unit_group;
+	t->location = smbios_add_string(t->eos, loc);
+	t->device_name = smbios_add_string(t->eos, dev_name);
+	t->manufacturer = smbios_add_string(t->eos, man);
+	t->serial_number = smbios_add_string(t->eos, serial_num);
+	t->asset_tag_number = smbios_add_string(t->eos, tag_num);
+	t->model_part_number = smbios_add_string(t->eos, part_num);
+	t->revision_level = smbios_add_string(t->eos, rev_lvl);
+	t->max_power_capacity = max_pow_cap;
+
+	ps_type = ps_ch->power_supply_type & 0xF;
+	ps_status = ps_ch->power_supply_status & 0x7;
+	vol_switch = ps_ch->input_voltage_range_switch & 0xF;
+	ps_unplug = ps_ch->power_supply_unplugged & 0x1;
+	ps_present = ps_ch->power_supply_present & 0x1;
+	hot_rep = ps_ch->power_supply_hot_replaceble & 0x1;
+
+	val |= (ps_type << 10);
+	val |= (ps_status << 7);
+	val |= (vol_switch << 3);
+	val |= (ps_unplug << 2);
+	val |= (ps_present << 1);
+	val |= hot_rep;
+	t->power_supply_characteristics = val;
+
+	t->input_voltage_probe_handle = 0xFFFF;
+	t->cooling_device_handle = 0xFFFF;
+	t->input_current_probe_handle = 0xFFFF;
+
+	const int len = smbios_full_table_len(&t->header, t->eos);
+	*current += len;
+	*handle += 1;
+	return len;
+}
+
 int smbios_write_type41(unsigned long *current, int *handle,
 			const char *name, u8 instance, u16 segment,
 			u8 bus, u8 device, u8 function, u8 device_type)
@@ -1102,6 +1212,29 @@ int smbios_write_type41(unsigned long *current, int *handle,
 	t->bus_number = bus;
 	t->device_number = device;
 	t->function_number = function;
+
+	const int len = smbios_full_table_len(&t->header, t->eos);
+	*current += len;
+	*handle += 1;
+	return len;
+}
+
+int smbios_write_type43(unsigned long *current, int *handle, const u32 vendor_id,
+			const u8 major_spec_ver, const u8 minor_spec_ver,
+			const u32 fw_ver1, const u32 fw_ver2, const char *description,
+			const u64 characteristics, const u32 oem_defined)
+{
+	struct smbios_type43 *t = smbios_carve_table(*current, SMBIOS_TPM_DEVICE,
+						     sizeof(*t), *handle);
+
+	t->vendor_id = vendor_id;
+	t->major_spec_ver = major_spec_ver;
+	t->minor_spec_ver = minor_spec_ver;
+	t->fw_ver1 = fw_ver1;
+	t->fw_ver2 = fw_ver2;
+	t->characteristics = characteristics;
+	t->oem_defined = oem_defined;
+	t->description = smbios_add_string(t->eos, description);
 
 	const int len = smbios_full_table_len(&t->header, t->eos);
 	*current += len;

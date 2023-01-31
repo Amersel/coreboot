@@ -202,7 +202,7 @@ static void pch_log_power_and_resets(const struct chipset_power_state *ps)
 
 	/* TCO Timeout */
 	if (ps->prev_sleep_state != ACPI_S3 &&
-	    ps->tco2_sts & TCO_STS_SECOND_TO)
+	    ps->tco2_sts & TCO2_STS_SECOND_TO)
 		elog_add_event(ELOG_TYPE_TCO_RESET);
 
 	/* Power Button Override */
@@ -232,7 +232,7 @@ static void pch_log_state(void *unused)
 {
 	const struct chipset_power_state *ps;
 
-	if (acpi_pm_state_for_elog(&ps) < 0)
+	if (acpi_fetch_pm_state(&ps, PS_CLAIMER_ELOG) < 0)
 		return;
 
 	/* Power and Reset */

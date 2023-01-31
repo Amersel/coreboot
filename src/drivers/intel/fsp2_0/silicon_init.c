@@ -96,7 +96,7 @@ static void do_silicon_init(struct fsp_header *hdr)
 	struct fsp_multi_phase_params multi_phase_params;
 	struct fsp_multi_phase_get_number_of_phases_params multi_phase_get_number;
 
-	supd = (FSPS_UPD *) (uintptr_t)(hdr->cfg_region_offset + hdr->image_base);
+	supd = (FSPS_UPD *)(uintptr_t)(hdr->cfg_region_offset + hdr->image_base);
 
 	fsp_verify_upd_header_signature(supd->FspUpdHeader.Signature, FSPS_UPD_SIGNATURE);
 
@@ -127,7 +127,7 @@ static void do_silicon_init(struct fsp_header *hdr)
 		soc_load_logo(upd);
 
 	/* Call SiliconInit */
-	silicon_init = (void *) (uintptr_t)(hdr->image_base +
+	silicon_init = (void *)(uintptr_t)(hdr->image_base +
 				 hdr->fsp_silicon_init_entry_offset);
 	fsp_debug_before_silicon_init(silicon_init, supd, upd);
 
@@ -165,7 +165,7 @@ static void do_silicon_init(struct fsp_header *hdr)
 		return;
 
 	/* Call MultiPhaseSiInit */
-	multi_phase_si_init = (void *) (uintptr_t)(hdr->image_base +
+	multi_phase_si_init = (void *)(uintptr_t)(hdr->image_base +
 			 hdr->fsp_multi_phase_si_init_entry_offset);
 
 	/* Implementing multi_phase_si_init() is optional as per FSP 2.2 spec */
@@ -217,6 +217,8 @@ void fsps_load(void)
 	if (load_done)
 		return;
 
+	timestamp_add_now(TS_FSP_SILICON_INIT_LOAD);
+
 	if (resume_from_stage_cache()) {
 		printk(BIOS_DEBUG, "Loading FSPS from stage_cache\n");
 		stage_cache_load_stage(STAGE_REFCODE, fsps);
@@ -245,7 +247,6 @@ void preload_fsps(void)
 
 void fsp_silicon_init(void)
 {
-	timestamp_add_now(TS_FSP_SILICON_INIT_LOAD);
 	fsps_load();
 	do_silicon_init(&fsps_hdr);
 

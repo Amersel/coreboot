@@ -1,14 +1,14 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/cpu.h>
-#include <device/pci_ops.h>
 #include <console/console.h>
+#include <cpu/cpu.h>
 #include <cpu/intel/cpu_ids.h>
 #include <cpu/intel/microcode.h>
 #include <cpu/x86/msr.h>
 #include <cpu/x86/name.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
+#include <device/pci_ops.h>
 #include <soc/bootblock.h>
 #include <soc/pch.h>
 #include <soc/pci_devs.h>
@@ -33,7 +33,8 @@ static struct {
 	{ CPUID_COMETLAKE_H_S_6_2_G0, "Cometlake-H/S G0 (6+2)" },
 	{ CPUID_COMETLAKE_H_S_6_2_G1, "Cometlake-H/S G1 (6+2)" },
 	{ CPUID_COMETLAKE_H_S_10_2_P0, "Cometlake-H/S P0 (10+2)" },
-	{ CPUID_COMETLAKE_H_S_10_2_Q0_P1, "Cometlake-H/S Q0/P1 (10+2)" },
+	{ CPUID_COMETLAKE_H_S_10_2_P1, "Cometlake-H/S P1 (10+2)" },
+	{ CPUID_COMETLAKE_H_S_10_2_Q0, "Cometlake-H/S Q0 (10+2)" },
 };
 
 static struct {
@@ -139,6 +140,8 @@ static struct {
 	{ PCI_DID_INTEL_CML_GT2_ULT_4, "CometLake ULT GT2" },
 	{ PCI_DID_INTEL_CML_GT2_ULT_5, "CometLake ULT GT2" },
 	{ PCI_DID_INTEL_CML_GT2_ULT_6, "CometLake ULT GT2" },
+	{ PCI_DID_INTEL_CML_GT2_ULT_7, "CometLake ULT GT2" },
+	{ PCI_DID_INTEL_CML_GT2_ULT_8, "CometLake ULT GT2" },
 	{ PCI_DID_INTEL_CML_GT1_ULX_1, "CometLake ULX GT1" },
 	{ PCI_DID_INTEL_CML_GT2_ULX_1, "CometLake ULX GT2" },
 	{ PCI_DID_INTEL_CML_GT1_S_1, "CometLake S GT1" },

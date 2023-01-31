@@ -86,22 +86,23 @@ chip soc/amd/picasso
 			register "desc" = ""ELAN Touchpad""
 			register "irq_gpio" = "ACPI_GPIO_IRQ_LEVEL_LOW(GPIO_9)"
 			register "wake" = "GEVENT_22"
-			register "probed" = "1"
+			register "detect" = "1"
 			device i2c 15 on end
 		end
 		chip drivers/i2c/hid
-			register "generic.hid" = ""PNP0C50""
+			register "generic.hid" = ""SYNA0000""
+			register "generic.cid" = ""ACPI0C50""
 			register "generic.desc" = ""Synaptics Touchpad""
 			register "generic.irq_gpio" = "ACPI_GPIO_IRQ_LEVEL_LOW(GPIO_9)"
 			register "generic.wake" = "GEVENT_22"
-			register "generic.probed" = "1"
+			register "generic.detect" = "1"
 			register "hid_desc_reg_offset" = "0x20"
 			device i2c 2c on end
 		end
 		chip drivers/i2c/generic
 			register "hid" = ""RAYD0001""
 			register "desc" = ""Raydium Touchscreen""
-			register "probed" = "1"
+			register "detect" = "1"
 			register "irq_gpio" = "ACPI_GPIO_IRQ_EDGE_LOW(GPIO_12)"
 			register "enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPIO_90)"
 			register "enable_delay_ms" = "1"
@@ -110,13 +111,12 @@ chip soc/amd/picasso
 			# 20ms: Firmware ready time
 			register "reset_delay_ms" = "32 + 20"
 			register "has_power_resource" = "1"
-			register "disable_gpio_export_in_crs" = "1"
 			device i2c 39 on end
 		end
 		chip drivers/i2c/hid
 			register "generic.hid" = ""ELAN9004""
 			register "generic.desc" = ""ELAN Touchscreen""
-			register "generic.probed" = "1"
+			register "generic.detect" = "1"
 			register "generic.irq_gpio" = "ACPI_GPIO_IRQ_LEVEL_LOW(GPIO_12)"
 			register "generic.enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPIO_90)"
 			register "generic.enable_delay_ms" = "1"
@@ -127,7 +127,6 @@ chip soc/amd/picasso
 			register "generic.stop_off_delay_ms" = "10"
 			register "generic.stop_delay_ms" = "300"
 			register "generic.has_power_resource" = "1"
-			register "generic.disable_gpio_export_in_crs" = "1"
 			register "hid_desc_reg_offset" = "0x01"
 			device i2c 10 on end
 		end

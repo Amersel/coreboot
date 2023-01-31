@@ -1,5 +1,9 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 #ifndef CPU_X86_MSR_H
 #define CPU_X86_MSR_H
+
+#include <cpu/x86/msr_access.h> /* IWYU pragma: export */
 
 /* Intel SDM: Table 2-1
  * IA-32 architectural MSR: Extended Feature Enable Register
@@ -77,6 +81,7 @@
 #define  MCA_STATUS_LO_ERRCODE_EXT_SH	16
 #define  MCA_STATUS_LO_ERRCODE_EXT_MASK	(0x3f << MCA_STATUS_LO_ERRCODE_EXT_SH)
 #define  MCA_STATUS_LO_ERRCODE_MASK	(0xffff << 0)
+#define IA32_LT_UNLOCK_MEMORY		0x2e6
 #define IA32_MC0_ADDR			0x402
 #define IA32_MC_ADDR(bank)		(IA32_MC0_ADDR + 4 * (bank))
 #define IA32_MC0_MISC			0x403
@@ -105,65 +110,11 @@
 #define IA32_CR_SF_QOS_MASK_2		0x1892
 
 #ifndef __ASSEMBLER__
-#include <types.h>
-
-typedef struct msr_struct {
-	unsigned int lo;
-	unsigned int hi;
-} msr_t;
 
 typedef struct msrinit_struct {
 	unsigned int index;
 	msr_t msr;
 } msrinit_t;
-
-#if CONFIG(SOC_SETS_MSRS)
-msr_t soc_msr_read(unsigned int index);
-void soc_msr_write(unsigned int index, msr_t msr);
-
-/* Handle MSR references in the other source code */
-static __always_inline msr_t rdmsr(unsigned int index)
-{
-	return soc_msr_read(index);
-}
-
-static __always_inline void wrmsr(unsigned int index, msr_t msr)
-{
-	soc_msr_write(index, msr);
-}
-#else /* CONFIG_SOC_SETS_MSRS */
-
-/* The following functions require the __always_inline due to AMD
- * function STOP_CAR_AND_CPU that disables cache as
- * RAM, the cache as RAM stack can no longer be used. Called
- * functions must be inlined to avoid stack usage. Also, the
- * compiler must keep local variables register based and not
- * allocated them from the stack. With gcc 4.5.0, some functions
- * declared as inline are not being inlined. This patch forces
- * these functions to always be inlined by adding the qualifier
- * __always_inline to their declaration.
- */
-static __always_inline msr_t rdmsr(unsigned int index)
-{
-	msr_t result;
-	__asm__ __volatile__ (
-		"rdmsr"
-		: "=a" (result.lo), "=d" (result.hi)
-		: "c" (index)
-		);
-	return result;
-}
-
-static __always_inline void wrmsr(unsigned int index, msr_t msr)
-{
-	__asm__ __volatile__ (
-		"wrmsr"
-		: /* No outputs */
-		: "c" (index), "a" (msr.lo), "d" (msr.hi)
-		);
-}
-
-#endif /* CONFIG_SOC_SETS_MSRS */
 
 /* Get MCA bank count from MSR */
 static inline unsigned int mca_get_bank_count(void)
@@ -335,7 +286,7 @@ static inline enum mca_err_code_types mca_err_type(msr_t reg)
 static inline uint64_t msr_read(unsigned int reg)
 {
 	msr_t msr = rdmsr(reg);
-	return (((uint64_t)msr.hi << 32) | msr.lo);
+	return msr.raw;
 }
 
 /**
@@ -346,10 +297,7 @@ static inline uint64_t msr_read(unsigned int reg)
  */
 static inline void msr_write(unsigned int reg, uint64_t value)
 {
-	msr_t msr = {
-		.lo = (unsigned int)value,
-		.hi = (unsigned int)(value >> 32)
-	};
+	msr_t msr = { .raw = value };
 	wrmsr(reg, msr);
 }
 
@@ -365,10 +313,8 @@ static inline void msr_unset_and_set(unsigned int reg, uint64_t unset, uint64_t 
 	msr_t msr;
 
 	msr = rdmsr(reg);
-	msr.lo &= (unsigned int)~unset;
-	msr.hi &= (unsigned int)~(unset >> 32);
-	msr.lo |= (unsigned int)set;
-	msr.hi |= (unsigned int)(set >> 32);
+	msr.raw &= ~unset;
+	msr.raw |= set;
 	wrmsr(reg, msr);
 }
 

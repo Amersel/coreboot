@@ -1,16 +1,18 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <amdblocks/cpu.h>
+#include <amdblocks/smm.h>
 #include <commonlib/helpers.h>
 #include <console/console.h>
 #include <cpu/amd/microcode.h>
-#include <cpu/x86/msr.h>
 #include <cpu/amd/msr.h>
-#include <cpu/x86/mtrr.h>
 #include <cpu/amd/mtrr.h>
-#include <device/device.h>
-#include <device/pci.h>
 #include <cpu/cpu.h>
 #include <cpu/x86/cache.h>
+#include <cpu/x86/msr.h>
+#include <cpu/x86/mtrr.h>
+#include <device/device.h>
+#include <device/pci.h>
 #include <smp/node.h>
 
 static void model_16_init(struct device *dev)
@@ -24,7 +26,7 @@ static void model_16_init(struct device *dev)
 	mca_clear_status();
 
 	if (CONFIG(LOGICAL_CPUS)) {
-		siblings = cpuid_ecx(0x80000008) & 0xff;
+		siblings = get_cpu_count() - 1; // minus BSP
 
 		if (siblings > 0) {
 			msr = rdmsr_amd(CPU_ID_FEATURES_MSR);
@@ -44,9 +46,7 @@ static void model_16_init(struct device *dev)
 	wrmsr(NB_CFG_MSR, msr);
 
 	/* Write protect SMM space with SMMLOCK. */
-	msr = rdmsr(HWCR_MSR);
-	msr.lo |= (1 << 0);
-	wrmsr(HWCR_MSR, msr);
+	lock_smm();
 
 	amd_update_microcode_from_cbfs();
 

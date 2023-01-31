@@ -76,10 +76,11 @@ static void configure_misc(void)
 	msr.hi = 0;
 	wrmsr(IA32_PACKAGE_THERM_INTERRUPT, msr);
 
-	/* Enable PROCHOT */
+	/* Enable PROCHOT and Energy/Performance Bias control */
 	msr = rdmsr(MSR_POWER_CTL);
 	msr.lo |= (1 << 0);	/* Enable Bi-directional PROCHOT as an input */
 	msr.lo |= (1 << 23);	/* Lock it */
+	msr.lo |= (1 << 18);	/* Energy/Performance Bias control */
 	wrmsr(MSR_POWER_CTL, msr);
 }
 
@@ -96,12 +97,6 @@ enum core_type get_soc_cpu_type(void)
 		return CPUID_CORE_TYPE_INTEL_ATOM;
 	else
 		return CPUID_CORE_TYPE_INTEL_CORE;
-}
-
-void soc_get_scaling_factor(u16 *big_core_scal_factor, u16 *small_core_scal_factor)
-{
-	*big_core_scal_factor = 127;
-	*small_core_scal_factor = 100;
 }
 
 bool soc_is_nominal_freq_supported(void)
@@ -128,8 +123,9 @@ void soc_core_init(struct device *cpu)
 	/* Enable Direct Cache Access */
 	configure_dca_cap();
 
-	/* Set energy policy */
-	set_energy_perf_bias(ENERGY_POLICY_NORMAL);
+	/* Set energy policy.  The "normal" EPB (6) is not suitable for Alder
+	 * Lake or Raptor Lake CPUs, as this results in higher uncore power. */
+	set_energy_perf_bias(7);
 
 	const config_t *conf = config_of_soc();
 	/* Set energy-performance preference */
@@ -138,6 +134,9 @@ void soc_core_init(struct device *cpu)
 			set_energy_perf_pref(conf->energy_perf_pref_value);
 	/* Enable Turbo */
 	enable_turbo();
+
+	if (CONFIG(INTEL_TME) && is_tme_supported())
+		set_tme_core_activate();
 }
 
 static void per_cpu_smm_trigger(void)
@@ -244,6 +243,8 @@ enum adl_cpu_type get_adl_cpu_type(void)
 		PCI_DID_INTEL_RPL_P_ID_1,
 		PCI_DID_INTEL_RPL_P_ID_2,
 		PCI_DID_INTEL_RPL_P_ID_3,
+		PCI_DID_INTEL_RPL_P_ID_4,
+		PCI_DID_INTEL_RPL_P_ID_5,
 	};
 
 	const uint16_t mchid = pci_s_read_config16(PCI_DEV(0, PCI_SLOT(SA_DEVFN_ROOT),

@@ -6,7 +6,6 @@
 #include <device/mmio.h>
 #include <arch/smp/mpspec.h>
 #include <console/console.h>
-#include <cpu/x86/smm.h>
 #include <types.h>
 #include <cpu/x86/msr.h>
 #include <cpu/intel/turbo.h>
@@ -89,11 +88,10 @@ int acpi_sci_irq(void)
 unsigned long acpi_fill_madt(unsigned long current)
 {
 	/* Local APICs */
-	current = acpi_create_madt_lapics(current);
+	current = acpi_create_madt_lapics_with_nmis(current);
 
 	/* IOAPIC */
-	current += acpi_create_madt_ioapic((acpi_madt_ioapic_t *) current,
-				2, IO_APIC_ADDR, 0);
+	current += acpi_create_madt_ioapic_from_hw((acpi_madt_ioapic_t *)current, IO_APIC_ADDR);
 
 	current = acpi_madt_irq_overrides(current);
 

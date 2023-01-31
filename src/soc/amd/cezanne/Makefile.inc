@@ -8,7 +8,6 @@ subdirs-$(CONFIG_VBOOT_STARTS_BEFORE_BOOTBLOCK) += psp_verstage
 all-y		+= config.c
 all-y		+= aoac.c
 
-bootblock-y	+= bootblock.c
 bootblock-y	+= early_fch.c
 bootblock-y	+= espi_util.c
 bootblock-y	+= gpio.c
@@ -31,16 +30,13 @@ romstage-y	+= uart.c
 ramstage-y	+= acpi.c
 ramstage-y	+= agesa_acpi.c
 ramstage-y	+= chip.c
-ramstage-y	+= cppc.c
 ramstage-y	+= cpu.c
-ramstage-y	+= data_fabric.c
 ramstage-y	+= fch.c
 ramstage-y	+= fsp_s_params.c
 ramstage-y	+= gpio.c
 ramstage-y	+= graphics.c
 ramstage-y	+= i2c.c
 ramstage-y	+= mca.c
-ramstage-y	+= preload.c
 ramstage-y	+= reset.c
 ramstage-y	+= root_complex.c
 ramstage-y	+= uart.c
@@ -48,14 +44,11 @@ ramstage-y	+= xhci.c
 
 smm-y		+= gpio.c
 smm-y		+= smihandler.c
-smm-y		+= smu.c
 smm-$(CONFIG_DEBUG_SMI) += uart.c
 
 CPPFLAGS_common += -I$(src)/soc/amd/cezanne/include
 CPPFLAGS_common += -I$(src)/soc/amd/cezanne/acpi
 CPPFLAGS_common += -I$(src)/vendorcode/amd/fsp/cezanne
-
-MAINBOARD_BLOBS_DIR:=$(top)/3rdparty/blobs/mainboard/$(MAINBOARDDIR)
 
 # ROMSIG Normally At ROMBASE + 0x20000
 # Overridden by CONFIG_AMD_FWM_POSITION_INDEX
@@ -92,7 +85,6 @@ CEZANNE_FW_B_POSITION=$(call int-add, \
 # Design Guide for AMD Family 17h Processors" (PID #55758, NDA only).
 #
 
-FIRMWARE_LOCATION=$(shell grep -e FIRMWARE_LOCATION $(CONFIG_AMDFW_CONFIG_FILE) | awk '{print $$2}')
 
 ifeq ($(CONFIG_PSP_DISABLE_POSTCODES),y)
 PSP_SOFTFUSE_BITS += 7
@@ -145,8 +137,8 @@ PSP_APOB_BASE=$(CONFIG_PSP_APOB_DRAM_ADDRESS)
 # type = 0x62
 PSP_BIOSBIN_FILE=$(obj)/amd_biospsp.img
 PSP_ELF_FILE=$(objcbfs)/bootblock.elf
-PSP_BIOSBIN_SIZE=$(shell $(READELF_bootblock) -l $(PSP_ELF_FILE) | grep LOAD | awk '{print $$5}')
-PSP_BIOSBIN_DEST=$(shell $(READELF_bootblock) -l $(PSP_ELF_FILE) | grep LOAD | awk '{print $$3}')
+PSP_BIOSBIN_SIZE=$(shell $(READELF_bootblock) -Wl $(PSP_ELF_FILE) | grep LOAD | awk '{print $$5}')
+PSP_BIOSBIN_DEST=$(shell $(READELF_bootblock) -Wl $(PSP_ELF_FILE) | grep LOAD | awk '{print $$3}')
 
 # type = 0x63 - construct APOB NV base/size from flash map
 # The flashmap section used for this is expected to be named RW_MRC_CACHE
@@ -202,10 +194,6 @@ OPT_PSP_SOFTFUSE=$(call add_opt_prefix, $(PSP_SOFTFUSE), --soft-fuse)
 
 OPT_WHITELIST_FILE=$(call add_opt_prefix, $(PSP_WHITELIST_FILE), --whitelist)
 OPT_SPL_TABLE_FILE=$(call add_opt_prefix, $(SPL_TABLE_FILE), --spl-table)
-
-# Add all the files listed in the config file
-POUND_SIGN=$(call strip_quotes, "\#")
-DEP_FILES= $(patsubst %,$(FIRMWARE_LOCATION)/%, $(shell sed -e /^$(POUND_SIGN)/d -e /*/d -e /^FIRMWARE_LOCATION/d $(CONFIG_AMDFW_CONFIG_FILE) | awk '{print $$2}' ))
 
 AMDFW_COMMON_ARGS=$(OPT_PSP_APCB_FILES) \
 		$(OPT_APOB_ADDR) \
@@ -281,25 +269,20 @@ $(obj)/amdfw_b.rom: $(obj)/amdfw.rom
 		--output $@
 
 
-cbfs-files-y += apu/amdfw
-apu/amdfw-file := $(obj)/amdfw.rom
-apu/amdfw-position := $(CEZANNE_FWM_POSITION)
-apu/amdfw-type := raw
-
-ifeq ($(CONFIG_VBOOT_SLOTS_RW_AB)$(CONFIG_VBOOT_STARTS_BEFORE_BOOTBLOCK),yy)
+ifeq ($(CONFIG_VBOOT_SLOTS_RW_A)$(CONFIG_VBOOT_STARTS_BEFORE_BOOTBLOCK),yy)
 cbfs-files-y += apu/amdfw_a
 apu/amdfw_a-file := $(obj)/amdfw_a.rom
 # Ensure this ends up at the beginning of the FW_MAIN_A fmap region
 apu/amdfw_a-position := $(AMD_FW_AB_POSITION)
 apu/amdfw_a-type := raw
+endif
 
+ifeq ($(CONFIG_VBOOT_SLOTS_RW_AB)$(CONFIG_VBOOT_STARTS_BEFORE_BOOTBLOCK),yy)
 cbfs-files-y += apu/amdfw_b
 apu/amdfw_b-file := $(obj)/amdfw_b.rom
 # Ensure this ends up at the beginning of the FW_MAIN_B fmap region
 apu/amdfw_b-position := $(AMD_FW_AB_POSITION)
 apu/amdfw_b-type := raw
 endif
-
-amd_microcode_bins += $(wildcard ${FIRMWARE_LOCATION}/UcodePatch_*.bin)
 
 endif # ($(CONFIG_SOC_AMD_CEZANNE),y)

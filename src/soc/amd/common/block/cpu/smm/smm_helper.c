@@ -1,9 +1,12 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <amdblocks/smm.h>
 #include <console/console.h>
-#include <cpu/x86/msr.h>
+#include <cpu/amd/amd64_save_state.h>
 #include <cpu/amd/msr.h>
+#include <amdblocks/smm.h>
+#include <cpu/cpu.h>
+#include <cpu/x86/msr.h>
+#include <stdint.h>
 
 /*
  * For data stored in TSEG, ensure TValid is clear so R/W access can reach
@@ -25,4 +28,11 @@ void clear_tvalid(void)
 
 	mask.lo &= ~SMM_TSEG_VALID;
 	wrmsr(SMM_MASK_MSR, mask);
+}
+
+void lock_smm(void)
+{
+	msr_t hwcr = rdmsr(HWCR_MSR);
+	hwcr.lo |= SMM_LOCK;
+	wrmsr(HWCR_MSR, hwcr);
 }

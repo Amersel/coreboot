@@ -74,15 +74,15 @@ Device (LPCB)
 		{
 			If (HPTE) {
 				CreateDWordField(BUF0, \_SB.PCI0.LPCB.HPET.FED0._BAS, HPT0)
-				If (Lequal(HPAS, 1)) {
+				If (HPAS == 1) {
 					HPT0 = HPET_BASE_ADDRESS + 0x1000
 				}
 
-				If (Lequal(HPAS, 2)) {
+				If (HPAS == 2) {
 					HPT0 = HPET_BASE_ADDRESS + 0x2000
 				}
 
-				If (Lequal(HPAS, 3)) {
+				If (HPAS == 3) {
 					HPT0 = HPET_BASE_ADDRESS + 0x3000
 				}
 			}
@@ -142,7 +142,6 @@ Device (LPCB)
 			IO (Decode16, 0x80, 0x80, 0x1, 0x01)		// Port 80 Post
 			IO (Decode16, 0x92, 0x92, 0x1, 0x01)		// CPU Reserved
 			IO (Decode16, 0xb2, 0xb2, 0x1, 0x02)		// SWSMI
-			IO (Decode16, 0x800, 0x800, 0x1, 0x10)		// ACPI I/O trap
 			IO (Decode16, DEFAULT_PMBASE, DEFAULT_PMBASE, 0x1, 0x80)	// ICH ACPI
 			IO (Decode16, DEFAULT_GPIOBASE, DEFAULT_GPIOBASE, 0x1, 0x40)	// ICH GPIO
 		})

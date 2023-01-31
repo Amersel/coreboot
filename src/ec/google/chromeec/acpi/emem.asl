@@ -33,6 +33,8 @@ BTEX, 1,	// Battery Present
 BFDC, 1,	// Battery Discharging
 BFCG, 1,	// Battery Charging
 BFCR, 1,	// Battery Level Critical
+BFIV, 1,	// Invalid Battery Data
+BFCT, 1,	// Battery cutoff
 Offset (0x4d),
 BTCN, 8,	// Battery Count
 BTIX, 8,	// Battery index
@@ -47,3 +49,8 @@ BSER, 64,	// Battery Serial String
 BTYP, 64,	// Battery Type String
 Offset (0x80),
 ALS0, 16,	// ALS reading 0 in lux
+Offset (0xa6),
+GPUD, 8,	// GPU Data
+Offset (0xa7),
+PWRT, 8,	// Power source and change count
+EOVD, 8,	// EC OEM Variable Data

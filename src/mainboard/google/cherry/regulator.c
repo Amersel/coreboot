@@ -51,8 +51,7 @@ static int check_regulator_control(enum mtk_regulator regulator)
 	return 0;
 }
 
-void mainboard_set_regulator_vol(enum mtk_regulator regulator,
-				 uint32_t voltage_uv)
+void mainboard_set_regulator_voltage(enum mtk_regulator regulator, uint32_t voltage_uv)
 {
 	if (check_regulator_control(regulator) < 0)
 		return;
@@ -89,7 +88,7 @@ void mainboard_set_regulator_vol(enum mtk_regulator regulator,
 	printk(BIOS_ERR, "Invalid regulator ID: %d\n", regulator);
 }
 
-uint32_t mainboard_get_regulator_vol(enum mtk_regulator regulator)
+uint32_t mainboard_get_regulator_voltage(enum mtk_regulator regulator)
 {
 	if (check_regulator_control(regulator) < 0)
 		return 0;
@@ -124,7 +123,7 @@ uint32_t mainboard_get_regulator_vol(enum mtk_regulator regulator)
 	return 0;
 }
 
-int mainboard_enable_regulator(enum mtk_regulator regulator, uint8_t enable)
+int mainboard_enable_regulator(enum mtk_regulator regulator, bool enable)
 {
 	if (check_regulator_control(regulator) < 0)
 		return 0;
@@ -155,17 +154,17 @@ int mainboard_enable_regulator(enum mtk_regulator regulator, uint8_t enable)
 	return -1;
 }
 
-uint8_t mainboard_regulator_is_enabled(enum mtk_regulator regulator)
+bool mainboard_regulator_is_enabled(enum mtk_regulator regulator)
 {
 	if (check_regulator_control(regulator) < 0)
-		return 0;
+		return false;
 
 	int id;
 
 	id = get_mt6360_regulator_id(regulator);
 	if (id >= 0) {
 		if (CONFIG(BOARD_GOOGLE_CHERRY)) {
-			return mt6360_is_enabled(id);
+			return !!mt6360_is_enabled(id);
 		} else {
 			uint8_t enabled;
 			if (google_chromeec_regulator_is_enabled(id, &enabled) < 0) {
@@ -173,12 +172,12 @@ uint8_t mainboard_regulator_is_enabled(enum mtk_regulator regulator)
 				       "Failed to retrieve is_enabled by ec; assuming disabled\n");
 				return 0;
 			}
-			return enabled;
+			return !!enabled;
 		}
 
 	}
 
 	printk(BIOS_ERR, "Invalid regulator ID: %d\n; assuming disabled", regulator);
 
-	return 0;
+	return false;
 }

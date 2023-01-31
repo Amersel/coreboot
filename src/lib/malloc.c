@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 #include <console/console.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,7 +26,7 @@ void *memalign(size_t boundary, size_t size)
 	MALLOCDBG("%s Enter, boundary %zu, size %zu, free_mem_ptr %p\n",
 		__func__, boundary, size, free_mem_ptr);
 
-	free_mem_ptr = (void *)ALIGN((unsigned long)free_mem_ptr, boundary);
+	free_mem_ptr = (void *)ALIGN_UP((unsigned long)free_mem_ptr, boundary);
 
 	p = free_mem_ptr;
 	free_mem_ptr += size;
@@ -70,7 +72,7 @@ void free(void *ptr)
 		return;
 
 	if (ptr < (void *)&_heap || ptr >= free_mem_end_ptr) {
-		printk(BIOS_WARNING, "Warning - Pointer passed to %s is not "
+		printk(BIOS_WARNING, "Pointer passed to %s is not "
 					"pointing to the heap\n", __func__);
 		return;
 	}

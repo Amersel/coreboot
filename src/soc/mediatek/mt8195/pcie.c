@@ -1,13 +1,13 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
+/* SPDX-License-Identifier: GPL-2.0-only OR MIT */
 
 #include <commonlib/stdlib.h>
 #include <console/console.h>
 #include <device/mmio.h>
 #include <device/resource.h>
 #include <delay.h>
+#include <gpio.h>
 #include <soc/addressmap.h>
 #include <soc/early_init.h>
-#include <soc/gpio.h>
 #include <soc/pcie.h>
 #include <soc/pcie_common.h>
 #include <stdlib.h>

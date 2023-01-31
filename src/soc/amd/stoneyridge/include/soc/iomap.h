@@ -19,8 +19,6 @@
 #define APU_UART0_BASE			0xfedc6000
 #define APU_UART1_BASE			0xfedc8000
 
-#define FLASH_BASE_ADDR			((0xffffffff - CONFIG_ROM_SIZE) + 1)
-
 /* I/O Ranges */
 #define ACPI_IO_BASE			0x400
 #define  ACPI_PM_EVT_BLK		(ACPI_IO_BASE + 0x00)		/* 4 bytes */
@@ -38,6 +36,6 @@
 #define BIOSRAM_INDEX			0xcd4
 #define BIOSRAM_DATA			0xcd5
 #define AB_INDX				0xcd8
-#define AB_DATA				(AB_INDX+4)
+#define AB_DATA				(AB_INDX + 4)
 
 #endif /* AMD_STONEYRIDGE_IOMAP_H */

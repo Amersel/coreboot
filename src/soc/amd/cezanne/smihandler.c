@@ -19,34 +19,11 @@
 #include <soc/southbridge.h>
 #include <types.h>
 
-static void fch_apmc_smi_handler(void)
-{
-	const uint8_t cmd = inb(pm_acpi_smi_cmd_port());
-
-	switch (cmd) {
-	case APM_CNT_ACPI_ENABLE:
-		acpi_clear_pm_gpe_status();
-		acpi_enable_sci();
-		break;
-	case APM_CNT_ACPI_DISABLE:
-		acpi_disable_sci();
-		break;
-	case APM_CNT_ELOG_GSMI:
-		if (CONFIG(ELOG_GSMI))
-			handle_smi_gsmi();
-		break;
-	case APM_CNT_SMMSTORE:
-		if (CONFIG(SMMSTORE))
-			handle_smi_store();
-		break;
-	case APM_CNT_SMMINFO:
-		psp_notify_smm();
-		break;
-	}
-
-	mainboard_smi_apmc(cmd);
-}
-
+/*
+ * Both the psp_notify_sx_info and the smu_sx_entry call will clobber the SMN index register
+ * during the SMN accesses. Since the SMI handler is the last thing that gets called before
+ * entering S3, this won't interfere with any indirect SMN accesses via the same register pair.
+ */
 static void fch_slp_typ_handler(void)
 {
 	uint32_t pci_ctrl, reg32;
@@ -126,11 +103,6 @@ static void fch_slp_typ_handler(void)
 		printk(BIOS_ERR, "System did not go to sleep\n");
 		hlt();
 	}
-}
-
-int southbridge_io_trap_handler(int smif)
-{
-	return 0;
 }
 
 /*

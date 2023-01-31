@@ -50,7 +50,11 @@ bootblock-y += prog_ops.c
 bootblock-y += cbfs.c
 bootblock-$(CONFIG_GENERIC_GPIO_LIB) += gpio.c
 bootblock-y += libgcc.c
+ifneq ($(CONFIG_VBOOT_STARTS_BEFORE_BOOTBLOCK),y)
 bootblock-$(CONFIG_CBFS_VERIFICATION) += metadata_hash.c
+else # ($(CONFIG_VBOOT_STARTS_BEFORE_BOOTBLOCK),y)
+verstage-$(CONFIG_CBFS_VERIFICATION) += metadata_hash.c
+endif # ($(CONFIG_VBOOT_STARTS_BEFORE_BOOTBLOCK),y)
 bootblock-$(CONFIG_GENERIC_UDELAY) += timer.c
 
 bootblock-$(CONFIG_COLLECT_TIMESTAMPS) += timestamp.c
@@ -91,7 +95,9 @@ $(foreach arch,$(ARCH_SUPPORTED),\
 romstage-y += fmap.c
 romstage-y += delay.c
 romstage-y += cbfs.c
-romstage-$(CONFIG_COMPRESS_RAMSTAGE) += lzma.c lzmadecode.c
+ifneq ($(CONFIG_COMPRESS_RAMSTAGE_LZMA)$(CONFIG_FSP_COMPRESS_FSP_M_LZMA),)
+romstage-y += lzma.c lzmadecode.c
+endif
 romstage-y += libgcc.c
 romstage-y += memrange.c
 romstage-$(CONFIG_PRIMITIVE_MEMTEST) += primitive_memtest.c
@@ -279,6 +285,9 @@ postcar-y += crc_byte.c
 ramstage-y += crc_byte.c
 smm-y += crc_byte.c
 
+romstage-y += xxhash.c
+ramstage-y += xxhash.c
+
 postcar-y += bootmode.c
 postcar-y += boot_device.c
 postcar-y += cbfs.c
@@ -287,7 +296,7 @@ postcar-y += fmap.c
 postcar-y += gcc.c
 postcar-y += halt.c
 postcar-y += libgcc.c
-postcar-$(CONFIG_COMPRESS_RAMSTAGE) += lzma.c lzmadecode.c
+postcar-$(CONFIG_COMPRESS_RAMSTAGE_LZMA) += lzma.c lzmadecode.c
 postcar-y += memchr.c
 postcar-y += memcmp.c
 postcar-y += prog_loaders.c
@@ -332,30 +341,37 @@ $(objcbfs)/%.debug.rmod: $(objcbfs)/%.debug | $(RMODTOOL)
 $(obj)/%.elf.rmod: $(obj)/%.elf | $(RMODTOOL)
 	$(RMODTOOL) -i $< -o $@
 
+romstage-$(CONFIG_ROMSTAGE_ADA) += cb.ads
 ramstage-$(CONFIG_RAMSTAGE_ADA) += cb.ads
 
-ifeq ($(CONFIG_RAMSTAGE_LIBHWBASE),y)
+ifneq (,$(filter y, $(CONFIG_RAMSTAGE_LIBHWBASE) $(CONFIG_ROMSTAGE_LIBHWBASE)))
 
 to-ada-hex = $(eval $(1) := 16\\\#$(patsubst 0x%,%,$($(1)))\\\#)
 
 $(call to-ada-hex,CONFIG_HWBASE_DEFAULT_MMCONF)
 
+libhwbase-stages = $(foreach stage, romstage ramstage, \
+	$(if $(filter y,$(CONFIG_$(call toupper,$(stage))_LIBHWBASE)),$(stage)))
+
 $(call add-special-class,hw)
-hw-handler = $(eval ramstage-srcs += $$(addprefix $(1),$(2)))
+hw-handler +=$(foreach stage, $(libhwbase-stages), \
+	$(eval $(stage)-srcs += $$(addprefix $(1),$(2))))
 
 $(call add-special-class,hw-gen)
 hw-gen-handler = \
 	$(eval additional-dirs += $(dir $(2))) \
-	$(eval ramstage-srcs += $(2)) \
-	$(eval ramstage-ads-deps += $(2)) \
-	$(eval ramstage-adb-deps += $(2)) \
+	$(foreach stage, $(libhwbase-stages), \
+		$(eval $(stage)-srcs += $(2)) \
+		$(eval $(stage)-ads-deps += $(2)) \
+		$(eval $(stage)-adb-deps += $(2))) \
 	$(eval $(2): $(obj)/config.h)
 
 subdirs-y += ../../3rdparty/libhwbase
 
-ramstage-$(CONFIG_HAVE_MONOTONIC_TIMER) += hw-time-timer.adb
+$(foreach stage,$(libhwbase-stages), \
+	$(eval $(stage)-$(CONFIG_HAVE_MONOTONIC_TIMER) += hw-time-timer.adb))
 
-endif # CONFIG_RAMSTAGE_LIBHWBASE
+endif # CONFIG_ROMSTAGE_LIBHWBASE || CONFIG_RAMSTAGE_LIBHWBASE
 
 romstage-y += spd_bin.c
 

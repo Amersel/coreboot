@@ -4,6 +4,10 @@ fw_config
 		option DB_1C_1A			1
 		option DB_1C_LTE		2
 	end
+	field THERMAL_SOLUTION 2
+		option THERMAL_SOLUTION_PASSIVE 0
+		option THERMAL_SOLUTION_ACTIVE  1
+	end
 	field SD_CARD 4
 		option SD_GL9750S		0
 		option SD_ABSENT		1
@@ -38,7 +42,7 @@ chip soc/intel/alderlake
 	# Configure external V1P05/Vnn/VnnSx Rails
 	register "ext_fivr_settings" = "{
 		.configure_ext_fivr = 1,
-		.v1p05_enable_bitmap = FIVR_ENABLE_ALL_SX,
+		.v1p05_enable_bitmap = FIVR_ENABLE_ALL_SX & ~FIVR_ENABLE_S0,
 		.vnn_enable_bitmap = FIVR_ENABLE_ALL_SX,
 		.vnn_sx_enable_bitmap = FIVR_ENABLE_ALL_SX,
 		.v1p05_supported_voltage_bitmap = FIVR_VOLTAGE_NORMAL,
@@ -68,11 +72,11 @@ chip soc/intel/alderlake
 	register "common_soc_config" = "{
 		.i2c[0] = {
 			.early_init = 1,
-			.speed = I2C_SPEED_FAST,
+			.speed = I2C_SPEED_FAST_PLUS,
 			.speed_config[0] = {
-				.speed = I2C_SPEED_FAST,
-				.scl_lcnt = 160,
-				.scl_hcnt = 79,
+				.speed = I2C_SPEED_FAST_PLUS,
+				.scl_lcnt = 55,
+				.scl_hcnt = 30,
 				.sda_hold = 7,
 			}
 		},
@@ -120,6 +124,7 @@ chip soc/intel/alderlake
 				## sensor information
 				register "options.tsr[0].desc" = ""Memory""
 				register "options.tsr[1].desc" = ""Charger""
+				register "options.tsr[2].desc" = ""Ambient""
 
 				# TODO: below values are initial reference values only
 				## Passive Policy
@@ -127,6 +132,7 @@ chip soc/intel/alderlake
 					[0] = DPTF_PASSIVE(CPU,         CPU,           95, 5000),
 					[1] = DPTF_PASSIVE(CPU,         TEMP_SENSOR_0, 75, 5000),
 					[2] = DPTF_PASSIVE(CHARGER,     TEMP_SENSOR_1, 75, 5000),
+					[3] = DPTF_PASSIVE(CPU,         TEMP_SENSOR_2, 75, 5000),
 				}"
 
 				## Critical Policy
@@ -134,6 +140,7 @@ chip soc/intel/alderlake
 					[0] = DPTF_CRITICAL(CPU,               105, SHUTDOWN),
 					[1] = DPTF_CRITICAL(TEMP_SENSOR_0,      85, SHUTDOWN),
 					[2] = DPTF_CRITICAL(TEMP_SENSOR_1,      85, SHUTDOWN),
+					[3] = DPTF_CRITICAL(TEMP_SENSOR_2,      85, SHUTDOWN),
 				}"
 
 				register "controls.power_limits" = "{
@@ -147,8 +154,8 @@ chip soc/intel/alderlake
 					.pl2 = {
 							.min_power = 25000,
 							.max_power = 25000,
-							.time_window_min = 28 * MSECS_PER_SEC,
-							.time_window_max = 32 * MSECS_PER_SEC,
+							.time_window_min = 1,
+							.time_window_max = 1,
 							.granularity = 1000
 						}
 				}"
@@ -161,7 +168,104 @@ chip soc/intel/alderlake
 					[3] = {   8,  500 }
 				}"
 
-				device generic 0 on end
+				device generic 0 on
+					probe THERMAL_SOLUTION THERMAL_SOLUTION_PASSIVE
+				end
+			end
+			chip drivers/intel/dptf
+				## sensor information
+				register "options.tsr[0].desc" = ""Memory""
+				register "options.tsr[1].desc" = ""Charger""
+				register "options.tsr[2].desc" = ""Ambient""
+
+				# TODO: below values are initial reference values only
+				## Active Policy
+				register "policies.active" = "{
+					[0] = {
+						.target = DPTF_CPU,
+						.thresholds = {
+								TEMP_PCT(85, 90),
+								TEMP_PCT(80, 80),
+								TEMP_PCT(75, 70),
+								TEMP_PCT(70, 50),
+								TEMP_PCT(65, 30),
+						}
+					},
+					[1] = {
+						.target = DPTF_TEMP_SENSOR_2,
+						.thresholds = {
+								TEMP_PCT(50, 90),
+								TEMP_PCT(48, 70),
+								TEMP_PCT(46, 60),
+								TEMP_PCT(43, 40),
+								TEMP_PCT(40, 30),
+						}
+					}
+				}"
+
+				# TODO: below values are initial reference values only
+				## Passive Policy
+				register "policies.passive" = "{
+					[0] = DPTF_PASSIVE(CPU,         CPU,           95, 5000),
+					[1] = DPTF_PASSIVE(CPU,         TEMP_SENSOR_0, 75, 5000),
+					[2] = DPTF_PASSIVE(CHARGER,     TEMP_SENSOR_1, 75, 5000),
+					[3] = DPTF_PASSIVE(CPU,         TEMP_SENSOR_2, 75, 5000),
+				}"
+
+				## Critical Policy
+				register "policies.critical" = "{
+					[0] = DPTF_CRITICAL(CPU,               105, SHUTDOWN),
+					[1] = DPTF_CRITICAL(TEMP_SENSOR_0,      85, SHUTDOWN),
+					[2] = DPTF_CRITICAL(TEMP_SENSOR_1,      85, SHUTDOWN),
+					[3] = DPTF_CRITICAL(TEMP_SENSOR_2,      85, SHUTDOWN),
+				}"
+
+				register "controls.power_limits" = "{
+					.pl1 = {
+							.min_power = 12000,
+							.max_power = 15000,
+							.time_window_min = 28 * MSECS_PER_SEC,
+							.time_window_max = 32 * MSECS_PER_SEC,
+							.granularity = 200
+						},
+					.pl2 = {
+							.min_power = 35000,
+							.max_power = 35000,
+							.time_window_min = 1,
+							.time_window_max = 1,
+							.granularity = 1000
+						}
+				}"
+
+				## Charger Performance Control (Control, mA)
+				register "controls.charger_perf" = "{
+					[0] = { 255, 1700 },
+					[1] = {  24, 1500 },
+					[2] = {  16, 1000 },
+					[3] = {   8,  500 }
+				}"
+
+				## Fan Performance Control (Percent, Speed, Noise, Power)
+				register "controls.fan_perf" = "{
+					[0] = { 100, 6000, 220, 2200, },
+					[1] = {  92, 5500, 180, 1800, },
+					[2] = {  85, 5000, 145, 1450, },
+					[3] = {  70, 4400, 115, 1150, },
+					[4] = {  56, 3900,  90,  900, },
+					[5] = {  45, 3300,  55,  550, },
+					[6] = {  38, 3000,  30,  300, },
+					[7] = {  33, 2900,  15,  150, },
+					[8] = {  10,  800,  10,  100, },
+					[9] = {   0,    0,   0,   50, }
+				}"
+
+				## Fan options
+				register "options.fan.fine_grained_control" = "1"
+				register "options.fan.step_size" = "2"
+
+				device generic 1 on
+					probe THERMAL_SOLUTION THERMAL_SOLUTION_ACTIVE
+				end
 			end
 		end
 		device ref ipu on
@@ -199,7 +303,6 @@ chip soc/intel/alderlake
 				register "generic.enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPP_C0)"
 				register "generic.enable_delay_ms" = "1"
 				register "generic.has_power_resource" = "1"
-				register "generic.disable_gpio_export_in_crs" = "1"
 				register "hid_desc_reg_offset" = "0x01"
 				device i2c 15 on end
 			end
@@ -365,6 +468,7 @@ chip soc/intel/alderlake
 				register "short_key_debounce" = "2"	# 100ms
 				register "jack_insert_debounce" = "7"	# 512ms
 				register "jack_eject_debounce" = "7"	# 512ms
+				register "adcout_ds" = "true"
 				device i2c 1a on end
 			end
 		end
@@ -374,7 +478,7 @@ chip soc/intel/alderlake
 				register "desc" = ""ELAN Touchpad""
 				register "irq" = "ACPI_IRQ_WAKE_LEVEL_LOW(GPP_F14_IRQ)"
 				register "wake" = "GPE0_DW2_14"
-				register "probed" = "1"
+				register "detect" = "1"
 				device i2c 15 on end
 			end
 		end
@@ -414,6 +518,10 @@ chip soc/intel/alderlake
 			probe STORAGE STORAGE_EMMC
 		end
 		device ref ish on
+			chip drivers/intel/ish
+				register "add_acpi_dma_property" = "true"
+				device generic 0 on end
+			end
 			probe STORAGE STORAGE_UFS
 		end
 		device ref ufs on

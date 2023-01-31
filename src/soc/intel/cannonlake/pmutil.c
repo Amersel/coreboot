@@ -8,16 +8,16 @@
 #define __SIMPLE_DEVICE__
 
 #include <acpi/acpi_pm.h>
+#include <console/console.h>
 #include <device/mmio.h>
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_def.h>
-#include <console/console.h>
+#include <gpio.h>
 #include <intelblocks/pmclib.h>
 #include <intelblocks/rtc.h>
 #include <intelblocks/tco.h>
 #include <soc/gpe.h>
-#include <soc/gpio.h>
 #include <soc/iomap.h>
 #include <soc/lpc.h>
 #include <soc/pci_devs.h>
@@ -168,7 +168,7 @@ int soc_get_rtc_failed(void)
 {
 	const struct chipset_power_state *ps;
 
-	if (acpi_pm_state_for_rtc(&ps) < 0)
+	if (acpi_fetch_pm_state(&ps, PS_CLAIMER_RTC) < 0)
 		return 1;
 
 	return rtc_failed(ps->gen_pmcon_b);
@@ -195,7 +195,7 @@ int soc_prev_sleep_state(const struct chipset_power_state *ps, int prev_sleep_st
 	 * S5 because the PCH does not set the WAK_STS bit when waking
 	 * from a true G3 state.
 	 */
-	if (ps->gen_pmcon_a & (PWR_FLR | SUS_PWR_FLR))
+	if (!(ps->pm1_sts & WAK_STS) && (ps->gen_pmcon_a & (PWR_FLR | SUS_PWR_FLR)))
 		prev_sleep_state = ACPI_S5;
 
 	/*
@@ -232,18 +232,21 @@ void soc_fill_power_state(struct chipset_power_state *ps)
 	ps->gen_pmcon_b = read32(pmc + GEN_PMCON_B);
 	ps->gblrst_cause[0] = read32(pmc + GBLRST_CAUSE0);
 	ps->gblrst_cause[1] = read32(pmc + GBLRST_CAUSE1);
+	ps->hpr_cause0 = read32(pmc + HPR_CAUSE0);
 
 	printk(BIOS_DEBUG, "GEN_PMCON: %08x %08x\n",
 		ps->gen_pmcon_a, ps->gen_pmcon_b);
 
 	printk(BIOS_DEBUG, "GBLRST_CAUSE: %08x %08x\n",
 		ps->gblrst_cause[0], ps->gblrst_cause[1]);
+
+	printk(BIOS_DEBUG, "HPR_CAUSE0: %08x\n", ps->hpr_cause0);
 }
 
 /* STM Support */
 uint16_t get_pmbase(void)
 {
-	return (uint16_t) ACPI_BASE_ADDRESS;
+	return (uint16_t)ACPI_BASE_ADDRESS;
 }
 
 /*

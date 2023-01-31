@@ -1,19 +1,19 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/cpu.h>
 #include <acpi/acpi_gnvs.h>
 #include <acpi/acpi_pm.h>
 #include <bootstate.h>
 #include <console/console.h>
+#include <cpu/cpu.h>
 #include <cpu/intel/microcode.h>
 #include <cpu/x86/cr.h>
 #include <cpu/x86/msr.h>
 #include <device/device.h>
 #include <device/pci_def.h>
 #include <device/pci_ops.h>
-
 #include <soc/device_nvs.h>
 #include <soc/gpio.h>
+#include <soc/iosf.h>
 #include <soc/lpc.h>
 #include <soc/msr.h>
 #include <soc/nvs.h>
@@ -21,7 +21,6 @@
 #include <soc/pci_devs.h>
 #include <soc/pm.h>
 #include <soc/ramstage.h>
-#include <soc/iosf.h>
 
 #define SHOW_PATTRS 1
 
@@ -147,7 +146,7 @@ static void acpi_save_wake_source(void *unused)
 
 	if (acpi_reset_gnvs_for_wake(&gnvs) < 0)
 		return;
-	if (acpi_pm_state_for_wake(&ps) < 0)
+	if (acpi_fetch_pm_state(&ps, PS_CLAIMER_WAKE) < 0)
 		return;
 
 	pm_fill_gnvs(gnvs, ps);

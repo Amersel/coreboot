@@ -139,15 +139,16 @@ chip soc/amd/cezanne
 			register "desc" = ""ELAN Touchpad""
 			register "irq_gpio" = "ACPI_GPIO_IRQ_LEVEL_LOW(GPIO_9)"
 			register "wake" = "GEVENT_22"
-			register "probed" = "1"
+			register "detect" = "1"
 			device i2c 15 on end
 		end
 		chip drivers/i2c/hid
-			register "generic.hid" = ""PNP0C50""
+			register "generic.hid" = ""SYNA0000""
+			register "generic.cid" = ""ACPI0C50""
 			register "generic.desc" = ""Synaptics Touchpad""
 			register "generic.irq_gpio" = "ACPI_GPIO_IRQ_LEVEL_LOW(GPIO_9)"
 			register "generic.wake" = "GEVENT_22"
-			register "generic.probed" = "1"
+			register "generic.detect" = "1"
 			register "hid_desc_reg_offset" = "0x20"
 			device i2c 2c on end
 		end
@@ -157,7 +158,7 @@ chip soc/amd/cezanne
 			register "generic.hid" = ""ELAN6918""
 			register "generic.desc" = ""ELAN Touchscreen""
 			register "generic.irq_gpio" = "ACPI_GPIO_IRQ_LEVEL_LOW(GPIO_89)"
-			register "generic.probed" = "1"
+			register "generic.detect" = "1"
 			register "generic.reset_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPIO_121)"
 			register "generic.reset_delay_ms" = "20"
 			register "generic.reset_off_delay_ms" = "2"
@@ -166,7 +167,6 @@ chip soc/amd/cezanne
 			register "generic.enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPIO_68)"
 			register "generic.enable_delay_ms" = "1"
 			register "generic.has_power_resource" = "1"
-			register "generic.disable_gpio_export_in_crs" = "1"
 			register "hid_desc_reg_offset" = "0x01"
 			device i2c 10 on end
 		end

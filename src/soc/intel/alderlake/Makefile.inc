@@ -1,3 +1,4 @@
+## SPDX-License-Identifier: GPL-2.0-only
 ifeq ($(CONFIG_SOC_INTEL_ALDERLAKE),y)
 subdirs-y += romstage
 subdirs-y += ../../../cpu/intel/microcode
@@ -26,11 +27,12 @@ romstage-y += cpu.c
 ramstage-y += acpi.c
 ramstage-y += chip.c
 ramstage-y += cpu.c
-ramstage-y += dptf.c
 ramstage-y += elog.c
 ramstage-y += espi.c
 ramstage-y += finalize.c
 ramstage-y += fsp_params.c
+ramstage-y += graphics.c
+ramstage-y += hsphy.c
 ramstage-y += lockdown.c
 ramstage-y += me.c
 ramstage-y += p2sb.c

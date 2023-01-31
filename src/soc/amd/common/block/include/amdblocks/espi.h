@@ -14,9 +14,17 @@
 #define  ESPI_DECODE_IO_0X60_0X64_EN		(1 << 1)
 #define  ESPI_DECODE_IO_0X2E_0X2F_EN		(1 << 0)
 
+/* The extended IO/MMIO decode ranges are only available in SoCs that select
+   SOC_AMD_COMMON_BLOCK_ESPI_EXTENDED_DECODE_RANGES */
+#if CONFIG(SOC_AMD_COMMON_BLOCK_ESPI_EXTENDED_DECODE_RANGES)
+#define ESPI_GENERIC_IO_WIN_COUNT		16
+#define ESPI_GENERIC_MMIO_WIN_COUNT		5
+#else
 #define ESPI_GENERIC_IO_WIN_COUNT		4
-#define ESPI_GENERIC_IO_MAX_WIN_SIZE		0x100
 #define ESPI_GENERIC_MMIO_WIN_COUNT		4
+#endif
+
+#define ESPI_GENERIC_IO_MAX_WIN_SIZE		0x100
 #define ESPI_GENERIC_MMIO_MAX_WIN_SIZE		0x10000
 
 #define ESPI_SLAVE0_CONFIG			0x68
@@ -36,13 +44,43 @@
 #define  ESPI_OOB_CH_EN				(1 << 1)
 #define  ESPI_FLASH_CH_EN			(1 << 0)
 
-/* Virtual wire interrupt polarity. eSPI interrupts are active level high signals. The
-   polarity register inverts the incoming signal if the associated bit with the irq is
-   0. */
-#define ESPI_VW_IRQ_LEVEL_HIGH(x)		(1 << (x))
-#define ESPI_VW_IRQ_LEVEL_LOW(x)		(0 << (x))
-#define ESPI_VW_IRQ_EDGE_HIGH(x)		(1 << (x))
-#define ESPI_VW_IRQ_EDGE_LOW(x)			(0 << (x))
+/*
+ * Internally the SoC uses active low signals for the IRQs. This means what when
+ * the eSPI controller comes out of reset, it's driving its IRQ lines high.
+ * In order to avoid any spurious interrupts the IO-APIC must be configured to
+ * trigger on active low signals. The PIC is only capable of triggering on
+ * active high signals so the hardware has an inverter that converts the signals
+ * before they feed into the PIC.
+ *
+ * +----------+         Active Low
+ * |          |             |            +--------+
+ * | IO-APIC  <------+      |      +-----+ LPC    |
+ * |          |      |  <---+--->  |     +--------+
+ * +----------+      |             |
+ *                   |   +-----+   |     +--------+
+ *                   +---+ AND <---+-----+ eSPI   |
+ *                   |   +-----+   |     +--------+
+ * +----------+      |             |
+ * |          |   +--v--+          |     +--------+
+ * |   PIC    <---+ NOT |          +-----+ PIR    |
+ * |          | ^ +-----+                +--------+
+ * +----------+ |
+ *              | Active High
+ *
+ * The eSPI controller has an inverter that is applied to incoming Virtual Wire
+ * IRQ messages. This allows eSPI peripherals to use active high signaling.
+ * If the peripheral uses active low signaling like the SoC does internally, the
+ * inverter can be disabled.
+ *
+ * The polarity register has the following behavior:
+ *   0: Invert the incoming VW IRQ before outputting to the AND gates.
+ *   1: Do not invert the incoming VW IRQ, but route it directly to the AND
+ *      gates.
+ */
+#define ESPI_VW_IRQ_LEVEL_HIGH(x)		(0 << (x))
+#define ESPI_VW_IRQ_LEVEL_LOW(x)		(1 << (x))
+#define ESPI_VW_IRQ_EDGE_HIGH(x)		(0 << (x))
+#define ESPI_VW_IRQ_EDGE_LOW(x)			(1 << (x))
 
 enum espi_io_mode {
 	ESPI_IO_MODE_SINGLE = ESPI_IO_MODE_VALUE(0),

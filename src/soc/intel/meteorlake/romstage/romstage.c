@@ -8,12 +8,14 @@
 #include <intelblocks/cse.h>
 #include <intelblocks/pmclib.h>
 #include <intelblocks/smbus.h>
+#include <intelblocks/thermal.h>
 #include <memory_info.h>
 #include <soc/intel/common/smbios.h>
 #include <soc/iomap.h>
 #include <soc/pm.h>
 #include <soc/romstage.h>
 #include <soc/soc_chip.h>
+#include <timestamp.h>
 #include <string.h>
 
 #define FSP_SMBIOS_MEMORY_INFO_GUID	\
@@ -42,7 +44,7 @@ static void save_dimm_info(void)
 	meminfo_hob = fsp_find_extension_hob_by_guid(
 						smbios_memory_info_guid,
 						&hob_size);
-	if (meminfo_hob == NULL || hob_size == 0) {
+	if (!meminfo_hob || hob_size == 0) {
 		printk(BIOS_ERR, "SMBIOS MEMORY_INFO_DATA_HOB not found\n");
 		return;
 	}
@@ -52,7 +54,7 @@ static void save_dimm_info(void)
 	 * table 17
 	 */
 	mem_info = cbmem_add(CBMEM_ID_MEMINFO, sizeof(*mem_info));
-	if (mem_info == NULL) {
+	if (!mem_info) {
 		printk(BIOS_ERR, "CBMEM entry for DIMM info missing\n");
 		return;
 	}
@@ -105,7 +107,8 @@ static void save_dimm_info(void)
 						meminfo_hob->VddVoltage[memProfNum],
 						meminfo_hob->EccSupport,
 					src_dimm->MfgId,
-					src_dimm->SpdModuleType);
+					src_dimm->SpdModuleType,
+					node);
 				index++;
 			}
 		}
@@ -116,22 +119,31 @@ static void save_dimm_info(void)
 
 void mainboard_romstage_entry(void)
 {
-	bool s3wake;
 	struct chipset_power_state *ps = pmc_get_power_state();
+	bool s3wake = pmc_fill_power_state(ps) == ACPI_S3;
+
+	/* Initialize HECI interface */
+	cse_init(HECI1_BASE_ADDRESS);
+
+	if (!s3wake && CONFIG(SOC_INTEL_CSE_LITE_SKU)) {
+		timestamp_add_now(TS_CSE_FW_SYNC_START);
+		cse_fw_sync();
+		timestamp_add_now(TS_CSE_FW_SYNC_END);
+	}
 
 	/* Program MCHBAR, DMIBAR, GDXBAR and EDRAMBAR */
 	systemagent_early_init();
 	/* Program SMBus base address and enable it */
 	smbus_common_init();
-	/* Initialize HECI interface */
-	cse_init(HECI1_BASE_ADDRESS);
 
-	s3wake = pmc_fill_power_state(ps) == ACPI_S3;
-	if (!s3wake) {
-		if (CONFIG(SOC_INTEL_CSE_LITE_SKU))
-			cse_fw_sync();
-	}
-
+	/*
+	 * Set low maximum temp threshold value used for dynamic thermal sensor
+	 * shutdown consideration.
+	 *
+	 * If Dynamic Thermal Shutdown is enabled then PMC logic shuts down the
+	 * thermal sensor when CPU is in a C-state and LTT >= DTS Temp.
+	 */
+	pch_thermal_configuration();
 	fsp_memory_init(s3wake);
 	pmc_set_disb();
 	if (!s3wake)

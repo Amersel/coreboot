@@ -16,7 +16,8 @@ struct mtk_topckgen_regs {
 	u32 clk_mode;
 	u32 clk_cfg_update;
 	u32 clk_cfg_update1;
-	u32 reserved1[13];
+	u32 clk_cfg_update2;
+	u32 reserved1[12];
 	u32 clk_cfg_0;
 	u32 clk_cfg_0_set;
 	u32 clk_cfg_0_clr;
@@ -117,6 +118,7 @@ struct mtk_topckgen_regs {
 check_member(mtk_topckgen_regs, clk_mode, 0x0);
 check_member(mtk_topckgen_regs, clk_cfg_update, 0x4);
 check_member(mtk_topckgen_regs, clk_cfg_update1, 0x8);
+check_member(mtk_topckgen_regs, clk_cfg_update2, 0xc);
 check_member(mtk_topckgen_regs, clk_cfg_0, 0x40);
 check_member(mtk_topckgen_regs, clk_cfg_0_set, 0x44);
 check_member(mtk_topckgen_regs, clk_cfg_0_clr, 0x48);
@@ -521,5 +523,7 @@ DEFINE_BIT(INFRACFG_AO_P2P_RX_CLK_REG0_MASK_1, 5)
 DEFINE_BITFIELD(INFRACFG_AO_PERI_BUS_REG0_0, 1, 0)
 DEFINE_BITFIELD(INFRACFG_AO_PERI_BUS_REG0_1, 27, 3)
 DEFINE_BIT(INFRACFG_AO_PERI_BUS_REG0_2, 31)
+
+DEFINE_BITFIELD(USB_TOP_CFG_MACRO_CTRL, 1, 0)
 
 #endif /* SOC_MEDIATEK_MT8186_PLL_H */

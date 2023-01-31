@@ -2,7 +2,6 @@
 
 #include <bootstate.h>
 #include <console/console.h>
-#include <cpu/amd/mtrr.h>
 #include <device/device.h>
 #include <device/pci.h>
 #include <drivers/i2c/designware/dw_i2c.h>
@@ -15,18 +14,9 @@
 #include <amdblocks/agesawrapper.h>
 #include <amdblocks/agesawrapper_call.h>
 #include <amdblocks/i2c.h>
+#include <amdblocks/post_codes.h>
 
 #include "chip.h"
-
-/* Supplied by i2c.c */
-extern struct device_operations soc_amd_i2c_mmio_ops;
-
-struct device_operations cpu_bus_ops = {
-	.read_resources	  = noop_read_resources,
-	.set_resources	  = noop_set_resources,
-	.init		  = mp_cpu_bus_init,
-	.acpi_fill_ssdt   = generate_cpu_entries,
-};
 
 const char *soc_acpi_name(const struct device *dev)
 {
@@ -90,43 +80,13 @@ const char *soc_acpi_name(const struct device *dev)
 	}
 };
 
-static struct device_operations pci_domain_ops = {
+struct device_operations stoneyridge_pci_domain_ops = {
 	.read_resources	  = domain_read_resources,
 	.set_resources	  = pci_domain_set_resources,
 	.enable_resources = domain_enable_resources,
 	.scan_bus	  = pci_domain_scan_bus,
 	.acpi_name	  = soc_acpi_name,
 };
-
-static void set_mmio_dev_ops(struct device *dev)
-{
-	switch (dev->path.mmio.addr) {
-	case APU_I2C0_BASE:
-	case APU_I2C1_BASE:
-	case APU_I2C2_BASE:
-	case APU_I2C3_BASE:
-		dev->ops = &soc_amd_i2c_mmio_ops;
-		break;
-	}
-}
-
-static void enable_dev(struct device *dev)
-{
-	/* Set the operations if it is a special bus type */
-	switch (dev->path.type) {
-	case DEVICE_PATH_DOMAIN:
-		dev->ops = &pci_domain_ops;
-		break;
-	case DEVICE_PATH_CPU_CLUSTER:
-		dev->ops = &cpu_bus_ops;
-		break;
-	case DEVICE_PATH_MMIO:
-		set_mmio_dev_ops(dev);
-		break;
-	default:
-		break;
-	}
-}
 
 static void soc_init(void *chip_info)
 {
@@ -141,7 +101,6 @@ static void soc_final(void *chip_info)
 
 struct chip_operations soc_amd_stoneyridge_ops = {
 	CHIP_NAME("AMD StoneyRidge SOC")
-	.enable_dev = enable_dev,
 	.init = soc_init,
 	.final = soc_final
 };
@@ -149,15 +108,15 @@ struct chip_operations soc_amd_stoneyridge_ops = {
 static void earliest_ramstage(void *unused)
 {
 	if (!acpi_is_wakeup_s3()) {
-		post_code(0x46);
+		post_code(POST_PSP_LOAD_SMU);
 		if (CONFIG(SOC_AMD_PSP_SELECTABLE_SMU_FW))
 			psp_load_named_blob(BLOB_SMU_FW2, "smu_fw2");
 
-		post_code(0x47);
+		post_code(POST_AGESA_AMDINITENV);
 		do_agesawrapper(AMD_INIT_ENV, "amdinitenv");
 	} else {
 		/* Complete the initial system restoration */
-		post_code(0x46);
+		post_code(POST_AGESA_AMDS3LATERESTORE);
 		do_agesawrapper(AMD_S3LATE_RESTORE, "amds3laterestore");
 	}
 }

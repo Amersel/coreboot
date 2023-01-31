@@ -1,3 +1,4 @@
+## SPDX-License-Identifier: GPL-2.0-only
 ifeq ($(CONFIG_SOC_INTEL_COMMON_SKYLAKE_BASE),y)
 
 subdirs-y += nhlt
@@ -108,7 +109,8 @@ endif
 CPPFLAGS_common += -I$(src)/soc/intel/skylake
 CPPFLAGS_common += -I$(src)/soc/intel/skylake/include
 
-# Currently used for microcode path.
+ifeq ($(CONFIG_BOARD_STARLABS_STARBOOK_ADL) $(CONFIG_BOARD_STARLABS_LABTOP_CML) $(CONFIG_BOARD_STARLABS_STARBOOK_TGL) $(CONFIG_BOARD_OCP_TIOGAPASS),y)
 CPPFLAGS_common += -I3rdparty/blobs/mainboard/$(MAINBOARDDIR)
+endif
 
 endif

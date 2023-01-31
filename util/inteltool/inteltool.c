@@ -107,6 +107,10 @@ static const struct {
 	  "4th generation (Haswell family) Core Processor ULT" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_5TH_GEN_U,
 	  "5th generation (Broadwell family) Core Processor ULT" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_5TH_GEN_D,
+	  "5th generation (Broadwell family) Core Processor (Desktop)" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_5TH_GEN_M,
+	  "5th generation (Broadwell family) Core Processor (Mobile)" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_6TH_GEN_M,
 	  "6th generation (Skylake-H family) Core Processor (Mobile)" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_6TH_GEN_WST,
@@ -170,6 +174,13 @@ static const struct {
 	 "12th generation (Alder Lake S family) Core Processor (Desktop)" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_ADL_ID_S_6_0,
 	 "12th generation (Alder Lake S family) Core Processor (Desktop)" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_ADL_ID_P_6_8,
+	  "12th generation (Alder Lake P family) Core Processor"},
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_ADL_ID_P_4_8,
+	  "12th generation (Alder Lake P family) Core Processor"},
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_ADL_ID_P_2_8,
+	  "12th generation (Alder Lake P family) Core Processor"},
+
 	/* Southbridges (LPC controllers) */
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82371XX, "371AB/EB/MB" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_ICH10, "ICH10" },
@@ -363,6 +374,11 @@ static const struct {
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_C224, "C224"},
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_C226, "C226"},
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_H81, "H81"},
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_C9_MOBILE, "C9 Mobile"},
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_C9_DESKTOP, "C9 Desktop"},
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_HM97, "HM97"},
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_Z97, "Z97"},
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_H97, "H97"},
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_APL_LPC, "Apollo Lake" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_DNV_LPC, "Denverton" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_GLK_LPC, "Gemini Lake" },
@@ -388,6 +404,8 @@ static const struct {
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_HM670, "HM670" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_WM790, "WM790" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_HM770, "HM770" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_EHL, "Elkhart Lake" },
+
 	/* Intel GPUs */
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_G35_EXPRESS,
 	  "Intel(R) G35 Express Chipset Family" },
@@ -610,6 +628,7 @@ static void print_usage(const char *name)
 	     "   -A | --ambs:                      dump AMB registers\n"
 	     "   -x | --sgx:                       dump SGX status\n"
 	     "   -t | --tme:                       dump TME status\n"
+	     "   -k | --keylocker:                 dump Key Locker status\n"
 	     "   -a | --all:                       dump all known (safe) registers\n"
 	     "        --pcr=PORT_ID:               dump all registers of a PCR port\n"
 	     "                                     (may be specified max %d times)\n"
@@ -671,7 +690,7 @@ int main(int argc, char *argv[])
 	int dump_pmbase = 0, dump_epbar = 0, dump_dmibar = 0;
 	int dump_pciexbar = 0, dump_coremsrs = 0, dump_ambs = 0;
 	int dump_spi = 0, dump_gfx = 0, dump_ahci = 0, dump_sgx = 0, dump_tme = 0;
-	int dump_lpc = 0;
+	int dump_lpc = 0, dump_keylocker = 0;
 	int show_gpio_diffs = 0;
 	size_t pcr_count = 0;
 	uint8_t dump_pcr[MAX_PCR_PORTS];
@@ -701,10 +720,11 @@ int main(int argc, char *argv[])
 		{"sgx", 0, 0, 'x'},
 		{"pcr", required_argument, 0, LONG_OPT_PCR},
 		{"tme", 0, 0, 't'},
+		{"keylocker", 0, 0, 'k'},
 		{0, 0, 0, 0}
 	};
 
-	while ((opt = getopt_long(argc, argv, "vh?gGrplmedPMaAsfRS:xt",
+	while ((opt = getopt_long(argc, argv, "vh?gGrplmedPMaAsfRS:xtk",
                                   long_options, &option_index)) != EOF) {
 		switch (opt) {
 		case 'v':
@@ -785,6 +805,7 @@ int main(int argc, char *argv[])
 			dump_ahci = 1;
 			dump_sgx = 1;
 			dump_tme = 1;
+			dump_keylocker = 1;
 			break;
 		case 'A':
 			dump_ambs = 1;
@@ -797,6 +818,9 @@ int main(int argc, char *argv[])
 			break;
 		case 't':
 			dump_tme = 1;
+			break;
+		case 'k':
+			dump_keylocker = 1;
 			break;
 		case LONG_OPT_PCR:
 			if (pcr_count < MAX_PCR_PORTS) {
@@ -992,6 +1016,9 @@ int main(int argc, char *argv[])
 
 	if (dump_tme)
 		print_tme();
+
+	if (dump_keylocker)
+		print_keylocker();
 
 	if (pcr_count)
 		print_pcr_ports(sb, dump_pcr, pcr_count);

@@ -3,6 +3,7 @@
 #include <acpi/acpi.h>
 #include <acpi/acpi_gnvs.h>
 #include <acpi/acpigen.h>
+#include <arch/ioapic.h>
 #include <console/console.h>
 #include <device/device.h>
 #include <device/mmio.h>
@@ -77,7 +78,7 @@ void soc_fill_gnvs(struct global_nvs *gnvs)
 
 	/* Assign address of PERST_0 if GPIO is defined in devicetree */
 	if (cfg->prt0_gpio != GPIO_PRT0_UDEF)
-		gnvs->prt0 = (uintptr_t) gpio_dwx_address(cfg->prt0_gpio);
+		gnvs->prt0 = (uintptr_t)gpio_dwx_address(cfg->prt0_gpio);
 
 	/* Get sdcard cd GPIO portid if GPIO is defined in devicetree.
 	 * Get offset of sdcard cd pin.
@@ -106,7 +107,7 @@ void soc_fill_fadt(acpi_fadt_t *fadt)
 
 	fadt->x_pm_tmr_blk.space_id = ACPI_ADDRESS_SPACE_IO;
 	fadt->x_pm_tmr_blk.bit_width = fadt->pm_tmr_len * 8;
-	fadt->x_pm_tmr_blk.addrl = ACPI_BASE_ADDRESS + PM1_TMR;
+	fadt->x_pm_tmr_blk.addrl = fadt->pm_tmr_blk;
 	fadt->x_pm_tmr_blk.access_size = ACPI_ACCESS_SIZE_DWORD_ACCESS;
 
 	if (cfg->lpss_s0ix_enable)
@@ -142,8 +143,8 @@ static unsigned long soc_fill_dmar(unsigned long current)
 
 		current += acpi_create_dmar_drhd(current,
 				DRHD_INCLUDE_PCI_ALL, 0, defvtbar);
-		current += acpi_create_dmar_ds_ioapic(current,
-				2, ibdf.bus, ibdf.dev, ibdf.fn);
+		current += acpi_create_dmar_ds_ioapic_from_hw(current,
+				IO_APIC_ADDR, ibdf.bus, ibdf.dev, ibdf.fn);
 		current += acpi_create_dmar_ds_msi_hpet(current,
 				0, hbdf.bus, hbdf.dev, hbdf.fn);
 		acpi_dmar_drhd_fixup(tmp, current);
@@ -216,7 +217,7 @@ static void acpigen_soc_get_dw0_in_local5(uintptr_t addr)
 static int acpigen_soc_get_gpio_val(unsigned int gpio_num, uint32_t mask)
 {
 	assert(gpio_num < TOTAL_PADS);
-	uintptr_t addr = (uintptr_t) gpio_dwx_address(gpio_num);
+	uintptr_t addr = (uintptr_t)gpio_dwx_address(gpio_num);
 
 	acpigen_soc_get_dw0_in_local5(addr);
 
@@ -240,7 +241,7 @@ static int acpigen_soc_get_gpio_val(unsigned int gpio_num, uint32_t mask)
 static int acpigen_soc_set_gpio_val(unsigned int gpio_num, uint32_t val)
 {
 	assert(gpio_num < TOTAL_PADS);
-	uintptr_t addr = (uintptr_t) gpio_dwx_address(gpio_num);
+	uintptr_t addr = (uintptr_t)gpio_dwx_address(gpio_num);
 
 	acpigen_soc_get_dw0_in_local5(addr);
 

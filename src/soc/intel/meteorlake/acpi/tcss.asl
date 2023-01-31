@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 
+#include <intelblocks/tcss.h>
 #include <soc/iomap.h>
-#include <soc/tcss.h>
 
 /*
  * Type C Subsystem(TCSS) topology provides Runtime D3 support for USB host controller(xHCI),
@@ -155,6 +155,12 @@ Scope (\_SB)
 				CDW1 |= UNRECOGNIZED_REVISION
 			}
 			Return (Arg3)
+#if CONFIG(SOFTWARE_CONNECTION_MANAGER)
+		/*
+		 * Software Connection Manager doesn't work with Linux 5.13 or later and
+		 * results in TBT ports timing out. Not advertising this results in
+		 * Firmware Connection Manager being used and TBT works correctly.
+		 */
 		} ElseIf (Arg0 == ToUUID("23A0D13A-26AB-486C-9C5F-0FFA525A575A")) {
 			/*
 			 * Operating System Capabilities for USB4
@@ -186,6 +192,7 @@ Scope (\_SB)
 				INTER_DOMAIN_USB4_INTERNET_PROTOCOL
 			CDW3 = Local0
 			Return (Arg3)
+#endif
 		} Else {
 			CDW1 |= UNRECOGNIZED_UUID
 			Return (Arg3)
@@ -327,6 +334,8 @@ Scope (\_SB.PCI0)
 				IOM_BASE_ADDR, IOM_BASE_ADDR_MAX, 0x0,
 				IOM_BASE_SIZE,,,)
 		})
+		/* Hide the device so that Windows does not complain on missing driver */
+		Name (_STA, 0xB)
 	}
 
 	/*
@@ -487,7 +496,7 @@ Scope (\_SB.PCI0)
 		TACK, 1,          /* [16:16] IOM Acknowledge bit */
 		DPOF, 1,          /* [17:17] Set 1 to indicate IOM, all the */
 				  /* display is OFF, clear otherwise */
-		Offset(0x70),     /* Pyhsical addr is offset 0x70. */
+		Offset(0x70),     /* Physical addr is offset 0x70. */
 		IMCD, 32,         /* R_SA_IOM_BIOS_MAIL_BOX_CMD */
 		IMDA, 32          /* R_SA_IOM_BIOS_MAIL_BOX_DATA */
 	}
@@ -719,7 +728,13 @@ Scope (\_SB.PCI0)
 		}
 
 		/* Request IOM for D3 cold entry sequence. */
-		TD3C = 1
+		/*
+		 * FIXME: Remove this workaround after resolving b/244082753
+		 *
+		 * Document #742990: TCCold exit flow may not complete when processor at package
+		 * C0. The implication is that the system may hang.
+		 */
+		// TD3C = 1
 	}
 
 	PowerResource (D3C, 5, 0)

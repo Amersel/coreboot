@@ -1,3 +1,4 @@
+## SPDX-License-Identifier: GPL-2.0-only
 ifeq ($(CONFIG_SOC_INTEL_APOLLOLAKE),y)
 
 subdirs-y += ../../../cpu/intel/common
@@ -53,6 +54,7 @@ ramstage-y += graphics.c
 ramstage-y += gspi.c
 ramstage-y += heci.c
 ramstage-y += i2c.c
+ramstage-y += lockdown.c
 ramstage-y += lpc.c
 ramstage-y += mmap_boot.c
 ramstage-y += uart.c

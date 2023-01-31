@@ -4,6 +4,10 @@
 #include <chip.h>
 #include <fw_config.h>
 #include <baseboard/variants.h>
+#include <acpi/acpi.h>
+#include <acpi/acpigen.h>
+#include <drivers/vpd/vpd.h>
+#include <stdio.h>
 
 const char *get_wifi_sar_cbfs_filename(void)
 {

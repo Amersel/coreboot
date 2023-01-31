@@ -157,8 +157,8 @@ static u8 readb_(const void *addr)
 {
 	u8 v = read8(addr);
 
-	printk(BIOS_DEBUG, "read %2.2x from %4.4x\n",
-	       v, ((unsigned int) addr & 0xffff) - 0xf020);
+	printk(BIOS_DEBUG, "read %2.2x from %4.4lx\n",
+	       v, ((uintptr_t)addr & 0xffff) - 0xf020);
 	return v;
 }
 
@@ -166,8 +166,8 @@ static u16 readw_(const void *addr)
 {
 	u16 v = read16(addr);
 
-	printk(BIOS_DEBUG, "read %4.4x from %4.4x\n",
-	       v, ((unsigned int) addr & 0xffff) - 0xf020);
+	printk(BIOS_DEBUG, "read %4.4x from %4.4lx\n",
+	       v, ((uintptr_t)addr & 0xffff) - 0xf020);
 	return v;
 }
 
@@ -175,30 +175,30 @@ static u32 readl_(const void *addr)
 {
 	u32 v = read32(addr);
 
-	printk(BIOS_DEBUG, "read %8.8x from %4.4x\n",
-	       v, ((unsigned int) addr & 0xffff) - 0xf020);
+	printk(BIOS_DEBUG, "read %8.8x from %4.4lx\n",
+	       v, ((uintptr_t)addr & 0xffff) - 0xf020);
 	return v;
 }
 
 static void writeb_(u8 b, void *addr)
 {
 	write8(addr, b);
-	printk(BIOS_DEBUG, "wrote %2.2x to %4.4x\n",
-	       b, ((unsigned int) addr & 0xffff) - 0xf020);
+	printk(BIOS_DEBUG, "wrote %2.2x to %4.4lx\n",
+	       b, ((uintptr_t)addr & 0xffff) - 0xf020);
 }
 
 static void writew_(u16 b, void *addr)
 {
 	write16(addr, b);
-	printk(BIOS_DEBUG, "wrote %4.4x to %4.4x\n",
-	       b, ((unsigned int) addr & 0xffff) - 0xf020);
+	printk(BIOS_DEBUG, "wrote %4.4x to %4.4lx\n",
+	       b, ((uintptr_t)addr & 0xffff) - 0xf020);
 }
 
 static void writel_(u32 b, void *addr)
 {
 	write32(addr, b);
-	printk(BIOS_DEBUG, "wrote %8.8x to %4.4x\n",
-	       b, ((unsigned int) addr & 0xffff) - 0xf020);
+	printk(BIOS_DEBUG, "wrote %8.8x to %4.4lx\n",
+	       b, ((uintptr_t)addr & 0xffff) - 0xf020);
 }
 
 #else /* CONFIG_DEBUG_SPI_FLASH ^^^ enabled  vvv NOT enabled */
@@ -787,8 +787,8 @@ static int ich_hwseq_read(const struct spi_flash *flash, u32 addr, size_t len,
 	if (addr + len > flash->size) {
 		printk(BIOS_ERR,
 			"Attempt to read %x-%x which is out of chip\n",
-			(unsigned int) addr,
-			(unsigned int) addr+(unsigned int) len);
+			(unsigned int)addr,
+			(unsigned int)addr+(unsigned int) len);
 		return -1;
 	}
 
@@ -835,7 +835,7 @@ static void ich_fill_data(const uint8_t *data, int len)
 		if ((i % 4) == 0)
 			temp32 = 0;
 
-		temp32 |= ((uint32_t) data[i]) << ((i % 4) * 8);
+		temp32 |= ((uint32_t)data[i]) << ((i % 4) * 8);
 
 		if ((i % 4) == 3) /* 32 bits are full, write them to regs. */
 			writel_(temp32, cntlr.data + (i - (i % 4)));
@@ -856,7 +856,7 @@ static int ich_hwseq_write(const struct spi_flash *flash, u32 addr, size_t len,
 	if (addr + len > flash->size) {
 		printk(BIOS_ERR,
 			"Attempt to write 0x%x-0x%x which is out of chip\n",
-			(unsigned int)addr, (unsigned int) (addr+len));
+			(unsigned int)addr, (unsigned int)(addr+len));
 		return -1;
 	}
 
@@ -890,7 +890,7 @@ static int ich_hwseq_write(const struct spi_flash *flash, u32 addr, size_t len,
 		len -= block_len;
 	}
 	printk(BIOS_DEBUG, "SF: Successfully written %u bytes @ %#x\n",
-	       (unsigned int) (addr - start), start);
+	       (unsigned int)(addr - start), start);
 	return 0;
 }
 

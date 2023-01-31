@@ -9,28 +9,6 @@
 
 #include <soc/nvs.h>
 
-#if CONFIG(SMM_LEGACY_ASEG)
-/* For qemu/x86-q35 to build properly. */
-struct global_nvs *gnvs;
-#endif
-
-int southbridge_io_trap_handler(int smif)
-{
-	switch (smif) {
-	case 0x32:
-		printk(BIOS_DEBUG, "OS Init\n");
-		/* gnvs->smif:
-		 *  On success, the IO Trap Handler returns 0
-		 *  On failure, the IO Trap Handler returns a value != 0
-		 */
-		gnvs->smif = 0;
-		return 1; /* IO trap handled */
-	}
-
-	/* Not handled */
-	return 0;
-}
-
 void southbridge_smi_monitor(void)
 {
 #define IOTRAP(x) (trap_sts & (1 << x))

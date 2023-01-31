@@ -77,7 +77,7 @@ enum {
 	LB_TAG_MAC_ADDRS		= 0x0033,
 	LB_TAG_VBOOT_WORKBUF		= 0x0034,
 	LB_TAG_MMC_INFO			= 0x0035,
-	LB_TAG_TCPA_LOG			= 0x0036,
+	LB_TAG_TPM_CB_LOG		= 0x0036,
 	LB_TAG_FMAP			= 0x0037,
 	LB_TAG_PLATFORM_BLOB_VERSION	= 0x0038,
 	LB_TAG_SMMSTOREV2		= 0x0039,
@@ -95,6 +95,9 @@ enum {
 	LB_TAG_OPTION_CHECKSUM		= 0x00cc,
 };
 
+/* All table entry base addresses and sizes must be 4-byte aligned. */
+#define LB_ENTRY_ALIGN 4
+
 /* Since coreboot is usually compiled 32bit, gcc will align 64bit
  * types to 32bit boundaries. If the coreboot table is dumped on a
  * 64bit system, a uint64_t would be aligned to 64bit boundaries,
@@ -104,7 +107,7 @@ enum {
  * to ensure compatibility.
  */
 
-typedef __aligned(4) uint64_t lb_uint64_t;
+typedef __aligned(LB_ENTRY_ALIGN) uint64_t lb_uint64_t;
 
 struct lb_header {
 	uint8_t  signature[4]; /* LBIO */
@@ -197,20 +200,13 @@ struct lb_serial {
 	 * decisions as to which dividers to select and their values
 	 * to eventually arrive at the desired console baud-rate. */
 	uint32_t input_hertz;
-
-	/* UART PCI address: bus, device, function
-	 * 1 << 31 - Valid bit, PCI UART in use
-	 * Bus << 20
-	 * Device << 15
-	 * Function << 12
-	 */
-	uint32_t uart_pci_addr;
 };
 
 struct lb_console {
 	uint32_t tag;
 	uint32_t size;
 	uint16_t type;
+	uint8_t pad[2];
 };
 
 #define LB_TAG_CONSOLE_SERIAL8250	0
@@ -296,6 +292,7 @@ struct lb_framebuffer {
 	uint8_t reserved_mask_pos;
 	uint8_t reserved_mask_size;
 	uint8_t orientation;
+	uint8_t pad[2];
 };
 
 struct lb_gpio {
@@ -561,6 +558,7 @@ struct lb_tpm_physical_presence {
 	uint32_t ppi_address;	/* Address of ACPI PPI communication buffer */
 	uint8_t tpm_version;	/* 1: TPM1.2, 2: TPM2.0 */
 	uint8_t ppi_version;	/* BCD encoded */
+	uint8_t pad[2];
 };
 
 

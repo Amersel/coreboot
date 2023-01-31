@@ -8,6 +8,25 @@
 #include <fsp/api.h>
 
 struct vr_config {
+#if CONFIG(SOC_INTEL_RAPTORLAKE)
+	/*
+	 * When enabled, this feature makes the SoC throttle when the power
+	 * consumption exceeds the I_TRIP threshold.
+	 *
+	 * FSPs sets a by default I_TRIP threshold adapted to the current SoC
+	 * and assuming a Voltage Regulator error accuracy of 6.5%.
+	 */
+	bool enable_fast_vmode;
+
+	/*
+	 * VR Fast Vmode I_TRIP threshold.
+	 * 0-255A in 1/4 A units. Example: 400 = 100A
+
+	 * This setting overrides the default value set by FSPs when Fast VMode
+	 * is enabled.
+	 */
+	uint16_t fast_vmode_i_trip;
+#endif
 
 	/* The below settings will take effect when this is set to 1 for that domain. */
 	bool vr_config_enable;
@@ -28,6 +47,12 @@ struct vr_config {
 	/* Thermal Design Current current limit.
 	   Defined in 1/8A units and range is 0-4095. 1000 = 125A. */
 	uint16_t tdc_currentlimit;
+
+	/* Power State 1/2/3 Threshold Current.
+	   Defined in 1/4A units and range is 0-128A */
+	uint16_t psi1threshold;
+	uint16_t psi2threshold;
+	uint16_t psi3threshold;
 };
 
 #define VR_CFG_AMP(i) (uint16_t)((i) * 4)

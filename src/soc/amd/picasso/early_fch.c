@@ -1,12 +1,14 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <amdblocks/acpimmio.h>
+#include <amdblocks/aoac.h>
 #include <amdblocks/espi.h>
 #include <amdblocks/i2c.h>
 #include <amdblocks/lpc.h>
 #include <amdblocks/pmlib.h>
 #include <amdblocks/smbus.h>
 #include <amdblocks/spi.h>
+#include <amdblocks/uart.h>
 #include <soc/i2c.h>
 #include <soc/southbridge.h>
 #include <soc/uart.h>
@@ -14,28 +16,10 @@
 
 #include "chip.h"
 
-/* Table to switch SCL pins to outputs to initially reset the I2C peripherals */
-static const struct soc_i2c_scl_pin i2c_scl_pins[] = {
-	I2C_RESET_SCL_PIN(I2C2_SCL_PIN, GPIO_I2C2_SCL),
-	I2C_RESET_SCL_PIN(I2C3_SCL_PIN, GPIO_I2C3_SCL),
-	/* I2C4 is a peripheral device only */
-};
-
 static void lpc_configure_decodes(void)
 {
 	if (CONFIG(POST_IO) && (CONFIG_POST_IO_PORT == 0x80))
 		lpc_enable_port80();
-}
-
-static void reset_i2c_peripherals(void)
-{
-	const struct soc_amd_picasso_config *cfg = config_of_soc();
-	struct soc_i2c_peripheral_reset_info reset_info;
-
-	reset_info.i2c_scl_reset_mask = cfg->i2c_scl_reset & GPIO_I2C_MASK;
-	reset_info.i2c_scl = i2c_scl_pins;
-	reset_info.num_pins = ARRAY_SIZE(i2c_scl_pins);
-	sb_reset_i2c_peripherals(&reset_info);
 }
 
 /* Before console init */
@@ -60,7 +44,6 @@ void fch_pre_init(void)
 	fch_enable_cf9_io();
 	fch_enable_legacy_io();
 	enable_aoac_devices();
-	reset_i2c_peripherals();
 
 	/*
 	 * On reset Range_0 defaults to enabled. We want to start with a clean
@@ -79,6 +62,7 @@ void fch_pre_init(void)
 /* After console init */
 void fch_early_init(void)
 {
+	reset_i2c_peripherals();
 	pm_set_power_failure_state();
 	fch_print_pmxc0_status();
 	i2c_soc_early_init();

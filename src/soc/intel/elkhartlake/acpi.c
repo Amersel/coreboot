@@ -3,6 +3,7 @@
 #include <acpi/acpi.h>
 #include <acpi/acpi_gnvs.h>
 #include <acpi/acpigen.h>
+#include <arch/ioapic.h>
 #include <arch/smp/mpspec.h>
 #include <console/console.h>
 #include <device/device.h>
@@ -156,7 +157,7 @@ void soc_fill_fadt(acpi_fadt_t *fadt)
 	fadt->x_pm_tmr_blk.bit_width = fadt->pm_tmr_len * 8;
 	fadt->x_pm_tmr_blk.bit_offset = 0;
 	fadt->x_pm_tmr_blk.access_size = ACPI_ACCESS_SIZE_DWORD_ACCESS;
-	fadt->x_pm_tmr_blk.addrl = pmbase + PM1_TMR;
+	fadt->x_pm_tmr_blk.addrl = fadt->pm_tmr_blk;
 	fadt->x_pm_tmr_blk.addrh = 0x0;
 	fadt->preferred_pm_profile = PM_MOBILE;
 
@@ -191,8 +192,8 @@ static unsigned long soc_fill_dmar(unsigned long current)
 
 		current += acpi_create_dmar_drhd(current,
 				DRHD_INCLUDE_PCI_ALL, 0, vtvc0bar);
-		current += acpi_create_dmar_ds_ioapic(current,
-				2, V_P2SB_CFG_IBDF_BUS, V_P2SB_CFG_IBDF_DEV,
+		current += acpi_create_dmar_ds_ioapic_from_hw(current,
+				IO_APIC_ADDR, V_P2SB_CFG_IBDF_BUS, V_P2SB_CFG_IBDF_DEV,
 				V_P2SB_CFG_IBDF_FUNC);
 		current += acpi_create_dmar_ds_msi_hpet(current,
 				0, V_P2SB_CFG_HBDF_BUS, V_P2SB_CFG_HBDF_DEV,

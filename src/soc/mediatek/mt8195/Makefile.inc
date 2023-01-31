@@ -1,3 +1,4 @@
+## SPDX-License-Identifier: GPL-2.0-only
 ifeq ($(CONFIG_SOC_MEDIATEK_MT8195),y)
 
 # for bootblock, verstage, romstage, ramstage
@@ -39,13 +40,14 @@ romstage-y += ../common/rtc.c ../common/rtc_osc_init.c ../common/rtc_mt6359p.c
 ramstage-y += apusys.c
 ramstage-y += apusys_devapc.c
 ramstage-y += ../common/auxadc.c
+ramstage-$(CONFIG_ARM64_USE_ARM_TRUSTED_FIRMWARE) += ../common/bl31.c
 ramstage-y += ../common/early_init.c
 ramstage-y += ../common/ddp.c ddp.c
-ramstage-y += devapc.c
+ramstage-y += ../common/devapc.c devapc.c
 ramstage-y += ../common/dfd.c
 ramstage-y += ../common/dpm.c
-ramstage-$(CONFIG_DPM_FOUR_CHANNEL) += dpm_4ch.c
-ramstage-y += dp_intf.c dptx.c dptx_hal.c
+ramstage-$(CONFIG_DPM_FOUR_CHANNEL) += ../common/dpm_4ch.c
+ramstage-y += ../common/dp/dp_intf.c ../common/dp/dptx.c ../common/dp/dptx_hal.c dp_intf.c
 ramstage-y += emi.c
 ramstage-y += hdmi.c
 ramstage-y += ../common/mcu.c
@@ -65,6 +67,7 @@ ramstage-y += ../common/ufs.c
 ramstage-y += ../common/usb.c usb.c
 
 CPPFLAGS_common += -Isrc/soc/mediatek/mt8195/include
+CPPFLAGS_common += -Isrc/soc/mediatek/common/dp/include
 CPPFLAGS_common += -Isrc/soc/mediatek/common/include
 CPPFLAGS_common += -Isrc/vendorcode/mediatek/mt8195/include
 

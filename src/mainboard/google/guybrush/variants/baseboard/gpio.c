@@ -4,7 +4,6 @@
 #include <baseboard/variants.h>
 #include <commonlib/helpers.h>
 #include <gpio.h>
-#include <soc/gpio.h>
 
 /* GPIO configuration in ramstage */
 /* Please make sure that *ALL* GPIOs are configured in this table */
@@ -135,10 +134,10 @@ static const struct soc_amd_gpio base_gpio_table[] = {
 	/* TCHSCR_REPORT_EN */
 	PAD_GPO(GPIO_120, LOW),
 	/* TCHSCR_RESET_L */
-	PAD_GPO(GPIO_121, LOW),
+	PAD_GPO(GPIO_121, HIGH),
 	/* GPIO_122 - GPIO_128: Not available */
 	/* SOC_DISABLE_DISP_BL */
-	PAD_GPO(GPIO_129, HIGH),
+	PAD_GPO(GPIO_129, LOW),
 	/* WLAN_DISABLE */
 	PAD_GPO(GPIO_130, LOW),
 	/* CLK_REQ3_L */
@@ -268,7 +267,7 @@ static const struct soc_amd_gpio bootblock_gpio_table[] = {
 };
 
 /* PCIE_RST needs to be brought high before FSP-M runs */
-static const struct soc_amd_gpio pcie_gpio_table[] = {
+static const struct soc_amd_gpio romstage_gpio_table[] = {
 	/* Deassert all AUX_RESET lines & PCIE_RST */
 	/* Unused */
 	PAD_NC(GPIO_5),
@@ -284,12 +283,17 @@ static const struct soc_amd_gpio pcie_gpio_table[] = {
 	PAD_NC(GPIO_70),
 	/* PCIE_RST0_L */
 	PAD_NFO(GPIO_26, PCIE_RST_L, HIGH),
+	/* Enable touchscreen, hold in reset */
+	/* EN_PP3300_TCHSCR */
+	PAD_GPO(GPIO_68, HIGH),
+	/* TCHSCR_RESET_L */
+	PAD_GPO(GPIO_121, LOW),
 };
 
-const struct soc_amd_gpio *__weak variant_pcie_gpio_table(size_t *size)
+const struct soc_amd_gpio *baseboard_romstage_gpio_table(size_t *size)
 {
-	*size = ARRAY_SIZE(pcie_gpio_table);
-	return pcie_gpio_table;
+	*size = ARRAY_SIZE(romstage_gpio_table);
+	return romstage_gpio_table;
 }
 
 const struct soc_amd_gpio *__weak variant_bootblock_gpio_table(size_t *size)
@@ -298,7 +302,7 @@ const struct soc_amd_gpio *__weak variant_bootblock_gpio_table(size_t *size)
 	return bootblock_gpio_table;
 }
 
-const struct soc_amd_gpio *__weak variant_base_gpio_table(size_t *size)
+const struct soc_amd_gpio  *baseboard_gpio_table(size_t *size)
 {
 	*size = ARRAY_SIZE(base_gpio_table);
 	return base_gpio_table;
@@ -322,7 +326,7 @@ const struct soc_amd_gpio * __weak variant_bootblock_override_gpio_table(size_t 
 	return NULL;
 }
 
-const struct soc_amd_gpio * __weak variant_pcie_override_gpio_table(size_t *size)
+const struct soc_amd_gpio * __weak variant_romstage_override_gpio_table(size_t *size)
 {
 	*size = 0;
 	return NULL;

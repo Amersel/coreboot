@@ -346,9 +346,8 @@ int cbfs_image_from_buffer(struct cbfs_image *out, struct buffer *in,
 		out->has_header = true;
 		cbfs_fix_legacy_size(out, header_loc);
 		return 0;
-	} else if (offset != ~0u) {
+	} else if (offset != HEADER_OFFSET_UNKNOWN) {
 		ERROR("The -H switch is only valid on legacy images having CBFS master headers.\n");
-		return 1;
 	}
 	ERROR("Selected image region is not a valid CBFS.\n");
 	return 1;
@@ -400,7 +399,7 @@ int cbfs_copy_instance(struct cbfs_image *image, struct buffer *dst)
 		cbfs_calculate_file_header_size("") - sizeof(int32_t);
 
 	if (last_entry_size < 0)
-		WARN("No room to create the last entry!\n")
+		WARN("No room to create the last entry!\n");
 	else
 		cbfs_create_empty_entry(dst_entry, CBFS_TYPE_NULL,
 			last_entry_size, "");
@@ -415,7 +414,7 @@ int cbfs_expand_to_region(struct buffer *region)
 
 	struct cbfs_image image;
 	memset(&image, 0, sizeof(image));
-	if (cbfs_image_from_buffer(&image, region, 0)) {
+	if (cbfs_image_from_buffer(&image, region, HEADER_OFFSET_UNKNOWN)) {
 		ERROR("reading CBFS failed!\n");
 		return 1;
 	}
@@ -454,7 +453,7 @@ int cbfs_truncate_space(struct buffer *region, uint32_t *size)
 
 	struct cbfs_image image;
 	memset(&image, 0, sizeof(image));
-	if (cbfs_image_from_buffer(&image, region, 0)) {
+	if (cbfs_image_from_buffer(&image, region, HEADER_OFFSET_UNKNOWN)) {
 		ERROR("reading CBFS failed!\n");
 		return 1;
 	}
@@ -1457,7 +1456,7 @@ int cbfs_print_entry_info(struct cbfs_image *image, struct cbfs_file *entry,
 			break;
 		}
 		char *hash_str = bintohex(attr->hash.raw, hash_len);
-		int valid = vb2_hash_verify(CBFS_SUBHEADER(entry),
+		int valid = vb2_hash_verify(false, CBFS_SUBHEADER(entry),
 			be32toh(entry->len), &attr->hash) == VB2_SUCCESS;
 		const char *valid_str = valid ? "valid" : "invalid";
 
@@ -1545,7 +1544,7 @@ static int cbfs_print_parseable_entry_info(struct cbfs_image *image,
 			if (!hash_len)
 				continue;
 			char *hash_str = bintohex(attr->hash.raw, hash_len);
-			int valid = vb2_hash_verify(CBFS_SUBHEADER(entry),
+			int valid = vb2_hash_verify(false, CBFS_SUBHEADER(entry),
 				be32toh(entry->len), &attr->hash) == VB2_SUCCESS;
 			fprintf(fp, "%shash:%s:%s:%s", sep,
 				vb2_get_hash_algorithm_name(attr->hash.algo),
@@ -1874,7 +1873,7 @@ int cbfs_add_file_hash(struct cbfs_file *header, struct buffer *buffer,
 	if (attr == NULL)
 		return -1;
 
-	if (vb2_hash_calculate(buffer_get(buffer), buffer_size(buffer),
+	if (vb2_hash_calculate(false, buffer_get(buffer), buffer_size(buffer),
 			       alg, &attr->hash) != VB2_SUCCESS)
 		return -1;
 

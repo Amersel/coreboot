@@ -1,5 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <assert.h>
+#include <stdint.h>
+
 /*
  * EC communication interface for ITE Embedded Controller
  */
@@ -14,10 +17,12 @@
 #define ECRAM_KBL_TIMEOUT	0x07
 #define ECRAM_FN_CTRL_REVERSE	0x08
 #define ECRAM_FAN_MODE		0x09
-#define ECRAM_MAX_CHARGE	0x10
+#define ECRAM_MAX_CHARGE	0x1a
 #define ECRAM_TRACKPAD_STATE	0x14
 #define ECRAM_KBL_STATE		0x18
 #define ECRAM_KBL_BRIGHTNESS	0x19
 #define ECRAM_FN_LOCK_STATE	0x2c
+#define ECRAM_FAST_CHARGE	dead_code_t(uint8_t)
+#define ECRAM_MIRROR_FLAG	0x04
 
 #endif

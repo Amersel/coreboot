@@ -19,10 +19,6 @@ config BOTTOMIO_POSITION
 	  option is useful when PCI peripherals requesting large address
 	  ranges are present.
 
-config CONSOLE_VGA_MULTI
-	bool
-	default n
-
 config S3_VGA_ROM_RUN
 	bool
 	default n
@@ -36,9 +32,5 @@ config HW_MEM_HOLE_SIZEK
 config HEAP_SIZE
 	hex
 	default 0xc0000
-
-config NUM_OF_IOAPICS
-	int
-	default 3
 
 endif # NORTHBRIDGE_AMD_PI

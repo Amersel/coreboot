@@ -177,6 +177,17 @@ static void setup_sdram_meminfo(struct pei_data *pei_data)
 	}
 }
 
+/*
+ * 0 = leave channel enabled
+ * 1 = disable dimm 0 on channel
+ * 2 = disable dimm 1 on channel
+ * 3 = disable dimm 0+1 on channel
+ */
+static int make_channel_disabled_mask(const struct spd_info *spdi, int ch)
+{
+	return (!spdi->addresses[ch + ch] << 0) | (!spdi->addresses[ch + ch + 1] << 1);
+}
+
 void perform_raminit(const struct chipset_power_state *const power_state)
 {
 	const int s3resume = power_state->prev_sleep_state == ACPI_S3;
@@ -184,7 +195,30 @@ void perform_raminit(const struct chipset_power_state *const power_state)
 	struct pei_data pei_data = { 0 };
 
 	mainboard_fill_pei_data(&pei_data);
-	mainboard_fill_spd_data(&pei_data);
+
+	if (CONFIG(BROADWELL_LPDDR3)) {
+		const struct lpddr3_dq_dqs_map *lpddr3_map = mb_get_lpddr3_dq_dqs_map();
+		assert(lpddr3_map);
+		memcpy(pei_data.dq_map, lpddr3_map->dq, sizeof(pei_data.dq_map));
+		memcpy(pei_data.dqs_map, lpddr3_map->dqs, sizeof(pei_data.dqs_map));
+	}
+
+	/* Obtain the SPD addresses from mainboard code */
+	struct spd_info spdi = { 0 };
+	mb_get_spd_map(&spdi);
+
+	if (CONFIG(HAVE_SPD_IN_CBFS))
+		copy_spd(&pei_data, &spdi);
+
+	/* Calculate unimplemented DIMM slots for each channel */
+	pei_data.dimm_channel0_disabled = make_channel_disabled_mask(&spdi, 0);
+	pei_data.dimm_channel1_disabled = make_channel_disabled_mask(&spdi, 1);
+
+	/* MRC expects left-aligned SMBus addresses, and 0 for memory-down */
+	for (size_t i = 0; i < ARRAY_SIZE(spdi.addresses); i++) {
+		const uint8_t addr = spdi.addresses[i];
+		pei_data.spd_addresses[i] = addr == SPD_MEMORY_DOWN ? 0 : addr << 1;
+	}
 
 	post_code(0x32);
 

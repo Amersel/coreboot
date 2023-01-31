@@ -3,6 +3,7 @@
 #include "psp_verstage.h"
 
 #include <amdblocks/acpimmio.h>
+#include <bl_uapp/bl_errorcodes_public.h>
 #include <bl_uapp/bl_syscall_public.h>
 #include <boot_device.h>
 #include <cbfs.h>
@@ -42,11 +43,8 @@ static void reboot_into_recovery(struct vb2_context *ctx, uint32_t subcode)
 		return;
 	}
 
-	vb2api_fail(ctx, VB2_RECOVERY_RO_UNSPECIFIED, (int)subcode);
-	vboot_save_data(ctx);
-
 	svc_debug_print("Rebooting into recovery\n");
-	vboot_reboot();
+	vboot_fail_and_reboot(ctx, VB2_RECOVERY_RO_UNSPECIFIED, (int)subcode);
 }
 
 static uint32_t check_cmos_recovery(void)
@@ -74,6 +72,7 @@ static uint32_t update_boot_region(struct vb2_context *ctx)
 	uint32_t psp_dir_addr, bios_dir_addr;
 	uint32_t *psp_dir_in_spi, *bios_dir_in_spi;
 	const char *fname;
+	const char *hash_fname;
 	void *amdfw_location;
 	void *boot_dev_base = rdev_mmap_full(boot_device_ro());
 
@@ -85,8 +84,10 @@ static uint32_t update_boot_region(struct vb2_context *ctx)
 
 	if (vboot_is_firmware_slot_a(ctx)) {
 		fname = "apu/amdfw_a";
+		hash_fname = "apu/amdfw_a_hash";
 	} else {
 		fname = "apu/amdfw_b";
+		hash_fname = "apu/amdfw_b_hash";
 	}
 
 	amdfw_location = cbfs_map(fname, NULL);
@@ -104,19 +105,23 @@ static uint32_t update_boot_region(struct vb2_context *ctx)
 	bios_dir_addr = get_bios_dir_addr(ef_table);
 	psp_dir_in_spi = (uint32_t *)((psp_dir_addr & SPI_ADDR_MASK) +
 			(uint32_t)boot_dev_base);
-	bios_dir_in_spi = (uint32_t *)((bios_dir_addr & SPI_ADDR_MASK) +
-			(uint32_t)boot_dev_base);
 	if (*psp_dir_in_spi != PSP_COOKIE) {
 		printk(BIOS_ERR, "PSP Directory address is not correct.\n");
 		return POSTCODE_PSP_COOKIE_MISMATCH_ERROR;
 	}
-	if (*bios_dir_in_spi != BHD_COOKIE) {
-		printk(BIOS_ERR, "BIOS Directory address is not correct.\n");
-		return POSTCODE_BHD_COOKIE_MISMATCH_ERROR;
+
+	if (bios_dir_addr) {
+		bios_dir_in_spi = (uint32_t *)((bios_dir_addr & SPI_ADDR_MASK) +
+				(uint32_t)boot_dev_base);
+		if (*bios_dir_in_spi != BHD_COOKIE) {
+			printk(BIOS_ERR, "BIOS Directory address is not correct.\n");
+			return POSTCODE_BHD_COOKIE_MISMATCH_ERROR;
+		}
 	}
 
 	/* EFS2 uses relative address and PSP isn't happy with that */
-	if (ef_table->efs_gen.gen == EFS_SECOND_GEN) {
+	if (ef_table->efs_gen.gen == EFS_SECOND_GEN &&
+			!CONFIG(PSP_SUPPORTS_EFS2_RELATIVE_ADDR)) {
 		psp_dir_addr = FLASH_BASE_ADDR + (psp_dir_addr & SPI_ADDR_MASK);
 		bios_dir_addr = FLASH_BASE_ADDR + (bios_dir_addr & SPI_ADDR_MASK);
 	}
@@ -125,6 +130,9 @@ static uint32_t update_boot_region(struct vb2_context *ctx)
 		printk(BIOS_ERR, "Updated BIOS Directory could not be set.\n");
 		return POSTCODE_UPDATE_PSP_BIOS_DIR_ERROR;
 	}
+
+	if (CONFIG(SEPARATE_SIGNED_PSPFW))
+		update_psp_fw_hash_table(hash_fname);
 
 	return 0;
 }
@@ -219,6 +227,9 @@ void Main(void)
 		svc_write_postcode(POSTCODE_CONSOLE_INIT);
 	console_init();
 
+	if (CONFIG(PSP_INCLUDES_HSP))
+		report_hsp_secure_state();
+
 	if (!CONFIG(PSP_POSTCODES_ON_ESPI))
 		svc_write_postcode(POSTCODE_EARLY_INIT);
 	retval = verstage_soc_early_init();
@@ -281,6 +292,8 @@ void Main(void)
 	verstage_mainboard_init();
 
 	post_code(POSTCODE_VERSTAGE_MAIN);
+	if (CONFIG(SEPARATE_SIGNED_PSPFW))
+		report_prev_boot_status_to_vboot();
 
 	vboot_run_logic();
 

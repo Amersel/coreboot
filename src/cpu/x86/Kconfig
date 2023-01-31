@@ -2,8 +2,6 @@ if ARCH_X86
 
 config PARALLEL_MP
 	def_bool y
-	depends on !LEGACY_SMP_INIT
-	select CPU_INFO_V2
 	help
 	 This option uses common MP infrastructure for bringing up APs
 	 in parallel. It additionally provides a more flexible mechanism
@@ -18,8 +16,14 @@ config PARALLEL_MP_AP_WORK
 	 Allow APs to do other work after initialization instead of going
 	 to sleep.
 
-config LEGACY_SMP_INIT
+config X86_SMM_SKIP_RELOCATION_HANDLER
 	bool
+	default n
+	depends on PARALLEL_MP && HAVE_SMI_HANDLER
+	help
+	  Skip SMM relocation using a relocation handler running in SMM
+	  with a stub at 0x30000. This is useful on platforms that have
+	  an alternative way to set SMBASE.
 
 config DEFAULT_X2APIC
 	def_bool n
@@ -31,10 +35,16 @@ config DEFAULT_X2APIC_RUNTIME
 	help
 	  Allow SoC code to set LAPIC_ACCESS_MODE to X2APIC_RUNTIME.
 
+config DEFAULT_X2APIC_LATE_WORKAROUND
+	def_bool n
+	help
+	  Allow SoC code to set LAPIC_ACCESS_MODE to X2APIC_LATE_WORKAROUND.
+
 choice LAPIC_ACCESS_MODE
 	prompt "APIC operation mode"
 	default X2APIC_ONLY if DEFAULT_X2APIC
 	default X2APIC_RUNTIME if DEFAULT_X2APIC_RUNTIME
+	default X2APIC_LATE_WORKAROUND if DEFAULT_X2APIC_LATE_WORKAROUND
 	default XAPIC_ONLY
 
 config XAPIC_ONLY
@@ -50,6 +60,17 @@ config X2APIC_RUNTIME
 	prompt "Support both XAPIC and X2APIC"
 	bool
 	depends on PARALLEL_MP
+
+config X2APIC_LATE_WORKAROUND
+	prompt "Use XAPIC for AP bringup, then change to X2APIC"
+	bool
+	depends on PARALLEL_MP && MAX_CPUS < 256
+	help
+	  Choose this option if the platform supports dynamic switching between
+	  XAPIC to X2APIC. The initial Application Processors (APs) are configured
+	  in XAPIC mode at reset and later enable X2APIC as a CPU feature.
+	  All access mechanisms between XAPIC (mmio) and X2APIC (msr) switches
+	  at runtime when this option is enabled.
 
 endchoice
 
@@ -128,13 +149,7 @@ config SMM_TSEG
 	default y
 	depends on !(NO_SMM || SMM_ASEG)
 
-config SMM_LEGACY_ASEG
-	bool
-	default y if HAVE_SMI_HANDLER && SMM_ASEG && LEGACY_SMP_INIT
-	help
-	  SMM support without PARALLEL_MP, to be deprecated.
-
-if HAVE_SMI_HANDLER && !SMM_LEGACY_ASEG
+if HAVE_SMI_HANDLER
 
 config SMM_MODULE_STACK_SIZE
 	hex
@@ -144,20 +159,13 @@ config SMM_MODULE_STACK_SIZE
 	  This option determines the size of the stack within the SMM handler
 	  modules.
 
-config SMM_STUB_STACK_SIZE
-	hex
-	default 0x400
-	help
-	  This option determines the size of the stack within the SMM handler
-	  modules.
-
 endif
 
 config SMM_LAPIC_REMAP_MITIGATION
 	bool
-	default y if NORTHBRIDGE_INTEL_I945
-	default y if NORTHBRIDGE_INTEL_GM45
-	default y if NORTHBRIDGE_INTEL_IRONLAKE
+	default y if NORTHBRIDGE_INTEL_I945 || NORTHBRIDGE_INTEL_GM45 \
+		|| NORTHBRIDGE_INTEL_X4X || NORTHBRIDGE_INTEL_PINEVIEW \
+		|| NORTHBRIDGE_INTEL_E7505 || NORTHBRIDGE_INTEL_IRONLAKE
 	default n
 
 config X86_AMD_FIXED_MTRRS
@@ -194,12 +202,11 @@ config RESERVE_MTRRS_FOR_OS
 	  However, modern OSes use PAT to control cacheability instead of
 	  using MTRRs.
 
-config CPU_INFO_V2
-	bool
-	depends on PARALLEL_MP
+config AP_STACK_SIZE
+	hex
+	default 0x800
 	help
-	  Enables the new method of locating struct cpu_info. This new method
-	  uses the %gs segment to locate the cpu_info pointer. The old method
-	  relied on the stack being CONFIG_STACK_SIZE aligned.
+	  This is the amount of stack each AP needs. The BSP stack size can be
+	  larger and is set with STACK_SIZE.
 
 endif # ARCH_X86

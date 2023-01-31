@@ -9,14 +9,14 @@ chip soc/intel/broadwell
 	# Enable HDMI Hotplug with 6ms pulse
 	register "gpu_dp_b_hotplug" = "0x06"
 
-	device cpu_cluster 0 on
-		chip cpu/intel/haswell
-			device lapic 0 on end
-			device lapic 0xacac off end
-		end
+	register "dq_pins_interleaved" = "true"
+
+	chip cpu/intel/haswell
+		device cpu_cluster 0 on ops broadwell_cpu_bus_ops end
 	end
 
 	device domain 0 on
+		ops broadwell_pci_domain_ops
 		device pci 00.0 on end # host bridge
 		device pci 02.0 on end # vga controller
 		device pci 03.0 on end # mini-hd audio
@@ -73,7 +73,7 @@ chip soc/intel/broadwell
 				end
 				chip superio/ite/it8772f
 					# Skip keyboard init
-					register "skip_keyboard" = "1"
+					register "skip_keyboard" = "true"
 					# Enable PECI on TMPIN3
 					register "peci_tmpin" = "3"
 					# Disable use of TMPIN1
@@ -81,7 +81,7 @@ chip soc/intel/broadwell
 					# Enable Thermal Diode on TMPIN2
 					register "tmpin2_mode" = "1"
 					# Enable FAN2
-					register "fan2_enable" = "1"
+					register "fan2_enable" = "true"
 					# Default FAN2 speed
 					register "fan2_speed" = "0x4d"
 

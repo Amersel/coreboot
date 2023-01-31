@@ -5,6 +5,7 @@
 #include <delay.h>
 #include <stdlib.h>
 
+#include "ipmi_if.h"
 #include "ipmi_ops.h"
 
 #define MAX_FRU_BUSY_RETRY 5
@@ -34,9 +35,9 @@ static enum cb_err ipmi_read_fru(const int port, struct ipmi_read_fru_data_req *
 			req->count = CONFIG_IPMI_FRU_SINGLE_RW_SZ;
 
 		while (retry_count <= MAX_FRU_BUSY_RETRY) {
-			ret = ipmi_kcs_message(port, IPMI_NETFN_STORAGE, 0x0,
-					IPMI_READ_FRU_DATA, (const unsigned char *) req,
-					sizeof(*req), (unsigned char *) &rsp, sizeof(rsp));
+			ret = ipmi_message(port, IPMI_NETFN_STORAGE, 0x0,
+					IPMI_READ_FRU_DATA, (const unsigned char *)req,
+					sizeof(*req), (unsigned char *)&rsp, sizeof(rsp));
 			if (rsp.resp.completion_code == 0x81) {
 				/* Device is busy */
 				if (retry_count == MAX_FRU_BUSY_RETRY) {
@@ -571,5 +572,4 @@ void print_fru_areas(struct fru_info_str *fru_info_str)
 			printk(BIOS_DEBUG, "chassis custom data %i: %s\n", count,
 				*(chassis_info.chassis_custom + count));
 	}
-
 }

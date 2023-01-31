@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 #ifndef CPU_X86_MTRR_H
 #define CPU_X86_MTRR_H
 
@@ -42,6 +44,7 @@
 
 #define NUM_FIXED_RANGES		88
 #define RANGES_PER_FIXED_MTRR		8
+#define NUM_FIXED_MTRRS			(NUM_FIXED_RANGES / RANGES_PER_FIXED_MTRR)
 #define MTRR_FIX_64K_00000		0x250
 #define MTRR_FIX_16K_80000		0x258
 #define MTRR_FIX_16K_A0000		0x259

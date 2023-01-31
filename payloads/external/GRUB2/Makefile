@@ -1,9 +1,9 @@
 TAG-$(CONFIG_GRUB2_MASTER)=origin/HEAD
 TAG-$(CONFIG_GRUB2_REVISION)=$(CONFIG_GRUB2_REVISION_ID)
-TAG-$(CONFIG_GRUB2_STABLE)=grub-2.04
+TAG-$(CONFIG_GRUB2_STABLE)=grub-2.06
 NAME-$(CONFIG_GRUB2_MASTER)=HEAD
 NAME-$(CONFIG_GRUB2_REVISION)=$(CONFIG_GRUB2_REVISION_ID)
-NAME-$(CONFIG_GRUB2_STABLE)=2.04
+NAME-$(CONFIG_GRUB2_STABLE)=2.06
 
 project_git_repo=https://git.savannah.gnu.org/git/grub.git/
 project_dir=grub2
@@ -34,7 +34,7 @@ grub2/build/config.h: $(CONFIG_DEP) | checkout
 	cd grub2/build && ../configure CC="$(HOSTCC)" LD="$(LD)" \
 	FREETYPE="pkg-config freetype2" BUILD_FREETYPE="pkg-config freetype2" \
 	TARGET_CC="$(CC)" TARGET_OBJCOPY="$(OBJCOPY)" TARGET_STRIP="$(STRIP)" \
-	CFLAGS=-O2 TARGET_CFLAGS=-Os \
+	CFLAGS=-O2 TARGET_CFLAGS="-Os -fno-reorder-functions" \
 	--with-platform=coreboot --enable-boot-time --disable-werror
 
 config: grub2/build/config.h checkout

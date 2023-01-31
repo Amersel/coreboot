@@ -1,9 +1,8 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
+/* SPDX-License-Identifier: GPL-2.0-only OR MIT */
 
 #include <console/console.h>
 #include <soc/apusys_devapc.h>
 #include <soc/devapc.h>
-#include <soc/devapc_common.h>
 
 static const enum domain_id domain_map[] = {
 	DOMAIN_0, DOMAIN_1, DOMAIN_2,  DOMAIN_3,  DOMAIN_4,  DOMAIN_5,	DOMAIN_6,  DOMAIN_7,

@@ -34,7 +34,6 @@ int apm_control(u8 cmd);
 u8 apm_get_apmc(void);
 
 void io_trap_handler(int smif);
-int southbridge_io_trap_handler(int smif);
 int mainboard_io_trap_handler(int smif);
 
 void southbridge_smi_set_eos(void);
@@ -164,6 +163,12 @@ void restore_default_smm_area(void *smm_save_area);
  * protections. e.g. TSEG.
  */
 void smm_region(uintptr_t *start, size_t *size);
+
+static inline void aseg_region(uintptr_t *start, size_t *size)
+{
+	*start = SMM_BASE;
+	*size = SMM_DEFAULT_SIZE; /* SMM_CODE_SEGMENT_SIZE ? */
+}
 
 enum {
 	/* SMM handler area. */

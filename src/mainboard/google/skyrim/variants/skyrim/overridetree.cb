@@ -26,7 +26,7 @@ fw_config
 	end
 end
 
-chip soc/amd/sabrina
+chip soc/amd/mendocino
 	device domain 0 on
 		device ref gpp_bridge_a on  # Internal GPP Bridge 0 to Bus A
 			device ref xhci_1 on # XHCI1 controller
@@ -40,7 +40,7 @@ chip soc/amd/sabrina
 									register "port_count" = "4"
 									device usb 0.0 on # VL822 USB3 hub
 										chip drivers/usb/acpi
-											register "desc" = ""USB3 Type-A Port A0 (DB)""
+											register "desc" = ""USB3 Type-A Port A0 (MLB)""
 											register "type" = "UPC_TYPE_USB3_A"
 											register "use_custom_pld" = "true"
 											register "custom_pld" = "ACPI_PLD_TYPE_A(LEFT, RIGHT, ACPI_PLD_GROUP(2, 2))"
@@ -57,6 +57,13 @@ chip soc/amd/sabrina
 											register "enable_delay_ms" = "20"
 											device usb 3.1 on end
 										end
+										chip drivers/usb/acpi
+											register "desc" = ""USB3 Type-A Port A1 (DB)""
+											register "type" = "UPC_TYPE_USB3_A"
+											register "use_custom_pld" = "true"
+											register "custom_pld" = "ACPI_PLD_TYPE_A(RIGHT, CENTER, ACPI_PLD_GROUP(3, 1))"
+											device usb 3.2 on end
+										end
 									end # VL822 USB3 hub
 								end
 							end # USB 3.1 port3
@@ -69,7 +76,7 @@ chip soc/amd/sabrina
 									register "port_count" = "4"
 									device usb 0.0 on # VL822 USB2 hub
 										chip drivers/usb/acpi
-											register "desc" = ""USB2 Type-A Port A0 (DB)""
+											register "desc" = ""USB2 Type-A Port A0 (MLB)""
 											register "type" = "UPC_TYPE_USB3_A"
 											register "use_custom_pld" = "true"
 											register "custom_pld" = "ACPI_PLD_TYPE_A(LEFT, RIGHT, ACPI_PLD_GROUP(2, 2))"
@@ -81,6 +88,13 @@ chip soc/amd/sabrina
 											register "group" = "ACPI_PLD_GROUP(2, 2)"
 											device usb 2.1 on end
 										end
+										chip drivers/usb/acpi
+											register "desc" = ""USB2 Type-A Port A1 (DB)""
+											register "type" = "UPC_TYPE_USB3_A"
+											register "use_custom_pld" = "true"
+											register "custom_pld" = "ACPI_PLD_TYPE_A(RIGHT, CENTER, ACPI_PLD_GROUP(3, 1))"
+											device usb 2.2 on end
+										end
 									end # VL822 USB2 hub
 								end
 							end # USB 2 port3
@@ -91,39 +105,13 @@ chip soc/amd/sabrina
 		end # Internal GPP Bridge 0 to Bus A
 	end # domain
 
-	# I2C Config
-	#+-------------------+----------------------------+
-	#| Field             |  Value                     |
-	#+-------------------+----------------------------+
-	#| I2C0              | Trackpad                   |
-	#| I2C1              | Touchscreen                |
-	#| I2C2              | Speaker, Codec, P-SAR, USB |
-	#| I2C3              | D2 TPM                     |
-	#+-------------------+----------------------------+
-	register "i2c[0]" = "{
-		.speed = I2C_SPEED_FAST,
-	}"
-
-	register "i2c[1]" = "{
-		.speed = I2C_SPEED_FAST,
-	}"
-
-	register "i2c[2]" = "{
-		.speed = I2C_SPEED_FAST,
-	}"
-
-	register "i2c[3]" = "{
-		.speed = I2C_SPEED_FAST,
-		.early_init = true,
-	}"
-
 	device ref i2c_0 on
 		chip drivers/i2c/generic
 			register "hid" = ""ELAN0000""
 			register "desc" = ""ELAN Touchpad""
 			register "irq_gpio" = "ACPI_GPIO_IRQ_EDGE_LOW(GPIO_40)"
 			register "wake" = "GEVENT_20"
-			register "probed" = "1"
+			register "detect" = "1"
 			device i2c 15 on end
 		end
 	end # I2C0
@@ -132,7 +120,7 @@ chip soc/amd/sabrina
 			register "generic.hid" = ""GDIX0000""
 			register "generic.desc" = ""Goodix Touchscreen""
 			register "generic.irq_gpio" = "ACPI_GPIO_IRQ_LEVEL_LOW(GPIO_29)"
-			register "generic.probed" = "1"
+			register "generic.detect" = "1"
 			register "generic.enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPIO_131)"
 			register "generic.enable_delay_ms" = "10"
 			register "generic.reset_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPIO_136)"
@@ -144,6 +132,21 @@ chip soc/amd/sabrina
 			register "generic.has_power_resource" = "1"
 			register "hid_desc_reg_offset" = "0x01"
 			device i2c 5d on end
+		end
+		chip drivers/i2c/generic
+			register "hid" = ""ELAN0001""
+			register "desc" = ""ELAN Touchscreen""
+			register "detect" = "1"
+			register "irq_gpio" = "ACPI_GPIO_IRQ_EDGE_LOW(GPIO_29)"
+			register "enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPIO_131)"
+			register "enable_delay_ms" = "1"
+			register "reset_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPIO_136)"
+			register "reset_delay_ms" = "20"
+			register "reset_off_delay_ms" = "2"
+			register "stop_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPIO_76)"
+			register "stop_off_delay_ms" = "2"
+			register "has_power_resource" = "1"
+			device i2c 10 on end
 		end
 		chip drivers/generic/gpio_keys
 			register "name" = ""PENH""
@@ -240,5 +243,4 @@ chip soc/amd/sabrina
 			end
 		end
 	end # UART1
-
-end	# chip soc/amd/sabrina
+end	# chip soc/amd/mendocino

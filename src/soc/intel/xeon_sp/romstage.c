@@ -3,7 +3,6 @@
 #include <arch/romstage.h>
 #include <intelblocks/rtc.h>
 #include <console/console.h>
-#include <cpu/x86/mtrr.h>
 #include <fsp/util.h>
 #include <soc/romstage.h>
 #include <soc/util.h>
@@ -16,6 +15,7 @@ void mainboard_romstage_entry(void)
 
 	fsp_memory_init(false);
 	printk(BIOS_DEBUG, "coreboot fsp_memory_init finished...\n");
+	mainboard_ewl_check();
 
 	unlock_pam_regions();
 
@@ -32,3 +32,4 @@ __weak void mainboard_rtc_failed(void)
 
 }
 __weak void save_dimm_info(void) { }
+__weak void mainboard_ewl_check(void) { }

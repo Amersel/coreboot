@@ -2,16 +2,15 @@
 
 #include <assert.h>
 #include <console/console.h>
-#include <device/device.h>
-#include <arch/pci_io_cfg.h>
 #include <cpu/intel/cpu_ids.h>
+#include <device/device.h>
 #include <device/pci_ops.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
 #include <fsp/api.h>
 #include <fsp/ppi/mp_service_ppi.h>
 #include <fsp/util.h>
-#include <option.h>
+#include <gpio.h>
 #include <intelblocks/cse.h>
 #include <intelblocks/irq.h>
 #include <intelblocks/lpss.h>
@@ -19,8 +18,8 @@
 #include <intelblocks/tcss.h>
 #include <intelblocks/xdci.h>
 #include <intelpch/lockdown.h>
+#include <option.h>
 #include <security/vboot/vboot_common.h>
-#include <soc/gpio.h>
 #include <soc/intel/common/vbt.h>
 #include <soc/lpm.h>
 #include <soc/pci_devs.h>
@@ -122,7 +121,7 @@ static const struct slot_irq_constraints irq_constraints[] = {
 	{
 		.slot = SA_DEV_SLOT_CPU_PCIE,
 		.fns = {
-			ANY_PIRQ(SA_DEVFN_CPU_PCIE),
+			FIXED_INT_PIRQ(SA_DEVFN_CPU_PCIE, PCI_INT_D, PIRQ_D),
 		},
 	},
 	{
@@ -145,6 +144,7 @@ static const struct slot_irq_constraints irq_constraints[] = {
 	{
 		.slot = PCH_DEV_SLOT_SIO0,
 		.fns = {
+			ANY_PIRQ(PCH_DEVFN_CT),
 			ANY_PIRQ(PCH_DEVFN_THC0),
 			ANY_PIRQ(PCH_DEVFN_THC1),
 		},
@@ -172,6 +172,7 @@ static const struct slot_irq_constraints irq_constraints[] = {
 		.slot = PCH_DEV_SLOT_XHCI,
 		.fns = {
 			ANY_PIRQ(PCH_DEVFN_XHCI),
+			DIRECT_IRQ(PCH_DEVFN_USBOTG),
 			FIXED_INT_ANY_PIRQ(PCH_DEVFN_CNVI_WIFI, PCI_INT_A),
 		},
 	},
@@ -268,7 +269,7 @@ static const SI_PCH_DEVICE_INTERRUPT_CONFIG *pci_irq_to_fsp(size_t *out_count)
 
 	/* Count PCH devices */
 	while (entry) {
-		if (PCI_SLOT(entry->devfn) >= MIN_PCH_SLOT)
+		if (is_pch_slot(entry->devfn))
 			++pch_total;
 		entry = entry->next;
 	}
@@ -277,7 +278,7 @@ static const SI_PCH_DEVICE_INTERRUPT_CONFIG *pci_irq_to_fsp(size_t *out_count)
 	config = calloc(pch_total, sizeof(*config));
 	entry = get_cached_pci_irqs();
 	while (entry) {
-		if (PCI_SLOT(entry->devfn) < MIN_PCH_SLOT) {
+		if (!is_pch_slot(entry->devfn)) {
 			entry = entry->next;
 			continue;
 		}
@@ -318,7 +319,7 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 
 	/* Use coreboot MP PPI services if Kconfig is enabled */
 	if (CONFIG(USE_INTEL_FSP_TO_CALL_COREBOOT_PUBLISH_MP_PPI))
-		params->CpuMpPpi = (uintptr_t) mp_fill_ppi_services_data();
+		params->CpuMpPpi = (uintptr_t)mp_fill_ppi_services_data();
 
 	/* D3Hot and D3Cold for TCSS */
 	params->D3HotEnable = !config->TcssD3HotDisable;

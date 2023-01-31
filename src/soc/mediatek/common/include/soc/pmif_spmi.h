@@ -5,13 +5,13 @@
 
 #include <soc/addressmap.h>
 #include <soc/pmif.h>
+#include <soc/spmi.h>
 
 #define DEFAULT_VALUE_READ_TEST		(0x5a)
 #define DEFAULT_VALUE_WRITE_TEST	(0xa5)
 
-/* indicate which number SW channel start, by project */
-#define PMIF_SPMI_SW_CHAN	BIT(6)
-#define PMIF_SPMI_INF		0x2F7
+#define PMIF_CMD_PER_3		(0x1 << PMIF_CMD_EXT_REG_LONG)
+#define PMIF_CMD_PER_1_3	((0x1 << PMIF_CMD_REG) | (0x1 << PMIF_CMD_EXT_REG_LONG))
 
 struct mtk_rgu_regs {
 	u32 reserved[36];
@@ -82,7 +82,11 @@ enum {
 
 #define MT6315_DEFAULT_VALUE_READ 0x15
 
+extern const struct spmi_device spmi_dev[];
+extern const size_t spmi_dev_cnt;
+
 int pmif_spmi_init(struct pmif *arb);
 int spmi_config_master(void);
 void pmif_spmi_iocfg(void);
+void pmif_spmi_config(struct pmif *arb, int mstid);
 #endif /* __SOC_MEDIATEK_PMIF_SPMI_H__ */

@@ -117,10 +117,7 @@ struct soc_amd_picasso_config {
 	uint32_t stapm_time_constant_s;
 	uint32_t sustained_power_limit_mW;
 
-	/* Enable dptc for tablet mode (0 = disable, 1 = enable) */
-	uint8_t dptc_enable;
-
-	/* STAPM Configuration for tablet mode (need enable dptc_enable first) */
+	/* STAPM Configuration for tablet mode */
 	uint32_t fast_ppt_limit_tablet_mode_mW;
 	uint32_t slow_ppt_limit_tablet_mode_mW;
 	uint32_t sustained_power_limit_tablet_mode_mW;

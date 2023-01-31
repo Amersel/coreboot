@@ -76,6 +76,10 @@ chip soc/intel/alderlake
 	register "tcss_ports[3]" = "TCSS_PORT_DEFAULT(OC3)"
 	register "sagv" = "SaGv_Enabled"
 
+	# Set EPP to 50%: 50 * 256 / 100 = 0x80
+	register "enable_energy_perf_pref" = "true"
+	register "energy_perf_pref_value" = "0x80"
+
 	# FIVR RFI Spread Spectrum 6%
 	register "fivr_spread_spectrum" = "FIVR_SS_6"
 
@@ -227,7 +231,7 @@ chip soc/intel/alderlake
 		device ref i2c0 on
 			chip drivers/i2c/cs35l53
 				register "name" = ""SPK0""
-				register "sub" = ""103CA221""
+				register "sub" = ""103C8C08""
 				register "desc" = ""Cirrus Logic CS35L53 Tweeter Left Audio Codec""
 				register "uid" = "2"
 				register "irq_gpio" = "ACPI_GPIO_IRQ_LEVEL_LOW(GPP_D14)"
@@ -241,7 +245,7 @@ chip soc/intel/alderlake
 			end
 			chip drivers/i2c/cs35l53
 				register "name" = ""SPK1""
-				register "sub" = ""103CA221""
+				register "sub" = ""103C8C08""
 				register "desc" = ""Cirrus Logic CS35L53 Woofer Left Audio Codec""
 				register "uid" = "0"
 				register "irq_gpio" = "ACPI_GPIO_IRQ_LEVEL_LOW(GPP_D14)"
@@ -255,7 +259,7 @@ chip soc/intel/alderlake
 			end
 			chip drivers/i2c/cs35l53
 				register "name" = ""SPK2""
-				register "sub" = ""103CA221""
+				register "sub" = ""103C8C08""
 				register "desc" = ""Cirrus Logic CS35L53 Tweeter Right Audio Codec""
 				register "uid" = "3"
 				register "irq_gpio" = "ACPI_GPIO_IRQ_LEVEL_LOW(GPP_D14)"
@@ -269,7 +273,7 @@ chip soc/intel/alderlake
 			end
 			chip drivers/i2c/cs35l53
 				register "name" = ""SPK3""
-				register "sub" = ""103CA221""
+				register "sub" = ""103C8C08""
 				register "desc" = ""Cirrus Logic CS35L53 Woofer Right Audio Codec""
 				register "uid" = "1"
 				register "irq_gpio" = "ACPI_GPIO_IRQ_LEVEL_LOW(GPP_D14)"
@@ -306,7 +310,6 @@ chip soc/intel/alderlake
 							"ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPP_C6)"
 				register "generic.stop_off_delay_ms" = "1"
 				register "generic.has_power_resource" = "1"
-				register "generic.disable_gpio_export_in_crs" = "1"
 				register "hid_desc_reg_offset" = "0x01"
 				device i2c 0x10 on end
 			end
@@ -373,7 +376,7 @@ chip soc/intel/alderlake
 				register "generic.desc" = ""ELAN Touchpad""
 				register "generic.irq" = "ACPI_IRQ_WAKE_LEVEL_LOW(GPP_F14_IRQ)"
 				register "generic.wake" = "GPE0_DW2_14"
-				register "generic.probed" = "1"
+				register "generic.detect" = "1"
 				register "hid_desc_reg_offset" = "0x01"
 				device i2c 15 on end
 			end
@@ -381,7 +384,7 @@ chip soc/intel/alderlake
 		device ref i2c7 on
 			chip drivers/i2c/cs35l53
 				register "name" = ""SPK0""
-				register "sub" = ""103CA221""
+				register "sub" = ""103C8C08""
 				register "desc" = ""Cirrus Logic CS35L53 Tweeter Left Audio Codec""
 				register "uid" = "2"
 				register "irq_gpio" = "ACPI_GPIO_IRQ_LEVEL_LOW(GPP_D14)"
@@ -395,7 +398,7 @@ chip soc/intel/alderlake
 			end
 			chip drivers/i2c/cs35l53
 				register "name" = ""SPK1""
-				register "sub" = ""103CA221""
+				register "sub" = ""103C8C08""
 				register "desc" = ""Cirrus Logic CS35L53 Woofer Left Audio Codec""
 				register "uid" = "0"
 				register "irq_gpio" = "ACPI_GPIO_IRQ_LEVEL_LOW(GPP_D14)"
@@ -416,6 +419,10 @@ chip soc/intel/alderlake
 				register "compat_string" = ""google,cros-ec-spi""
 				register "irq" = "ACPI_IRQ_WAKE_LEVEL_LOW(GPP_F15_IRQ)"
 				register "wake" = "GPE0_DW2_15"
+				register "has_power_resource" = "1"
+				register "reset_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPP_D1)"
+				register "enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPP_D2)"
+				register "enable_delay_ms" = "3"
 				device spi 0 on end
 			end # FPMCU
 		end
@@ -543,4 +550,12 @@ chip soc/intel/alderlake
 			end
 		end
 	end
+
+	# VR Settings
+	register "domain_vr_config[VR_DOMAIN_IA]" = "{
+		.vr_config_enable = 1,
+		.psi1threshold = VR_CFG_AMP(13),
+		.psi2threshold = VR_CFG_AMP(7),
+	}"
+
 end

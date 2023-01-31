@@ -8,21 +8,22 @@
  * Programming
  */
 
-#include <stddef.h>
-#include <stdint.h>
-#include <string.h>
+#include <assert.h>
 #include <bootstate.h>
 #include <commonlib/helpers.h>
 #include <console/console.h>
-#include <device/device.h>
-#include <device/pci_ids.h>
+#include <cpu/amd/mtrr.h>
 #include <cpu/cpu.h>
+#include <cpu/x86/cache.h>
+#include <cpu/x86/lapic.h>
 #include <cpu/x86/msr.h>
 #include <cpu/x86/mtrr.h>
-#include <cpu/x86/cache.h>
+#include <device/device.h>
+#include <device/pci_ids.h>
 #include <memrange.h>
-#include <cpu/amd/mtrr.h>
-#include <assert.h>
+#include <string.h>
+#include <types.h>
+
 #if CONFIG(X86_AMD_FIXED_MTRRS)
 #define MTRR_FIXED_WRBACK_BITS (MTRR_READ_MEM | MTRR_WRITE_MEM)
 #else
@@ -103,7 +104,6 @@ static void enable_var_mtrr(unsigned char deftype)
 	(((x) > RANGE_SHIFT) ? ((x) - RANGE_SHIFT) : RANGE_SHIFT)
 #define PHYS_TO_RANGE_ADDR(x) ((x) >> RANGE_SHIFT)
 #define RANGE_TO_PHYS_ADDR(x) (((resource_t)(x)) << RANGE_SHIFT)
-#define NUM_FIXED_MTRRS (NUM_FIXED_RANGES / RANGES_PER_FIXED_MTRR)
 
 /* Helpful constants. */
 #define RANGE_1MB PHYS_TO_RANGE_ADDR(1ULL << 20)
@@ -292,6 +292,7 @@ static void commit_fixed_mtrrs(void)
 	int j;
 	int msr_num;
 	int type_index;
+	const unsigned int lapic_id = lapicid();
 	/* 8 ranges per msr. */
 	msr_t fixed_msrs[NUM_FIXED_MTRRS];
 	unsigned long msr_index[NUM_FIXED_MTRRS];
@@ -335,15 +336,14 @@ static void commit_fixed_mtrrs(void)
 	ASSERT(msr_num == NUM_FIXED_MTRRS)
 
 	for (i = 0; i < ARRAY_SIZE(fixed_msrs); i++)
-		printk(BIOS_DEBUG, "MTRR: Fixed MSR 0x%lx 0x%08x%08x\n",
-		       msr_index[i], fixed_msrs[i].hi, fixed_msrs[i].lo);
+		printk(BIOS_DEBUG, "apic_id 0x%x: MTRR: Fixed MSR 0x%lx 0x%08x%08x\n",
+		       lapic_id, msr_index[i], fixed_msrs[i].hi, fixed_msrs[i].lo);
 
 	disable_cache();
 	for (i = 0; i < ARRAY_SIZE(fixed_msrs); i++)
 		wrmsr(msr_index[i], fixed_msrs[i]);
 	enable_cache();
 	fixed_mtrrs_hide_amd_rwdram();
-
 }
 
 void x86_setup_fixed_mtrrs_no_enable(void)
@@ -356,7 +356,7 @@ void x86_setup_fixed_mtrrs(void)
 {
 	x86_setup_fixed_mtrrs_no_enable();
 
-	printk(BIOS_SPEW, "call enable_fixed_mtrr()\n");
+	printk(BIOS_SPEW, "apic_id 0x%x call enable_fixed_mtrr()\n", lapicid());
 	enable_fixed_mtrr();
 }
 
@@ -808,8 +808,8 @@ static void _x86_setup_mtrrs(unsigned int above4gb)
 
 	x86_setup_fixed_mtrrs();
 	address_size = cpu_phys_address_size();
-	printk(BIOS_DEBUG, "CPU physical address size: %d bits\n",
-		address_size);
+	printk(BIOS_DEBUG, "apic_id 0x%x setup mtrr for CPU physical address size: %d bits\n",
+				lapicid(), address_size);
 	x86_setup_var_mtrrs(address_size, above4gb);
 }
 

@@ -13,15 +13,12 @@ chip northbridge/intel/haswell
 
 	register "usb_xhci_on_resume" = "true"
 
-	device cpu_cluster 0 on
-		chip cpu/intel/haswell
-			device lapic 0 on end
-			# Magic APIC ID to locate this chip
-			device lapic 0xACAC off end
-		end
+	chip cpu/intel/haswell
+		device cpu_cluster 0 on ops haswell_cpu_bus_ops end
 	end
 
 	device domain 0 on
+		ops haswell_pci_domain_ops
 		subsystemid 0x1ae0 0xc000 inherit
 		device pci 00.0 on end # host bridge
 		device pci 02.0 on end # vga controller
@@ -82,11 +79,11 @@ chip northbridge/intel/haswell
 				end
 				chip superio/ite/it8772f
 					# Skip keyboard init
-					register "skip_keyboard" = "1"
+					register "skip_keyboard" = "true"
 					# Enable PECI on TMPIN3
 					register "peci_tmpin" = "3"
 					# Enable FAN2
-					register "fan2_enable" = "1"
+					register "fan2_enable" = "true"
 
 					device pnp 2e.0 off end # FDC
 					device pnp 2e.1 on # Serial Port 1

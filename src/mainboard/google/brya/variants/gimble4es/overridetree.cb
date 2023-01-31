@@ -170,7 +170,6 @@ chip soc/intel/alderlake
 							"ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPP_C6)"
 				register "generic.stop_off_delay_ms" = "1"
 				register "generic.has_power_resource" = "1"
-				register "generic.disable_gpio_export_in_crs" = "1"
 				register "hid_desc_reg_offset" = "0x01"
 				device i2c 0x15 on end
 			end
@@ -188,7 +187,7 @@ chip soc/intel/alderlake
 				register "desc" = ""ELAN Touchpad""
 				register "irq" = "ACPI_IRQ_WAKE_LEVEL_LOW(GPP_F14_IRQ)"
 				register "wake" = "GPE0_DW2_14"
-				register "probed" = "1"
+				register "detect" = "1"
 				device i2c 0x15 on end
 			end
 		end
@@ -200,6 +199,10 @@ chip soc/intel/alderlake
 				register "compat_string" = ""google,cros-ec-spi""
 				register "irq" = "ACPI_IRQ_WAKE_LEVEL_LOW(GPP_F15_IRQ)"
 				register "wake" = "GPE0_DW2_15"
+				register "has_power_resource" = "1"
+				register "reset_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPP_D1)"
+				register "enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPP_D2)"
+				register "enable_delay_ms" = "3"
 				device spi 0 on end
 			end # FPMCU
 		end

@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <cpu/intel/speedstep.h>
 #include <console/console.h>
 #include <device/device.h>
 #include <device/pci.h>
@@ -35,7 +36,7 @@ static void i82801ix_enable_apic(struct device *dev)
 	/* Lock maximum redirection entries (MRE), R/WO register. */
 	ioapic_lock_max_vectors(VIO_APIC_VADDR);
 
-	setup_ioapic(VIO_APIC_VADDR, 2); /* ICH7 code uses id 2. */
+	register_new_ioapic_gsi0(VIO_APIC_VADDR);
 }
 
 static void i82801ix_enable_serial_irqs(struct device *dev)
@@ -89,7 +90,7 @@ static void i82801ix_pirq_init(struct device *dev)
 	for (irq_dev = all_devices; irq_dev; irq_dev = irq_dev->next) {
 		u8 int_pin = 0, int_line = 0;
 
-		if (!irq_dev->enabled || irq_dev->path.type != DEVICE_PATH_PCI)
+		if (!is_enabled_pci(irq_dev))
 			continue;
 
 		int_pin = pci_read_config8(irq_dev, PCI_INTERRUPT_PIN);
@@ -135,6 +136,20 @@ static void i82801ix_gpi_routing(struct device *dev)
 	reg32 |= (config->gpi15_routing & 0x03) << 30;
 
 	pci_write_config32(dev, D31F0_GPIO_ROUT, reg32);
+}
+
+bool southbridge_support_c5(void)
+{
+	struct device *lpc_dev = __pci_0_1f_0;
+	struct southbridge_intel_i82801ix_config *config = lpc_dev->chip_info;
+	return config->c5_enable == 1;
+}
+
+bool southbridge_support_c6(void)
+{
+	struct device *lpc_dev = __pci_0_1f_0;
+	struct southbridge_intel_i82801ix_config *config = lpc_dev->chip_info;
+	return config->c6_enable == 1;
 }
 
 static void i82801ix_power_options(struct device *dev)
@@ -216,15 +231,15 @@ static void i82801ix_power_options(struct device *dev)
 	reg16 |= (1 << 10);	// BIOS_PCI_EXP_EN - Desktop/Mobile only
 	if (CONFIG(DEBUG_PERIODIC_SMI))
 		reg16 |= (3 << 0); // Periodic SMI every 8s
-	if (config->c5_enable)
+	if (southbridge_support_c5())
 		reg16 |= (1 << 11); /* Enable C5, C6 and PMSYNC# */
 	pci_write_config16(dev, D31F0_GEN_PMCON_1, reg16);
 
 	/* Set exit timings for C5/C6. */
-	if (config->c5_enable) {
+	if (southbridge_support_c5()) {
 		reg8 = pci_read_config8(dev, D31F0_C5_EXIT_TIMING);
 		reg8 &= ~((7 << 3) | (7 << 0));
-		if (config->c6_enable)
+		if (southbridge_support_c6())
 			reg8 |= (5 << 3) | (3 << 0); /* 38-44us PMSYNC# to STPCLK#,
 							95-102us DPRSTP# to STP_CPU# */
 		else
@@ -374,12 +389,6 @@ static void lpc_init(struct device *dev)
 	i8259_configure_irq_trigger(9, 1);
 
 	i82801ix_set_acpi_mode(dev);
-
-	/* Don't allow evil boot loaders, kernels, or
-	 * userspace applications to deceive us:
-	 */
-	if (CONFIG(SMM_LEGACY_ASEG))
-		aseg_smm_lock();
 }
 
 static void i82801ix_lpc_read_resources(struct device *dev)

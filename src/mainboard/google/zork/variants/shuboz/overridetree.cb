@@ -143,14 +143,13 @@ chip soc/amd/picasso
 		chip drivers/i2c/generic
 			register "hid" = ""ELAN0001""
 			register "desc" = ""ELAN Touchscreen""
-			register "probed" = "1"
+			register "detect" = "1"
 			register "irq_gpio" = "ACPI_GPIO_IRQ_LEVEL_LOW(GPIO_12)"
 			register "enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPIO_32)"
 			register "enable_delay_ms" = "1"
 			register "reset_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPIO_140)"
 			register "reset_delay_ms" = "300"
 			register "has_power_resource" = "1"
-			register "disable_gpio_export_in_crs" = "1"
 			device i2c 10 on end
 		end
 		chip drivers/i2c/generic
@@ -158,7 +157,7 @@ chip soc/amd/picasso
 			register "desc" = ""ELAN Touchpad""
 			register "irq_gpio" = "ACPI_GPIO_IRQ_LEVEL_LOW(GPIO_9)"
 			register "wake" = "GEVENT_22"
-			register "probed" = "1"
+			register "detect" = "1"
 			device i2c 15 on
 				probe TOUCHPAD REGULAR_TOUCHPAD
 			end
@@ -168,7 +167,7 @@ chip soc/amd/picasso
 			register "generic.desc" = ""ELAN Touchpad""
 			register "generic.irq_gpio" = "ACPI_GPIO_IRQ_LEVEL_LOW(GPIO_9)"
 			register "generic.wake" = "GEVENT_22"
-			register "generic.probed" = "1"
+			register "generic.detect" = "1"
 			register "hid_desc_reg_offset" = "0x01"
 			device i2c 15 on
 				probe TOUCHPAD NUMPAD_TOUCHPAD

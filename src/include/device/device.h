@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 #ifndef DEVICE_H
 
 #define DEVICE_H
@@ -18,6 +20,7 @@ struct pnp_mode_ops;
 struct spi_bus_operations;
 struct usb_bus_operations;
 struct gpio_operations;
+struct mdio_bus_operations;
 
 /* Chip operations */
 struct chip_operations {
@@ -65,6 +68,7 @@ struct device_operations {
 	const struct smbus_bus_operations *ops_smbus_bus;
 	const struct pnp_mode_ops *ops_pnp_mode;
 	const struct gpio_operations *ops_gpio;
+	const struct mdio_bus_operations *ops_mdio;
 };
 
 /**
@@ -74,7 +78,6 @@ static inline void noop_read_resources(struct device *dev) {}
 static inline void noop_set_resources(struct device *dev) {}
 
 struct bus {
-
 	DEVTREE_CONST struct device *dev;	/* This bridge device */
 	DEVTREE_CONST struct device *children;	/* devices behind this bridge */
 	DEVTREE_CONST struct bus *next;    /* The next bridge on this device */
@@ -127,6 +130,7 @@ struct device {
 	unsigned int    hidden : 1;
 	/* set if this device is used even in minimum PCI cases */
 	unsigned int    mandatory : 1;
+	unsigned int	hotplug_port : 1;
 	u8 command;
 	uint16_t hotplug_buses; /* Number of hotplug buses to allocate */
 
@@ -205,6 +209,14 @@ bool dev_is_active_bridge(struct device *dev);
 void add_more_links(struct device *dev, unsigned int total_links);
 bool is_dev_enabled(const struct device *const dev);
 bool is_devfn_enabled(unsigned int devfn);
+bool is_cpu(const struct device *cpu);
+bool is_enabled_cpu(const struct device *cpu);
+bool is_pci(const struct device *pci);
+bool is_enabled_pci(const struct device *pci);
+bool is_pci_dev_on_bus(const struct device *pci, unsigned int bus);
+
+/* Returns whether there is a hotplug port on the path to the given device. */
+extern bool dev_path_hotplug(const struct device *);
 
 /* Option ROM helper functions */
 void run_bios(struct device *dev, unsigned long addr);

@@ -33,7 +33,7 @@
 void lb_string_platform_blob_version(struct lb_header *header);
 #endif
 
-__weak enum cb_err lb_fill_pcie(struct lb_pcie *pcie)
+__weak enum cb_err fill_lb_pcie(struct lb_pcie *pcie)
 {
 	return CB_ERR_NOT_IMPLEMENTED;
 }
@@ -76,9 +76,11 @@ struct lb_record *lb_new_record(struct lb_header *header)
 {
 	struct lb_record *rec;
 	rec = lb_last_record(header);
-	if (header->table_entries)
+	if (header->table_entries) {
+		assert(IS_ALIGNED(rec->size, LB_ENTRY_ALIGN));
 		header->table_bytes += rec->size;
-	rec = lb_last_record(header);
+		rec = lb_last_record(header);
+	}
 	header->table_entries++;
 	rec->tag = LB_TAG_UNUSED;
 	rec->size = sizeof(*rec);
@@ -96,20 +98,22 @@ static struct lb_memory *lb_memory(struct lb_header *header)
 	return mem;
 }
 
-void lb_add_serial(struct lb_serial *new_serial, void *data)
+static void lb_add_serial(struct lb_header *header)
 {
-	struct lb_header *header = (struct lb_header *)data;
-	struct lb_serial *serial;
+	struct lb_serial new_serial = { .tag = LB_TAG_SERIAL,
+					.size = sizeof(struct lb_serial),
+	};
+	if (fill_lb_serial(&new_serial) != CB_SUCCESS)
+		return;
 
-	serial = (struct lb_serial *)lb_new_record(header);
-	serial->tag = LB_TAG_SERIAL;
-	serial->size = sizeof(*serial);
-	serial->type = new_serial->type;
-	serial->baseaddr = new_serial->baseaddr;
-	serial->baud = new_serial->baud;
-	serial->regwidth = new_serial->regwidth;
-	serial->input_hertz = new_serial->input_hertz;
-	serial->uart_pci_addr = new_serial->uart_pci_addr;
+	struct lb_serial *serial = (struct lb_serial *)lb_new_record(header);
+	memcpy(serial, &new_serial, sizeof(*serial));
+	assert(serial->type == LB_SERIAL_TYPE_IO_MAPPED
+	       || serial->type == LB_SERIAL_TYPE_MEMORY_MAPPED)
+	if (serial->type == LB_SERIAL_TYPE_IO_MAPPED)
+		lb_add_console(LB_TAG_CONSOLE_SERIAL8250, header);
+	else
+		lb_add_console(LB_TAG_CONSOLE_SERIAL8250MEM, header);
 }
 
 void lb_add_console(uint16_t consoletype, void *data)
@@ -127,7 +131,7 @@ static void lb_pcie(struct lb_header *header)
 {
 	struct lb_pcie pcie = { .tag = LB_TAG_PCIE, .size = sizeof(pcie) };
 
-	if (lb_fill_pcie(&pcie) != CB_SUCCESS)
+	if (fill_lb_pcie(&pcie) != CB_SUCCESS)
 		return;
 
 	memcpy(lb_new_record(header), &pcie, sizeof(pcie));
@@ -263,7 +267,7 @@ static void add_cbmem_pointers(struct lb_header *header)
 		{CBMEM_ID_ACPI_CNVS, LB_TAG_ACPI_CNVS},
 		{CBMEM_ID_VPD, LB_TAG_VPD},
 		{CBMEM_ID_WIFI_CALIBRATION, LB_TAG_WIFI_CALIBRATION},
-		{CBMEM_ID_TCPA_LOG, LB_TAG_TCPA_LOG},
+		{CBMEM_ID_TPM_CB_LOG, LB_TAG_TPM_CB_LOG},
 		{CBMEM_ID_FMAP, LB_TAG_FMAP},
 		{CBMEM_ID_VBOOT_WORKBUF, LB_TAG_VBOOT_WORKBUF},
 		{CBMEM_ID_TYPE_C_INFO, LB_TAG_TYPE_C_INFO},
@@ -299,7 +303,7 @@ static struct lb_mainboard *lb_mainboard(struct lb_header *header)
 
 	mainboard->size = ALIGN_UP(sizeof(*mainboard) +
 		strlen(mainboard_vendor) + 1 +
-		strlen(mainboard_part_number) + 1, 8);
+		strlen(mainboard_part_number) + 1, LB_ENTRY_ALIGN);
 
 	mainboard->vendor_idx = 0;
 	mainboard->part_number_idx = strlen(mainboard_vendor) + 1;
@@ -378,7 +382,7 @@ static void lb_strings(struct lb_header *header)
 		rec = (struct lb_string *)lb_new_record(header);
 		len = strlen(strings[i].string);
 		rec->tag = strings[i].tag;
-		rec->size = ALIGN_UP(sizeof(*rec) + len + 1, 8);
+		rec->size = ALIGN_UP(sizeof(*rec) + len + 1, LB_ENTRY_ALIGN);
 		memcpy(rec->string, strings[i].string, len+1);
 	}
 
@@ -420,8 +424,10 @@ static unsigned long lb_table_fini(struct lb_header *head)
 {
 	struct lb_record *rec, *first_rec;
 	rec = lb_last_record(head);
-	if (head->table_entries)
+	if (head->table_entries) {
+		assert(IS_ALIGNED(rec->size, LB_ENTRY_ALIGN));
 		head->table_bytes += rec->size;
+	}
 
 	first_rec = lb_first_record(head);
 	head->table_checksum = compute_ip_checksum(first_rec,
@@ -493,7 +499,7 @@ static uintptr_t write_coreboot_table(uintptr_t rom_table_end)
 
 	/* Record the serial ports and consoles */
 	if (CONFIG(CONSOLE_SERIAL))
-		uart_fill_lb(head);
+		lb_add_serial(head);
 
 	if (CONFIG(CONSOLE_USB))
 		lb_add_console(LB_TAG_CONSOLE_EHCI, head);

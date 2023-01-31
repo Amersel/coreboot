@@ -21,8 +21,9 @@ DefinitionBlock(
 	Scope (\_SB) {
 		Device (PCI0)
 		{
-		#include <northbridge/intel/sandybridge/acpi/sandybridge.asl>
-		#include <southbridge/intel/bd82x6x/acpi/pch.asl>
+			#include <northbridge/intel/sandybridge/acpi/sandybridge.asl>
+			#include <southbridge/intel/bd82x6x/acpi/pch.asl>
+			#include "acpi/pci.asl"
 		}
 	}
 }

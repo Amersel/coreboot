@@ -2,6 +2,7 @@
 
 #include <console/console.h>
 #include "ipmi_ops.h"
+#include "ipmi_if.h"
 #include <string.h>
 #include <types.h>
 
@@ -18,10 +19,10 @@ enum cb_err ipmi_init_and_start_bmc_wdt(const int port, uint16_t countdown,
 	/* clear BIOS FRB2 expiration flag */
 	req.timer_use_expiration_flags_clr = 2;
 	req.initial_countdown_val = countdown;
-	ret = ipmi_kcs_message(port, IPMI_NETFN_APPLICATION, 0x0,
+	ret = ipmi_message(port, IPMI_NETFN_APPLICATION, 0x0,
 			IPMI_BMC_SET_WDG_TIMER,
-			(const unsigned char *) &req, sizeof(req),
-			(unsigned char *) &rsp, sizeof(rsp));
+			(const unsigned char *)&req, sizeof(req),
+			(unsigned char *)&rsp, sizeof(rsp));
 
 	if (ret < sizeof(struct ipmi_rsp) || rsp.completion_code) {
 		printk(BIOS_ERR, "IPMI: %s set wdt command failed "
@@ -32,9 +33,9 @@ enum cb_err ipmi_init_and_start_bmc_wdt(const int port, uint16_t countdown,
 	}
 
 	/* Reset command to start timer */
-	ret = ipmi_kcs_message(port, IPMI_NETFN_APPLICATION, 0x0,
+	ret = ipmi_message(port, IPMI_NETFN_APPLICATION, 0x0,
 			IPMI_BMC_RESET_WDG_TIMER, NULL, 0,
-			(unsigned char *) &rsp, sizeof(rsp));
+			(unsigned char *)&rsp, sizeof(rsp));
 
 	if (ret < sizeof(struct ipmi_rsp) || rsp.completion_code) {
 		printk(BIOS_ERR, "IPMI: %s reset wdt command failed "
@@ -56,9 +57,9 @@ enum cb_err ipmi_stop_bmc_wdt(const int port)
 	struct ipmi_rsp resp;
 
 	/* Get current timer first */
-	ret = ipmi_kcs_message(port, IPMI_NETFN_APPLICATION, 0x0,
+	ret = ipmi_message(port, IPMI_NETFN_APPLICATION, 0x0,
 			IPMI_BMC_GET_WDG_TIMER, NULL, 0,
-			(unsigned char *) &rsp, sizeof(rsp));
+			(unsigned char *)&rsp, sizeof(rsp));
 
 	if (ret < sizeof(struct ipmi_rsp) || rsp.resp.completion_code) {
 		printk(BIOS_ERR, "IPMI: %s get wdt command failed "
@@ -76,10 +77,10 @@ enum cb_err ipmi_stop_bmc_wdt(const int port)
 	rsp.data.timer_use &= ~(1 << 6);
 	rsp.data.initial_countdown_val = 0;
 	req = rsp.data;
-	ret = ipmi_kcs_message(port, IPMI_NETFN_APPLICATION, 0x0,
+	ret = ipmi_message(port, IPMI_NETFN_APPLICATION, 0x0,
 			IPMI_BMC_SET_WDG_TIMER,
-			(const unsigned char *) &req, sizeof(req),
-			(unsigned char *) &resp, sizeof(resp));
+			(const unsigned char *)&req, sizeof(req),
+			(unsigned char *)&resp, sizeof(resp));
 
 	if (ret < sizeof(struct ipmi_rsp) || resp.completion_code) {
 		printk(BIOS_ERR, "IPMI: %s set wdt command stop timer failed "
@@ -104,9 +105,9 @@ enum cb_err ipmi_get_system_guid(const int port, uint8_t *uuid)
 		return CB_ERR;
 	}
 
-	ret = ipmi_kcs_message(port, IPMI_NETFN_APPLICATION, 0x0,
+	ret = ipmi_message(port, IPMI_NETFN_APPLICATION, 0x0,
 			IPMI_BMC_GET_SYSTEM_GUID, NULL, 0,
-			(unsigned char *) &rsp, sizeof(rsp));
+			(unsigned char *)&rsp, sizeof(rsp));
 
 	if (ret < sizeof(struct ipmi_rsp) || rsp.resp.completion_code) {
 		printk(BIOS_ERR, "IPMI: %s command failed (ret=%d resp=0x%x)\n",
@@ -124,13 +125,13 @@ enum cb_err ipmi_add_sel(const int port, struct sel_event_record *sel)
 	struct ipmi_add_sel_rsp rsp;
 
 	if (sel == NULL) {
-		printk(BIOS_ERR, "%s failed, system evnt log is not present.\n", __func__);
+		printk(BIOS_ERR, "%s failed, system event log is not present.\n", __func__);
 		return CB_ERR;
 	}
 
-	ret = ipmi_kcs_message(port, IPMI_NETFN_STORAGE, 0x0,
-			IPMI_ADD_SEL_ENTRY, (const unsigned char *) sel,
-			16, (unsigned char *) &rsp, sizeof(rsp));
+	ret = ipmi_message(port, IPMI_NETFN_STORAGE, 0x0,
+			IPMI_ADD_SEL_ENTRY, (const unsigned char *)sel,
+			16, (unsigned char *)&rsp, sizeof(rsp));
 
 	if (ret < sizeof(struct ipmi_rsp) || rsp.resp.completion_code) {
 		printk(BIOS_ERR, "IPMI: %s command failed (ret=%d resp=0x%x)\n",

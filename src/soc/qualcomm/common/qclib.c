@@ -1,33 +1,35 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <console/cbmem_console.h>
-#include <cbmem.h>
-#include <string.h>
-#include <fmap.h>
 #include <assert.h>
 #include <arch/mmu.h>
 #include <cbfs.h>
+#include <cbmem.h>
+#include <commonlib/bsd/mem_chip_info.h>
+#include <console/cbmem_console.h>
 #include <console/console.h>
+#include <fmap.h>
 #include <mrc_cache.h>
+#include <reset.h>
+#include <security/vboot/misc.h>
 #include <soc/mmu.h>
 #include <soc/mmu_common.h>
 #include <soc/qclib_common.h>
 #include <soc/symbols_common.h>
-#include <security/vboot/misc.h>
+#include <string.h>
 #include <vb2_api.h>
-#include <commonlib/bsd/mem_chip_info.h>
 
 #define QCLIB_VERSION 0
 
 /* store QcLib return data until CBMEM_CREATION_HOOK runs */
-static void *mem_chip_addr;
+static struct mem_chip_info *mem_chip_info;
 
 static void write_mem_chip_information(struct qclib_cb_if_table_entry *te)
 {
+	struct mem_chip_info *info = (void *)te->blob_address;
 	if (te->size > sizeof(struct mem_chip_info) &&
-	    te->size == mem_chip_info_size((void *)te->blob_address)) {
-		/* Save mem_chip_addr in global variable ahead of hook running */
-		mem_chip_addr = (void *)te->blob_address;
+	    te->size == mem_chip_info_size(info->num_entries)) {
+		/* Save mem_chip_info in global variable ahead of hook running */
+		mem_chip_info = info;
 	}
 }
 
@@ -36,19 +38,20 @@ static void add_mem_chip_info(int unused)
 	void *mem_region_base = NULL;
 	size_t size;
 
-	if (!mem_chip_addr) {
+	if (!mem_chip_info || !mem_chip_info->num_entries ||
+	    mem_chip_info->struct_version != MEM_CHIP_STRUCT_VERSION) {
 		printk(BIOS_ERR, "Did not receive valid mem_chip_info from QcLib!");
 		return;
 	}
 
-	size = mem_chip_info_size(mem_chip_addr);
+	size = mem_chip_info_size(mem_chip_info->num_entries);
 
 	/* Add cbmem table */
 	mem_region_base = cbmem_add(CBMEM_ID_MEM_CHIP_INFO, size);
 	ASSERT(mem_region_base != NULL);
 
 	/* Migrate the data into CBMEM */
-	memcpy(mem_region_base, mem_chip_addr, size);
+	memcpy(mem_region_base, mem_chip_info, size);
 }
 
 CBMEM_CREATION_HOOK(add_mem_chip_info);
@@ -275,6 +278,11 @@ void qclib_load_and_run(void)
 	mmu_disable();
 	mmu_restore_context(&pre_qclib_mmu_context);
 	mmu_enable();
+
+	if (qclib_cb_if_table.global_attributes & QCLIB_GA_FORCE_COLD_REBOOT) {
+		printk(BIOS_NOTICE, "QcLib requested cold reboot\n");
+		board_reset();
+	}
 
 	/* step through I/F table, handling return values */
 	for (i = 0; i < qclib_cb_if_table.num_entries; i++)

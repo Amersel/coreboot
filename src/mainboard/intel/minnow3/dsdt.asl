@@ -7,14 +7,11 @@ DefinitionBlock(
 	ACPI_DSDT_REV_2,
 	OEM_ID,
 	ACPI_TABLE_CREATOR,
-	0x20110725	// OEM revision
+	0x20110725
 )
 {
 	#include <acpi/dsdt_top.asl>
-	/* global NVS and variables */
 	#include <soc/intel/apollolake/acpi/globalnvs.asl>
-
-	/* CPU */
 	#include <cpu/intel/common/acpi/cpu.asl>
 
 	Scope (\_SB) {

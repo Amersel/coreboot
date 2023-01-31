@@ -196,6 +196,13 @@ static const struct soc_clock {
 	struct freq freq;
 } soc_clocks[] = {
 	{
+		.clk_speed_mhz = 100,
+		.freq = {
+			.ticks = 100,
+			.ns = 1000,
+		},
+	},
+	{
 		.clk_speed_mhz = 120,
 		.freq = {
 			.ticks = 120,
@@ -467,7 +474,7 @@ static enum cb_err dw_i2c_transfer(unsigned int bus, const struct i2c_msg *msg, 
 	size_t start;
 	uint16_t addr;
 
-	if (!msg)
+	if (count == 0 || !msg)
 		return -1;
 
 	/* Break up the transfers at the differing slave address boundary. */
@@ -850,7 +857,12 @@ void dw_i2c_acpi_fill_ssdt(const struct device *dev)
 static int dw_i2c_dev_transfer(struct device *dev,
 				const struct i2c_msg *msg, size_t count)
 {
-	return dw_i2c_transfer(dw_i2c_soc_dev_to_bus(dev), msg, count);
+	int bus = dw_i2c_soc_dev_to_bus(dev);
+	if (bus < 0) {
+		printk(BIOS_ERR, "Invalid I2C bus number.\n");
+		return -1;
+	}
+	return dw_i2c_transfer(bus, msg, count) == CB_SUCCESS ? 0 : -1;
 }
 
 const struct i2c_bus_operations dw_i2c_bus_ops = {

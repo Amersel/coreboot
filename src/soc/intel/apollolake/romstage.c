@@ -13,6 +13,7 @@
 #include <fsp/api.h>
 #include <fsp/util.h>
 #include <intelblocks/cpulib.h>
+#include <intelblocks/cse.h>
 #include <intelblocks/lpc_lib.h>
 #include <intelblocks/msr.h>
 #include <intelblocks/pmclib.h>
@@ -164,6 +165,9 @@ void mainboard_romstage_entry(void)
 	soc_early_romstage_init();
 	report_platform_info();
 
+	/* Initialize Heci interfaces */
+	heci_init();
+
 	s3wake = pmc_fill_power_state(ps) == ACPI_S3;
 	fsp_memory_init(s3wake);
 
@@ -290,7 +294,7 @@ void platform_fsp_memory_init_params_cb(FSPM_UPD *mupd, uint32_t version)
 	parse_devicetree_setting(mupd);
 
 	/* Do NOT let FSP do any GPIO pad configuration */
-	mupd->FspmConfig.PreMemGpioTablePtr = (uintptr_t) NULL;
+	mupd->FspmConfig.PreMemGpioTablePtr = (uintptr_t)NULL;
 
 	mupd->FspmConfig.SkipCseRbp = CONFIG(SKIP_CSE_RBP);
 

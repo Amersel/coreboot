@@ -59,4 +59,8 @@ config IFD_CHIPSET
 	string
 	default "lbg"
 
+config XEON_SP_HAVE_IIO_IOAPIC
+	bool
+	default y
+
 endif

@@ -1,8 +1,6 @@
 chip soc/intel/apollolake
 
-	device cpu_cluster 0 on
-		device lapic 0 on end
-	end
+	device cpu_cluster 0 on end
 
 	register "pcie_rp_clkreq_pin[0]" = "0"    # wifi/bt
 	# Disable unused clkreq of PCIe root ports
@@ -198,21 +196,20 @@ chip soc/intel/apollolake
 				register "generic.hid" = ""WCOMNTN2""
 				register "generic.desc" = ""WCOM Touchscreen""
 				register "generic.irq" = "ACPI_IRQ_LEVEL_LOW(GPIO_21_IRQ)"
-				register "generic.probed" = "1"
+				register "generic.detect" = "1"
 				register "generic.reset_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPIO_36)"
 				register "generic.reset_delay_ms" = "20"
 				register "generic.enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPIO_152)"
 				register "generic.enable_delay_ms" = "1"
 				register "generic.has_power_resource" = "1"
-				register "generic.disable_gpio_export_in_crs" = "1"
 				register "hid_desc_reg_offset" = "0x1"
 				device i2c 0xA on end
 			end
 			chip drivers/i2c/generic
 				register "hid" = ""ELAN0001""
 				register "desc" = ""ELAN Touchscreen""
-				register "irq" = "ACPI_IRQ_EDGE_LOW(GPIO_21_IRQ)"
-				register "probed" = "1"
+				register "irq" = "ACPI_IRQ_LEVEL_LOW(GPIO_21_IRQ)"
+				register "detect" = "1"
 				register "reset_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPIO_36)"
 				register "reset_delay_ms" = "20"
 				register "enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPIO_152)"
@@ -225,9 +222,9 @@ chip soc/intel/apollolake
 			chip drivers/i2c/generic
 				register "hid" = ""ELAN0000""
 				register "desc" = ""ELAN Touchpad""
-				register "irq" = "ACPI_IRQ_EDGE_LOW(GPIO_18_IRQ)"
+				register "irq" = "ACPI_IRQ_LEVEL_LOW(GPIO_18_IRQ)"
 				register "wake" = "GPE0_DW1_15"
-				register "probed" = "1"
+				register "detect" = "1"
 				device i2c 15 on end
 			end
 		end # - I2C 4

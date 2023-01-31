@@ -50,9 +50,7 @@ chip soc/intel/cannonlake
 	register "PcieClkSrcClkReq[5]"		= "PCIE_CLK_NOTUSED"
 
 # Actual device tree.
-	device cpu_cluster 0 on
-		device lapic 0 on end
-	end
+	device cpu_cluster 0 on end
 
 	device domain 0 on
 		device pci 00.0 on  end						# Host Bridge
@@ -86,6 +84,7 @@ chip soc/intel/cannonlake
 			register "usb2_ports[9]"		= "USB2_PORT_MID(OC_SKIP)"
 		end
 		device pci 14.1 off end						# USB xDCI (OTG)
+		device pci 14.2 on  end						# SRAM
 		device pci 14.3 on						# CNVi
 			chip drivers/wifi/generic
 				register "wake"			= "GPE0_PME_B0"
@@ -98,7 +97,7 @@ chip soc/intel/cannonlake
 				register "generic.hid"		= ""STAR0001""
 				register "generic.desc"		= ""Touchpad""
 				register "generic.irq"		= "ACPI_IRQ_LEVEL_LOW(GPP_B3_IRQ)"
-				register "generic.probed"	= "1"
+				register "generic.detect"	= "1"
 				register "hid_desc_reg_offset"	= "0x20"
 				device i2c 2c on end
 			end
@@ -175,7 +174,7 @@ chip soc/intel/cannonlake
 				device pnp 4e.19 off end			# Power Management Channel 5
 			end
 		end
-		device pci 1f.1 off end						# P2SB
+		device pci 1f.1 on  end						# P2SB
 		device pci 1f.2 hidden end					# Power Management Controller
 		device pci 1f.3 on						# Intel HDA
 			register "PchHdaAudioLinkHda"		= "1"

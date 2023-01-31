@@ -42,7 +42,16 @@ chip soc/amd/cezanne
 		.oob_ch_en = 0,
 		.flash_ch_en = 0,
 
-		.vw_irq_polarity = ESPI_VW_IRQ_LEVEL_HIGH(1),
+		/*
+		 * b/218874489 - This should really be ESPI_VW_IRQ_LEVEL_HIGH,
+		 * but eSPI gets configured in verstage which is in RO.
+		 * We have already locked RO for guybrush devices so we need
+		 * make it so x86 coreboot re-initializes the vw_irq_polarity.
+		 * This leaves another problem, verstage also runs in S0i3, but
+		 * we don't run any other x86 coreboot stages, so we need to
+		 * figure out a way to reset the eSPI polarity.
+		 */
+		.vw_irq_polarity = ESPI_VW_IRQ_LEVEL_LOW(1),
 	}"
 
 	# Enable S0i3 support
@@ -227,8 +236,10 @@ chip soc/amd/cezanne
 		device ref iommu on end
 
 		device ref gpp_bridge_0 on
-			chip drivers/wifi/generic
-				register "wake" = "GEVENT_8"
+			chip drivers/pcie/generic
+				register "wake_gpe" = "GEVENT_8"
+				register "wake_deepest" = "ACPI_S0"
+				register "name" = ""WLAN""
 				device pci 00.0 on end
 			end
 		end # WLAN
@@ -326,9 +337,8 @@ chip soc/amd/cezanne
 							register "type" = "UPC_TYPE_INTERNAL"
 							register "has_power_resource" = "true"
 							register "enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPIO_132)"
-							# TODO(rrangel): Find data sheet
 							register "enable_delay_ms" = "500"
-							register "enable_off_delay_ms" = "10"
+							register "enable_off_delay_ms" = "200"
 							register "use_gpio_for_status" = "true"
 							device ref usb2_port6 on end
 						end

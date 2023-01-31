@@ -20,8 +20,7 @@ static struct lb_header *lb_table_init(unsigned long addr)
 	struct lb_header *header;
 
 	/* 16 byte align the address */
-	addr += 15;
-	addr &= ~15;
+	addr = ALIGN_UP(addr, 16);
 
 	header = (void *)addr;
 	header->signature[0] = 'L';
@@ -110,32 +109,13 @@ static void test_lb_new_record(void **state)
 	accumulated_size = sizeof(struct lb_record);
 	for (i = 0; i < entries; ++i) {
 		curr = lb_new_record(header);
-		curr->size = sizeof(struct lb_record) + ((i + 2) * 7) % 32;
+		curr->size = sizeof(struct lb_record) +
+			     ALIGN_UP(((i + 2) * 7) % 32, LB_ENTRY_ALIGN);
 
 		assert_int_equal(entries_offset + (i + 1), header->table_entries);
 		assert_int_equal(accumulated_size, header->table_bytes);
 		accumulated_size += curr->size;
 	}
-}
-
-static void test_lb_add_serial(void **state)
-{
-	struct lb_header *header = *state;
-	struct lb_serial serial;
-
-	serial.type = LB_SERIAL_TYPE_MEMORY_MAPPED;
-	serial.baseaddr = 0xFEDC6000;
-	serial.baud = 115200;
-	serial.regwidth = 1;
-	serial.input_hertz = 115200 * 16;
-	serial.uart_pci_addr = 0x0;
-	lb_add_serial(&serial, header);
-
-	assert_int_equal(1, header->table_entries);
-	/* Table bytes and checksum should be zero, because it is updated with size of previous
-	   record or when table is closed. No previous record is present. */
-	assert_int_equal(0, header->table_bytes);
-	assert_int_equal(0, header->table_checksum);
 }
 
 static void test_lb_add_console(void **state)
@@ -237,18 +217,15 @@ void bootmem_write_memory_table(struct lb_memory *mem)
 	}
 }
 
-void uart_fill_lb(void *data)
+enum cb_err fill_lb_serial(struct lb_serial *serial)
 {
-	struct lb_serial serial;
-	serial.type = LB_SERIAL_TYPE_MEMORY_MAPPED;
-	serial.baseaddr = 0xFEDC6000;
-	serial.baud = 115200;
-	serial.regwidth = 1;
-	serial.input_hertz = 115200 * 16;
-	serial.uart_pci_addr = 0x0;
-	lb_add_serial(&serial, data);
+	serial->type = LB_SERIAL_TYPE_MEMORY_MAPPED;
+	serial->baseaddr = 0xFEDC6000;
+	serial->baud = 115200;
+	serial->regwidth = 1;
+	serial->input_hertz = 115200 * 16;
 
-	lb_add_console(LB_TAG_CONSOLE_SERIAL8250MEM, data);
+	return CB_SUCCESS;
 }
 
 struct cbfs_boot_device cbfs_boot_dev = {
@@ -267,9 +244,9 @@ void cbmem_run_init_hooks(int is_recovery)
 }
 
 extern uintptr_t _cbmem_top_ptr;
-void *cbmem_top_chipset(void)
+uintptr_t cbmem_top_chipset(void)
 {
-	return (void *)_cbmem_top_ptr;
+	return _cbmem_top_ptr;
 }
 
 #define CBMEM_SIZE (64 * KiB)
@@ -383,31 +360,31 @@ static void test_write_tables(void **state)
 			assert_int_equal(ALIGN_UP(sizeof(struct lb_mainboard)
 							  + ARRAY_SIZE(mainboard_vendor)
 							  + ARRAY_SIZE(mainboard_part_number),
-						  8),
+						  LB_ENTRY_ALIGN),
 					 record->size);
 			break;
 		case LB_TAG_VERSION:
 			assert_int_equal(ALIGN_UP(sizeof(struct lb_string)
 							  + ARRAY_SIZE(coreboot_version),
-						  8),
+						  LB_ENTRY_ALIGN),
 					 record->size);
 			break;
 		case LB_TAG_EXTRA_VERSION:
 			assert_int_equal(ALIGN_UP(sizeof(struct lb_string)
 							  + ARRAY_SIZE(coreboot_extra_version),
-						  8),
+						  LB_ENTRY_ALIGN),
 					 record->size);
 			break;
 		case LB_TAG_BUILD:
 			assert_int_equal(
 				ALIGN_UP(sizeof(struct lb_string) + ARRAY_SIZE(coreboot_build),
-					 8),
+					 LB_ENTRY_ALIGN),
 				record->size);
 			break;
 		case LB_TAG_COMPILE_TIME:
 			assert_int_equal(ALIGN_UP(sizeof(struct lb_string)
 							  + ARRAY_SIZE(coreboot_compile_time),
-						  8),
+						  LB_ENTRY_ALIGN),
 					 record->size);
 			break;
 		case LB_TAG_SERIAL:
@@ -420,7 +397,6 @@ static void test_write_tables(void **state)
 			assert_int_equal(115200, serial->baud);
 			assert_int_equal(1, serial->regwidth);
 			assert_int_equal(115200 * 16, serial->input_hertz);
-			assert_int_equal(0x0, serial->uart_pci_addr);
 			break;
 		case LB_TAG_CONSOLE:
 			assert_int_equal(sizeof(struct lb_console), record->size);
@@ -499,7 +475,6 @@ int main(void)
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(test_lb_add_gpios),
 		cmocka_unit_test_setup(test_lb_new_record, setup_test_header),
-		cmocka_unit_test_setup(test_lb_add_serial, setup_test_header),
 		cmocka_unit_test_setup(test_lb_add_console, setup_test_header),
 		cmocka_unit_test_setup(test_multiple_entries, setup_test_header),
 		cmocka_unit_test_setup(test_write_coreboot_forwarding_table, setup_test_header),

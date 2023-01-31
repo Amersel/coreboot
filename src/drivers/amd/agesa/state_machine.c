@@ -14,10 +14,6 @@
 
 #include <AMD.h>
 
-#if CONFIG(CPU_AMD_AGESA_OPENSOURCE)
-#include "Dispatcher.h"
-#endif
-
 #if ENV_RAMINIT
 #include <PlatformMemoryConfiguration.h>
 CONST PSO_ENTRY ROMDATA DefaultPlatformMemoryConfiguration[] = {PSO_END};
@@ -25,7 +21,6 @@ CONST PSO_ENTRY ROMDATA DefaultPlatformMemoryConfiguration[] = {PSO_END};
 
 static void agesa_locate_image(AMD_CONFIG_PARAMS *StdHeader)
 {
-#if CONFIG(CPU_AMD_AGESA_BINARY_PI)
 	const char ModuleIdentifier[] = AGESA_ID;
 	const void *agesa, *image;
 	size_t file_size;
@@ -36,8 +31,7 @@ static void agesa_locate_image(AMD_CONFIG_PARAMS *StdHeader)
 
 	image = LibAmdLocateImage(agesa, agesa + file_size, 4096,
 		ModuleIdentifier);
-	StdHeader->ImageBasePtr = (void *) image;
-#endif
+	StdHeader->ImageBasePtr = (void *)image;
 }
 
 void agesa_set_interface(struct sysinfo *cb)
@@ -46,15 +40,13 @@ void agesa_set_interface(struct sysinfo *cb)
 
 	cb->StdHeader.CalloutPtr = GetBiosCallout;
 
-	if (CONFIG(CPU_AMD_AGESA_BINARY_PI)) {
-		agesa_locate_image(&cb->StdHeader);
-		AMD_IMAGE_HEADER *image =
-			(void *)(uintptr_t)cb->StdHeader.ImageBasePtr;
-		ASSERT(image);
-		AMD_MODULE_HEADER *module =
-			(void *)(uintptr_t)image->ModuleInfoOffset;
-		ASSERT(module && module->ModuleDispatcher);
-	}
+	agesa_locate_image(&cb->StdHeader);
+	AMD_IMAGE_HEADER *image =
+		(void *)(uintptr_t)cb->StdHeader.ImageBasePtr;
+	ASSERT(image);
+	AMD_MODULE_HEADER *module =
+		(void *)(uintptr_t)image->ModuleInfoOffset;
+	ASSERT(module && module->ModuleDispatcher);
 }
 
 AGESA_STATUS module_dispatch(AGESA_STRUCT_NAME func,
@@ -62,14 +54,9 @@ AGESA_STATUS module_dispatch(AGESA_STRUCT_NAME func,
 {
 	MODULE_ENTRY dispatcher;
 
-#if CONFIG(CPU_AMD_AGESA_OPENSOURCE)
-	dispatcher = AmdAgesaDispatcher;
-#endif
-#if CONFIG(CPU_AMD_AGESA_BINARY_PI)
 	AMD_IMAGE_HEADER *image = (void *)(uintptr_t)StdHeader->ImageBasePtr;
 	AMD_MODULE_HEADER *module = (void *)(uintptr_t)image->ModuleInfoOffset;
 	dispatcher = module->ModuleDispatcher;
-#endif
 
 	StdHeader->Func = func;
 	return dispatcher(StdHeader);
@@ -159,7 +146,6 @@ static AGESA_STATUS romstage_dispatch(struct sysinfo *cb,
 		{
 			break;
 		}
-
 	}
 	return status;
 }
@@ -222,7 +208,6 @@ static AGESA_STATUS ramstage_dispatch(struct sysinfo *cb,
 		{
 			break;
 		}
-
 	}
 	return status;
 }
@@ -247,7 +232,7 @@ int agesa_execute_state(struct sysinfo *cb, AGESA_STRUCT_NAME func)
 
 	/* For these calls, heap is not available. */
 	if (func == AMD_INIT_RESET || func == AMD_S3LATE_RESTORE) {
-		buf = (void *) &agesa_params;
+		buf = (void *)&agesa_params;
 		len = sizeof(agesa_params);
 		memcpy(buf, &cb->StdHeader, sizeof(cb->StdHeader));
 	}
@@ -306,10 +291,6 @@ static void amd_bs_dev_enable(void *arg)
 
 	if (!acpi_is_wakeup_s3())
 		agesa_execute_state(cb, AMD_INIT_MID);
-
-	/* FIXME */
-	if (CONFIG(AMD_SB_CIMX) && acpi_is_wakeup_s3())
-		sb_After_Pci_Restore_Init();
 }
 
 static void amd_bs_post_device(void *arg)

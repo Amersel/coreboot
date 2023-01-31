@@ -5,8 +5,21 @@
 
 #set -x # uncomment for debug
 
+JUNIT=0
+INVERT=0
+
 usage () {
-	printf "Usage: %s <lint|lint-stable|lint-extended> [--junit]\n" "$0"
+	printf "Usage: %s <sub-command> [Options]\n" "$0"
+	printf " Sub-commands:\n"
+	printf "    lint-stable        : Run standard lint tests - should pass\n"
+	printf "    lint-extended      : Run extended lint tests - should pass\n"
+	printf "    lint               : Run full lint tests - Not expected to pass\n\n"
+
+	printf "  Options:\n"
+	printf "    -h | --help       : Show this help message\n"
+	printf "    -I | --invert     : Invert results - used for testing linters\n"
+	printf "    -J | --junit      : Send test output to a JUnit file\n"
+	printf "\n"
 }
 
 #write to the junit xml file if --junit was specified
@@ -16,9 +29,39 @@ junit_write () {
 	fi
 }
 
+if ! cmd_args="$(getopt -l help,junit,invert -o hIJ -- "$@")"; then
+	usage
+	exit 0
+fi
+eval set -- "${cmd_args}"
+
+while true; do
+	case "$1" in
+	-h | --help)
+		usage
+		exit 0
+		;;
+	-I | --invert)
+		INVERT=1
+		;;
+	-J | --junit)
+		echo "selected junit"
+		JUNIT=1
+		;;
+	--) shift; break ;;
+	*) break ;;
+	esac
+	shift
+done
+
 #verify the first command line parameter
-if [ -z "$1" ] || [ "$1" != "lint" ] && [ "$1" != "lint-stable" ]  && \
+if [ -z "$1" ]; then
+	echo "Error: A sub-command is needed."
+	usage
+	exit 1
+elif [ "$1" != "lint" ] && [ "$1" != "lint-stable" ] &&
 		[ "$1" != "lint-extended" ]; then
+	echo "Error: $1 is not a valid sub-command."
 	usage
 	exit 1
 fi
@@ -30,13 +73,9 @@ if [ "$1" = "lint-extended" ]; then
 fi
 FAILED=0;
 
-#check optional second command line parameter.
-if [ "$2" = "--junit" ]; then
-	JUNIT=1
+if [ "${JUNIT}" -eq 1 ]; then
 	echo '<?xml version="1.0" encoding="utf-8"?>' > "$XMLFILE"
 	junit_write '<testsuite>'
-else
-	JUNIT=0
 fi
 
 #run all scripts of the requested type
@@ -47,7 +86,10 @@ for script in "$(dirname "$0")/${1}-"*; do
 	$script | tee "$LINTLOG"
 
 	#if the lint script gives any output, that's a failure
-	if [ "$(wc -l < "$LINTLOG")" -eq 0 ]; then
+	if [ "${INVERT}" -eq 1 ] && [ "$(wc -l < "$LINTLOG")" -ne 0 ]; then
+		echo "success"
+		junit_write "		<system-out><![CDATA[success]]></system-out>"
+	elif [ "${INVERT}" -eq 0 ] && [ "$(wc -l < "$LINTLOG")" -eq 0 ]; then
 		echo "success"
 		junit_write "		<system-out><![CDATA[success]]></system-out>"
 	else

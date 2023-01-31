@@ -23,6 +23,7 @@
 #include <northbridge/amd/nb_common.h>
 #include <northbridge/amd/agesa/agesa_helper.h>
 #include <southbridge/amd/pi/hudson/pci_devs.h>
+#include <amdblocks/cpu.h>
 
 #define MAX_NODE_NUMS MAX_NODES
 #define PCIE_CAP_AER		BIT(5)
@@ -51,7 +52,7 @@ static unsigned int get_node_nums(void)
 	if (node_nums)
 		return node_nums;
 
-	node_nums = ((pci_read_config32(get_mc_dev(), 0x60)>>4) & 7) + 1; //NodeCnt[2:0]
+	node_nums = ((pci_read_config32(get_mc_dev(), 0x60) >> 4) & 7) + 1; //NodeCnt[2:0]
 
 	return node_nums;
 }
@@ -65,7 +66,7 @@ static void get_fx_devs(void)
 		__f2_dev[i] = get_node_pci(i, 2);
 		__f4_dev[i] = get_node_pci(i, 4);
 		if (__f0_dev[i] != NULL && __f1_dev[i] != NULL)
-			fx_devs = i+1;
+			fx_devs = i + 1;
 	}
 	if (__f1_dev[0] == NULL || __f0_dev[0] == NULL || fx_devs == 0) {
 		die("Cannot find 0:0x18.[0|1]\n");
@@ -123,7 +124,7 @@ static void set_vga_enable_reg(u32 nodeid, u32 linkn)
 {
 	u32 val;
 
-	val =  1 | (nodeid<<4) | (linkn<<12);
+	val =  1 | (nodeid << 4) | (linkn << 12);
 	/* it will routing
 	 * (1)mmio 0xa0000:0xbffff
 	 * (2)io   0x3b0:0x3bb, 0x3c0:0x3df
@@ -151,7 +152,7 @@ static void add_fixed_resources(struct device *dev, int index)
 		resource_t basek, limitk;
 		if (!get_dram_base_limit(0, &basek, &limitk))
 			return;
-		mmio_resource_kb(dev, index++, limitk, 16*1024);
+		mmio_resource_kb(dev, index++, limitk, 16 * 1024);
 	}
 }
 
@@ -180,7 +181,7 @@ static void create_vga_resource(struct device *dev, unsigned int nodeid)
 	struct bus *link;
 	unsigned int sblink;
 
-	sblink = (pci_read_config32(get_mc_dev(), 0x64)>>8) & 7; // don't forget sublink1
+	sblink = (pci_read_config32(get_mc_dev(), 0x64) >> 8) & 7; // don't forget sublink1
 
 	/* find out which link the VGA card is connected,
 	 * we only deal with the 'first' vga card */
@@ -189,7 +190,7 @@ static void create_vga_resource(struct device *dev, unsigned int nodeid)
 #if CONFIG(MULTIPLE_VGA_ADAPTERS)
 			extern struct device *vga_pri; // the primary vga device, defined in device.c
 			printk(BIOS_DEBUG, "VGA: vga_pri bus num = %d bus range [%d,%d]\n", vga_pri->bus->secondary,
-					link->secondary,link->subordinate);
+					link->secondary, link->subordinate);
 			/* We need to make sure the vga_pri is under the link */
 			if ((vga_pri->bus->secondary >= link->secondary) &&
 			    (vga_pri->bus->secondary <= link->subordinate))
@@ -220,7 +221,7 @@ static void nb_set_resources(struct device *dev)
 
 static void northbridge_init(struct device *dev)
 {
-	setup_ioapic((u8 *)IO_APIC2_ADDR, CONFIG_MAX_CPUS+1);
+	setup_ioapic((u8 *)IO_APIC2_ADDR, CONFIG_MAX_CPUS + 1);
 }
 
 static unsigned long acpi_fill_hest(acpi_hest_t *hest)
@@ -583,26 +584,26 @@ static unsigned long agesa_write_acpi_tables(const struct device *device,
 	acpi_ivrs_t *ivrs;
 
 	/* HEST */
-	current = ALIGN(current, 8);
+	current = ALIGN_UP(current, 8);
 	acpi_write_hest((void *)current, acpi_fill_hest);
 	acpi_add_table(rsdp, (void *)current);
 	current += ((acpi_header_t *)current)->length;
 
 	/* IVRS */
-	current = ALIGN(current, 8);
+	current = ALIGN_UP(current, 8);
 	printk(BIOS_DEBUG, "ACPI:   * IVRS at %lx\n", current);
-	ivrs = (acpi_ivrs_t *) current;
+	ivrs = (acpi_ivrs_t *)current;
 	acpi_create_ivrs(ivrs, acpi_fill_ivrs);
 	current += ivrs->header.length;
 	acpi_add_table(rsdp, ivrs);
 
 	/* SRAT */
-	current = ALIGN(current, 8);
+	current = ALIGN_UP(current, 8);
 	printk(BIOS_DEBUG, "ACPI:    * SRAT at %lx\n", current);
-	srat = (acpi_srat_t *) agesawrapper_getlateinitptr (PICK_SRAT);
+	srat = (acpi_srat_t *)agesawrapper_getlateinitptr(PICK_SRAT);
 	if (srat != NULL) {
 		memcpy((void *)current, srat, srat->header.length);
-		srat = (acpi_srat_t *) current;
+		srat = (acpi_srat_t *)current;
 		current += srat->header.length;
 		acpi_add_table(rsdp, srat);
 	} else {
@@ -610,12 +611,12 @@ static unsigned long agesa_write_acpi_tables(const struct device *device,
 	}
 
 	/* SLIT */
-	current = ALIGN(current, 8);
+	current = ALIGN_UP(current, 8);
 	printk(BIOS_DEBUG, "ACPI:   * SLIT at %lx\n", current);
-	slit = (acpi_slit_t *) agesawrapper_getlateinitptr (PICK_SLIT);
+	slit = (acpi_slit_t *)agesawrapper_getlateinitptr(PICK_SLIT);
 	if (slit != NULL) {
 		memcpy((void *)current, slit, slit->header.length);
-		slit = (acpi_slit_t *) current;
+		slit = (acpi_slit_t *)current;
 		current += slit->header.length;
 		acpi_add_table(rsdp, slit);
 	} else {
@@ -623,12 +624,12 @@ static unsigned long agesa_write_acpi_tables(const struct device *device,
 	}
 
 	/* ALIB */
-	current = ALIGN(current, 16);
+	current = ALIGN_UP(current, 16);
 	printk(BIOS_DEBUG, "ACPI:  * AGESA ALIB SSDT at %lx\n", current);
-	alib = (acpi_header_t *)agesawrapper_getlateinitptr (PICK_ALIB);
+	alib = (acpi_header_t *)agesawrapper_getlateinitptr(PICK_ALIB);
 	if (alib != NULL) {
 		memcpy((void *)current, alib, alib->length);
-		alib = (acpi_header_t *) current;
+		alib = (acpi_header_t *)current;
 		current += alib->length;
 		acpi_add_table(rsdp, (void *)alib);
 	}
@@ -638,19 +639,19 @@ static unsigned long agesa_write_acpi_tables(const struct device *device,
 
 	/* this pstate ssdt may cause Blue Screen: Fixed: Keep this comment for a while. */
 	/* SSDT */
-	current   = ALIGN(current, 16);
+	current   = ALIGN_UP(current, 16);
 	printk(BIOS_DEBUG, "ACPI:    * SSDT at %lx\n", current);
-	ssdt = (acpi_header_t *)agesawrapper_getlateinitptr (PICK_PSTATE);
+	ssdt = (acpi_header_t *)agesawrapper_getlateinitptr(PICK_PSTATE);
 	if (ssdt != NULL) {
 		patch_ssdt_processor_scope(ssdt);
 		memcpy((void *)current, ssdt, ssdt->length);
-		ssdt = (acpi_header_t *) current;
+		ssdt = (acpi_header_t *)current;
 		current += ssdt->length;
 	}
 	else {
 		printk(BIOS_DEBUG, "  AGESA PState table NULL. Skipping.\n");
 	}
-	acpi_add_table(rsdp,ssdt);
+	acpi_add_table(rsdp, ssdt);
 
 	printk(BIOS_DEBUG, "ACPI:    * SSDT for PState at %lx\n", current);
 	return current;
@@ -742,7 +743,7 @@ static struct hw_mem_hole_info get_hw_mem_hole_info(void)
 			continue; // no memory on this node
 		hole = pci_read_config32(__f1_dev[i], 0xf0);
 		if (hole & 2) { // we find the hole
-			mem_hole.hole_startk = (hole & (0xff<<24)) >> 10;
+			mem_hole.hole_startk = (hole & (0xff << 24)) >> 10;
 			mem_hole.node_id = i; // record the node No with hole
 			break; // only one hole
 		}
@@ -757,7 +758,7 @@ static struct hw_mem_hole_info get_hw_mem_hole_info(void)
 			resource_t base_k, limit_k;
 			if (!get_dram_base_limit(i, &base_k, &limit_k))
 				continue; // no memory on this node
-			if (base_k > 4 *1024 * 1024) break; // don't need to go to check
+			if (base_k > 4 * 1024 * 1024) break; // don't need to go to check
 			if (limitk_pri != base_k) { // we find the hole
 				mem_hole.hole_startk = (unsigned int)limitk_pri; // must be below 4G
 				mem_hole.node_id = i;
@@ -822,7 +823,7 @@ static void domain_read_resources(struct device *dev)
 				   i, basek, limitk, sizek);
 
 		/* split the region to accommodate pci memory space */
-		if ((basek < 4*1024*1024) && (limitk > mmio_basek)) {
+		if ((basek < 4 * 1024 * 1024) && (limitk > mmio_basek)) {
 			if (basek <= mmio_basek) {
 				unsigned int pre_sizek;
 				pre_sizek = mmio_basek - basek;
@@ -833,13 +834,13 @@ static void domain_read_resources(struct device *dev)
 				}
 				basek = mmio_basek;
 			}
-			if ((basek + sizek) <= 4*1024*1024) {
+			if ((basek + sizek) <= 4 * 1024 * 1024) {
 				sizek = 0;
 			}
 			else {
 				uint64_t topmem2 = amd_topmem2();
-				basek = 4*1024*1024;
-				sizek = topmem2/1024 - basek;
+				basek = 4 * 1024 * 1024;
+				sizek = topmem2 / 1024 - basek;
 			}
 		}
 
@@ -871,13 +872,6 @@ static void pre_mp_init(void)
 {
 	x86_setup_mtrrs_with_detect();
 	x86_mtrr_check();
-}
-
-static int get_cpu_count(void)
-{
-	uint8_t siblings = cpuid_ecx(0x80000008) & 0xff;
-
-	return siblings + 1;
 }
 
 static const struct mp_ops mp_ops = {

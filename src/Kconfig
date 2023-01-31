@@ -114,6 +114,12 @@ config CCACHE
 
 	  For details see https://ccache.samba.org.
 
+config IWYU
+	bool "Test platform with include-what-you-use"
+	help
+	  This runs each source file through the include-what-you-use tool
+	  to check the header includes.
+
 config FMD_GENPARSER
 	bool "Generate flashmap descriptor parser using flex and bison"
 	default n
@@ -164,23 +170,47 @@ config STATIC_OPTION_TABLE
 	  every boot.  Use this if you want the NVRAM configuration to
 	  never be modified from its default values.
 
-config COMPRESS_RAMSTAGE
-	bool "Compress ramstage with LZMA"
-	depends on HAVE_RAMSTAGE
-	# Default value set at the end of the file
+config MB_COMPRESS_RAMSTAGE_LZ4
+	bool
 	help
-	  Compress ramstage to save memory in the flash image.
+	  Select this in a mainboard to use LZ4 compression by default
+
+choice
+	prompt "Ramstage compression"
+	depends on HAVE_RAMSTAGE && !UNCOMPRESSED_RAMSTAGE
+	default COMPRESS_RAMSTAGE_LZ4 if MB_COMPRESS_RAMSTAGE_LZ4
+	default COMPRESS_RAMSTAGE_LZMA
+
+config COMPRESS_RAMSTAGE_LZMA
+	bool "Compress ramstage with LZMA"
+	help
+	  Compress ramstage with LZMA to save memory in the flash image.
+
+config COMPRESS_RAMSTAGE_LZ4
+	bool "Compress ramstage with LZ4"
+	help
+	  LZ4 doesn't give as good compression as LZMA, but decompresses much
+	  faster. For large binaries such as ramstage, it's typically best to
+	  use LZMA, but there can be cases where the faster decompression of
+	  LZ4 can lead to a faster boot time. Testing on each individual board
+	  is typically going to be needed due to the large number of factors
+	  that can influence the decision. Binary size, CPU speed, ROM read
+	  speed, cache, and other factors all play a part.
+
+	  If you're not sure, stick with LZMA.
+
+endchoice
 
 config COMPRESS_PRERAM_STAGES
 	bool "Compress romstage and verstage with LZ4"
-	depends on !ARCH_X86 && (HAVE_ROMSTAGE || HAVE_VERSTAGE)
+	depends on (HAVE_ROMSTAGE || HAVE_VERSTAGE) && NO_XIP_EARLY_STAGES
 	# Default value set at the end of the file
 	help
 	  Compress romstage and (if it exists) verstage with LZ4 to save flash
 	  space and speed up boot, since the time for reading the image from SPI
 	  (and in the vboot case verifying it) is usually much greater than the
-	  time spent decompressing. Doesn't work for XIP stages (assume all
-	  ARCH_X86 for now) for obvious reasons.
+	  time spent decompressing. Doesn't work for XIP stages for obvious
+	  reasons.
 
 config COMPRESS_BOOTBLOCK
 	bool
@@ -205,9 +235,9 @@ config INCLUDE_CONFIG_FILE
 
 	  Saying Y here will increase the image size by 2-3KB.
 
-	  You can use the following command to easily list the options:
+	  You can then use cbfstool to extract the config from a final image:
 
-	    grep -a CONFIG_ coreboot.rom
+	    cbfstool coreboot.rom extract -n config -f <output file path>
 
 	  Alternatively, you can also use cbfstool to print the image
 	  contents (including the raw 'config' item we're looking for).
@@ -341,7 +371,7 @@ endif
 
 choice
 	prompt "Stage Cache for ACPI S3 resume"
-	default NO_STAGE_CACHE if !HAVE_ACPI_RESUME
+	default NO_STAGE_CACHE if !HAVE_ACPI_RESUME || MAINBOARD_DISABLE_STAGE_CACHE
 	default TSEG_STAGE_CACHE if SMM_TSEG
 
 config NO_STAGE_CACHE
@@ -373,6 +403,13 @@ config CBMEM_STAGE_CACHE
 	  If unsure, select 'N'
 
 endchoice
+
+config MAINBOARD_DISABLE_STAGE_CACHE
+	bool
+	help
+	  Selected by mainboards which wish to disable the stage cache.
+	  E.g. mainboards which don't use S3 resume in the field may wish to
+	  disable it to save boot time at the cost of increasing S3 resume time.
 
 config UPDATE_IMAGE
 	bool "Update existing coreboot.rom image"
@@ -476,6 +513,12 @@ config MINIMAL_PCI_SCANNING
 	help
 	  If this option is enabled, coreboot will scan only PCI devices
 	  marked as mandatory in devicetree.cb
+
+menu "Software Bill Of Materials (SBOM)"
+
+source "src/sbom/Kconfig"
+
+endmenu
 endmenu
 
 menu "Mainboard"
@@ -703,7 +746,7 @@ config TIMER_QUEUE
 config COOP_MULTITASKING
 	def_bool n
 	select TIMER_QUEUE
-	depends on ARCH_X86 && CPU_INFO_V2
+	depends on ARCH_X86
 	help
 	  Cooperative multitasking allows callbacks to be multiplexed on the
 	  main thread. With this enabled it allows for multiple execution paths
@@ -783,9 +826,9 @@ config ACPI_NHLT
 menu "System tables"
 
 config GENERATE_MP_TABLE
-	prompt "Generate an MP table" if HAVE_MP_TABLE || DRIVERS_GENERIC_IOAPIC
+	prompt "Generate an MP table" if HAVE_MP_TABLE
 	bool
-	default HAVE_MP_TABLE || DRIVERS_GENERIC_IOAPIC
+	default HAVE_MP_TABLE
 	help
 	  Generate an MP table (conforming to the Intel MultiProcessor
 	  specification 1.4) for this board.
@@ -1360,11 +1403,8 @@ config MEMLAYOUT_LD_FILE
 # Set default values for symbols created before mainboards.  This allows the
 # option to be displayed in the general menu, but the default to be loaded in
 # the mainboard if desired.
-config COMPRESS_RAMSTAGE
-	default y if !UNCOMPRESSED_RAMSTAGE
-
 config COMPRESS_PRERAM_STAGES
-	depends on !ARCH_X86
+	depends on (HAVE_ROMSTAGE || HAVE_VERSTAGE) && NO_XIP_EARLY_STAGES
 	default y
 
 config INCLUDE_CONFIG_FILE

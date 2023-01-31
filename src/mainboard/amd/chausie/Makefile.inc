@@ -8,9 +8,10 @@ romstage-y += port_descriptors.c
 
 ramstage-y += chromeos.c
 ramstage-y += gpio.c
+ramstage-y += port_descriptors.c
 
-ifneq ($(wildcard $(MAINBOARD_BLOBS_DIR)/APCB_FT6_Updatable.bin),)
-APCB_SOURCES = $(MAINBOARD_BLOBS_DIR)/APCB_FT6_Updatable.bin
+ifneq ($(wildcard $(MAINBOARD_BLOBS_DIR)/APCB_FT6.bin),)
+APCB_SOURCES = $(MAINBOARD_BLOBS_DIR)/APCB_FT6.bin
 APCB_SOURCES_RECOVERY = $(MAINBOARD_BLOBS_DIR)/APCB_FT6_DefaultRecovery.bin
 else
 $(info APCB sources not found. Skipping APCB. The resulting image won't boot.)
@@ -25,10 +26,10 @@ CHAUSIE_EC_POSITION=$(call int-add, \
 	$(call int-subtract, 0xffffffff \
 	$(CONFIG_ROM_SIZE)) $(CONFIG_CHAUSIE_MCHP_FW_OFFSET) 1)
 
-cbfs-files-y += apu/ecfw
-apu/ecfw-file := $(CONFIG_CHAUSIE_MCHP_FW_FILE)
-apu/ecfw-position := $(CHAUSIE_EC_POSITION)
-apu/ecfw-type := raw
+cbfs-files-y += ec/ecfw
+ec/ecfw-file := $(CONFIG_CHAUSIE_MCHP_FW_FILE)
+ec/ecfw-position := $(CHAUSIE_EC_POSITION)
+ec/ecfw-type := raw
 
 else
 files_added:: warn_no_mchp

@@ -5,40 +5,143 @@
 #include <delay.h>
 #include <device/device.h>
 #include <device/pci.h>
+#include <device/pci_ids.h>
 #include <device/pci_ops.h>
 #include <device/pciexp.h>
 
-static unsigned int pciexp_get_ext_cap_offset(const struct device *dev, unsigned int cap,
-					      unsigned int offset)
+static unsigned int ext_cap_id(unsigned int cap)
+{
+	return cap & 0xffff;
+}
+
+static unsigned int ext_cap_next_offset(unsigned int cap)
+{
+	return cap >> 20 & 0xffc;
+}
+
+static unsigned int find_ext_cap_offset(const struct device *dev, unsigned int cap_id,
+					unsigned int offset)
 {
 	unsigned int this_cap_offset = offset;
-	unsigned int next_cap_offset, this_cap, cafe;
-	do {
-		this_cap = pci_read_config32(dev, this_cap_offset);
-		cafe = pci_read_config32(dev, this_cap_offset + 4);
-		if ((this_cap & 0xffff) == cap) {
+
+	while (this_cap_offset >= PCIE_EXT_CAP_OFFSET) {
+		const unsigned int this_cap = pci_read_config32(dev, this_cap_offset);
+
+		/* Bail out when this request is unsupported */
+		if (this_cap == 0xffffffff)
+			break;
+
+		if (ext_cap_id(this_cap) == cap_id)
 			return this_cap_offset;
-		} else if ((cafe & 0xffff) == cap) {
-			return this_cap_offset + 4;
-		} else {
-			next_cap_offset = this_cap >> 20;
-			this_cap_offset = next_cap_offset;
-		}
-	} while (next_cap_offset != 0);
+
+		this_cap_offset = ext_cap_next_offset(this_cap);
+	}
 
 	return 0;
 }
 
-unsigned int pciexp_find_next_extended_cap(const struct device *dev, unsigned int cap,
-					   unsigned int pos)
+/*
+ * Search for an extended capability with the ID `cap`.
+ *
+ * Returns the offset of the first matching extended
+ * capability if found, or 0 otherwise.
+ *
+ * A new search is started with `offset == 0`.
+ * To continue a search, the prior return value
+ * should be passed as `offset`.
+ */
+unsigned int pciexp_find_extended_cap(const struct device *dev, unsigned int cap,
+				      unsigned int offset)
 {
-	const unsigned int next_cap_offset = pci_read_config32(dev, pos) >> 20;
-	return pciexp_get_ext_cap_offset(dev, cap, next_cap_offset);
+	unsigned int next_cap_offset;
+
+	if (offset)
+		next_cap_offset = ext_cap_next_offset(pci_read_config32(dev, offset));
+	else
+		next_cap_offset = PCIE_EXT_CAP_OFFSET;
+
+	return find_ext_cap_offset(dev, cap, next_cap_offset);
 }
 
-unsigned int pciexp_find_extended_cap(const struct device *dev, unsigned int cap)
+/*
+ * Search for a vendor-specific extended capability,
+ * with the vendor-specific ID `cap`.
+ *
+ * Returns the offset of the vendor-specific header,
+ * i.e. the offset of the extended capability + 4,
+ * or 0 if none is found.
+ *
+ * A new search is started with `offset == 0`.
+ * To continue a search, the prior return value
+ * should be passed as `offset`.
+ */
+unsigned int pciexp_find_ext_vendor_cap(const struct device *dev, unsigned int cap,
+					unsigned int offset)
 {
-	return pciexp_get_ext_cap_offset(dev, cap, PCIE_EXT_CAP_OFFSET);
+	/* Reconstruct capability offset from vendor-specific header offset. */
+	if (offset >= 4)
+		offset -= 4;
+
+	for (;;) {
+		offset = pciexp_find_extended_cap(dev, PCI_EXT_CAP_ID_VNDR, offset);
+		if (!offset)
+			return 0;
+
+		const unsigned int vndr_cap = pci_read_config32(dev, offset + 4);
+		if ((vndr_cap & 0xffff) == cap)
+			return offset + 4;
+	}
+}
+
+/**
+ * Find a PCIe device with a given serial number, and a given VID if applicable
+ *
+ * @param serial The serial number of the device.
+ * @param vid Vendor ID of the device, may be 0 if not applicable.
+ * @param from Pointer to the device structure, used as a starting point in
+ *             the linked list of all_devices, which can be 0 to start at the
+ *             head of the list (i.e. all_devices).
+ * @return Pointer to the device struct.
+ */
+struct device *pcie_find_dsn(const uint64_t serial, const uint16_t vid,
+			struct device *from)
+{
+	union dsn {
+		struct {
+			uint32_t dsn_low;
+			uint32_t dsn_high;
+		};
+		uint64_t dsn;
+	} dsn;
+	unsigned int cap;
+	uint16_t vendor_id;
+
+	if (!from)
+		from = all_devices;
+	else
+		from = from->next;
+
+	while (from) {
+		if (from->path.type == DEVICE_PATH_PCI) {
+			cap = pciexp_find_extended_cap(from, PCI_EXT_CAP_ID_DSN, 0);
+			/*
+			 * For PCIe device, find extended capability for serial number.
+			 * The capability header is 4 bytes, followed by lower 4 bytes
+			 * of serial number, then higher 4 byes of serial number.
+			 */
+			if (cap != 0) {
+				dsn.dsn_low = pci_read_config32(from, cap + 4);
+				dsn.dsn_high = pci_read_config32(from, cap + 8);
+				vendor_id = pci_read_config16(from, PCI_VENDOR_ID);
+				if ((dsn.dsn == serial) && (vid == 0 || vendor_id == vid))
+					return from;
+			}
+		}
+
+		from = from->next;
+	}
+
+	return from;
 }
 
 /*
@@ -159,8 +262,7 @@ static bool _pciexp_enable_ltr(struct device *parent, unsigned int parent_cap,
 		return true;
 
 	if (parent &&
-	    (parent->path.type != DEVICE_PATH_PCI ||
-	     !_pciexp_ltr_supported(parent, parent_cap) ||
+	    (!_pciexp_ltr_supported(parent, parent_cap) ||
 	     !_pciexp_ltr_enabled(parent, parent_cap)))
 		return false;
 
@@ -183,7 +285,9 @@ static void pciexp_enable_ltr(struct device *dev)
 	unsigned int parent_cap = 0;
 	if (!dev->ops->ops_pci || !dev->ops->ops_pci->get_ltr_max_latencies) {
 		parent = dev->bus->dev;
-		parent_cap = pci_find_capability(dev, PCI_CAP_ID_PCIE);
+		if (parent->path.type != DEVICE_PATH_PCI)
+			return;
+		parent_cap = pci_find_capability(parent, PCI_CAP_ID_PCIE);
 		if (!parent_cap)
 			return;
 	}
@@ -212,7 +316,7 @@ static void pciexp_configure_ltr(struct device *parent, unsigned int parent_cap,
 	if (!_pciexp_enable_ltr(parent, parent_cap, dev, cap))
 		return;
 
-	const unsigned int ltr_cap = pciexp_find_extended_cap(dev, PCIE_EXT_CAP_LTR_ID);
+	const unsigned int ltr_cap = pciexp_find_extended_cap(dev, PCIE_EXT_CAP_LTR_ID, 0);
 	if (!ltr_cap)
 		return;
 
@@ -337,13 +441,16 @@ static void pciexp_config_L1_sub_state(struct device *root, struct device *dev)
 	if (dev->path.pci.devfn & 0x7)
 		return;
 
-	root_cap = pciexp_find_extended_cap(root, PCIE_EXT_CAP_L1SS_ID);
+	root_cap = pciexp_find_extended_cap(root, PCIE_EXT_CAP_L1SS_ID, 0);
 	if (!root_cap)
 		return;
 
-	end_cap = pciexp_find_extended_cap(dev, PCIE_EXT_CAP_L1SS_ID);
+	end_cap = pciexp_find_extended_cap(dev, PCIE_EXT_CAP_L1SS_ID, 0);
 	if (!end_cap) {
-		end_cap = pciexp_find_extended_cap(dev, 0xcafe);
+		if (dev->vendor != PCI_VID_INTEL)
+			return;
+
+		end_cap = pciexp_find_ext_vendor_cap(dev, 0xcafe, 0);
 		if (!end_cap)
 			return;
 	}
@@ -476,6 +583,30 @@ static void pciexp_set_max_payload_size(struct device *root, unsigned int root_c
 	printk(BIOS_INFO, "PCIe: Max_Payload_Size adjusted to %d\n", (1 << (max_payload + 7)));
 }
 
+/*
+ * Clear Lane Error State at the end of PCIe link training.
+ * Lane error status is cleared if PCIEXP_LANE_ERR_STAT_CLEAR is set.
+ * Lane error is normal during link training, so we need to clear it.
+ * At this moment, link has been used, but for a very short duration.
+ */
+static void clear_lane_error_status(struct device *dev)
+{
+	u32 reg32;
+	u16 pos;
+
+	pos = pciexp_find_extended_cap(dev, PCI_EXP_SEC_CAP_ID, 0);
+	if (pos == 0)
+		return;
+
+	reg32 = pci_read_config32(dev, pos + PCI_EXP_SEC_LANE_ERR_STATUS);
+	if (reg32 == 0)
+		return;
+
+	printk(BIOS_DEBUG, "%s: Clear Lane Error Status.\n", dev_path(dev));
+	printk(BIOS_DEBUG, "LaneErrStat:0x%x\n", reg32);
+	pci_write_config32(dev, pos + PCI_EXP_SEC_LANE_ERR_STATUS, reg32);
+}
+
 static void pciexp_tune_dev(struct device *dev)
 {
 	struct device *root = dev->bus->dev;
@@ -504,6 +635,10 @@ static void pciexp_tune_dev(struct device *dev)
 	/* Check for and enable ASPM */
 	if (CONFIG(PCIEXP_ASPM))
 		pciexp_enable_aspm(root, root_cap, dev, cap);
+
+	/* Clear PCIe Lane Error Status */
+	if (CONFIG(PCIEXP_LANE_ERR_STAT_CLEAR))
+		clear_lane_error_status(root);
 
 	/* Adjust Max_Payload_Size of link ends. */
 	pciexp_set_max_payload_size(root, root_cap, dev, cap);
@@ -590,6 +725,7 @@ static struct device_operations pciexp_hotplug_dummy_ops = {
 
 void pciexp_hotplug_scan_bridge(struct device *dev)
 {
+	dev->hotplug_port = 1;
 	dev->hotplug_buses = CONFIG_PCIEXP_HOTPLUG_BUSES;
 
 	/* Normal PCIe Scan */

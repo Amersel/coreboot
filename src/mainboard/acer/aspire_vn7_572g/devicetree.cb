@@ -32,9 +32,7 @@ chip soc/intel/skylake
 		[PchSerialIoIndexUart2]	= PchSerialIoSkipInit,
 	}"
 
-	device cpu_cluster 0 on
-		device lapic 0 on end
-	end
+	device cpu_cluster 0 on end
 	device domain 0 on
 		subsystemid 0x1025 0x1037 inherit
 		device ref system_agent	on
@@ -235,7 +233,7 @@ chip soc/intel/skylake
 				register "generic.desc" = ""Synaptics Touchpad""
 				register "generic.irq" = "ACPI_IRQ_WAKE_LEVEL_LOW(GPP_B3_IRQ)"
 #				register "generic.wake" = "GPE0_DW2_16"	# FIXME: Use EC's GPE?
-				register "generic.probed" = "1"
+				register "generic.detect" = "1"
 				register "hid_desc_reg_offset" = "0x20"
 				device i2c 0x2c on end
 			end
@@ -244,7 +242,7 @@ chip soc/intel/skylake
 				register "generic.hid" = ""ELAN0501""
 				register "generic.desc" = ""ELAN Touchpad""
 				register "generic.irq" = "ACPI_IRQ_LEVEL_LOW(GPP_B3_IRQ)"
-				register "generic.probed" = "1"
+				register "generic.detect" = "1"
 				register "hid_desc_reg_offset" = "0x01"
 				device i2c 0x15 on end
 			end

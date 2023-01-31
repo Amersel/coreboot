@@ -35,7 +35,7 @@ static void pch_enable_ioapic(struct device *dev)
 	/* affirm full set of redirection table entries ("write once") */
 	ioapic_lock_max_vectors(VIO_APIC_VADDR);
 
-	setup_ioapic(VIO_APIC_VADDR, 0x01);
+	register_new_ioapic_gsi0(VIO_APIC_VADDR);
 }
 
 static void pch_enable_serial_irqs(struct device *dev)
@@ -96,7 +96,7 @@ static void pch_pirq_init(struct device *dev)
 	for (irq_dev = all_devices; irq_dev; irq_dev = irq_dev->next) {
 		u8 int_pin=0;
 
-		if (!irq_dev->enabled || irq_dev->path.type != DEVICE_PATH_PCI)
+		if (!is_enabled_pci(irq_dev))
 			continue;
 
 		int_pin = pci_read_config8(irq_dev, PCI_INTERRUPT_PIN);
@@ -265,10 +265,6 @@ static void mobile5_pm_init(struct device *dev)
 	(void)RCBA32(0x1d44);
 	RCBA32(0x1d48) = 0x00030000;
 	(void)RCBA32(0x1d48);
-	RCBA32(0x1e80) = 0x000c0801;
-	(void)RCBA32(0x1e80);
-	RCBA32(0x1e84) = 0x000200f0;
-	(void)RCBA32(0x1e84);
 
 	const u32 rcba2010[] = {
 		/* 2010: */ 0x00188200, 0x14000016, 0xbc4abcb5, 0x00000000,

@@ -6,9 +6,7 @@ fw_config
 end
 chip soc/intel/alderlake
 
-	device cpu_cluster 0 on
-		device lapic 0 on end
-	end
+	device cpu_cluster 0 on end
 
 	# GPE configuration
 	# Note that GPE events called out in ASL code rely on this
@@ -143,10 +141,6 @@ chip soc/intel/alderlake
 	register "pch_hda_idisp_link_frequency" = "HDA_LINKFREQ_96MHZ"
 	register "pch_hda_idisp_codec_enable" = "1"
 
-	# set EPP to 45%: 45 * 256/100 = 115 = 0x73
-	register "enable_energy_perf_pref" = "true"
-	register "energy_perf_pref_value" = "0x73"
-
 	# Intel Common SoC Config
 	register "common_soc_config" = "{
 		.gspi[1] = {
@@ -171,7 +165,7 @@ chip soc/intel/alderlake
 	}"
 
 	device domain 0 on
-		device ref pcie5 on end
+		device ref pcie5_0 on end
 		device ref igpu on end
 		device ref dtt on end
 		device ref ipu on
@@ -273,7 +267,6 @@ chip soc/intel/alderlake
 				register "generic.enable_delay_ms" = "1"
 				register "generic.reset_delay_ms" = "300"
 				register "generic.has_power_resource" = "1"
-				register "generic.disable_gpio_export_in_crs" = "1"
 				register "hid_desc_reg_offset" = "0x01"
 				device i2c 0a on end
 			end
@@ -283,7 +276,7 @@ chip soc/intel/alderlake
 				register "generic.irq" = "ACPI_IRQ_WAKE_LEVEL_LOW(GPP_D11_IRQ)"
 				register "generic.enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPP_H1)"
 				register "generic.wake" = "GPE0_DW1_11"
-				register "generic.probed" = "1"
+				register "generic.detect" = "1"
 				register "generic.has_power_resource" = "1"
 				device i2c 15 on end
 			end

@@ -194,4 +194,32 @@ void get_cpu_topology_from_apicid(uint32_t apicid, uint8_t *package,
  */
 void init_core_prmrr(void);
 
+/*
+ * Check if TME is supported by the CPU
+ *
+ * coreboot shall detect the existence of TME feature by running CPUID instruction:
+ * CPUID leaf 7/sub-leaf 0: Return Value in ECX [bit 13] = 1
+ */
+bool is_tme_supported(void);
+
+/*
+ * Set TME core activate MSR
+ *
+ * Write zero to TME core activate MSR will translate the TME_ACTIVATE[MK_TME_KEYID_BITS]
+ * value into PMH mask register.
+ * TME_ACTIVATE[MK_TME_KEYID_BITS] = MSR 0x982 Bits[32-35]
+ */
+void set_tme_core_activate(void);
+
+/*
+ * This function checks if the CPU supports SGX feature.
+ * Returns true if SGX feature is supported otherwise false.
+ */
+bool is_sgx_supported(void);
+
+/*
+ * This function checks if the CPU supports Key Locker feature.
+ * Returns true if Key Locker feature is supported otherwise false.
+ */
+bool is_keylocker_supported(void);
 #endif	/* SOC_INTEL_COMMON_BLOCK_CPULIB_H */

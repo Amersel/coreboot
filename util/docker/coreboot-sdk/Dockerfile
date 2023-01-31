@@ -29,15 +29,15 @@ RUN \
 		device-tree-compiler \
 		dh-autoreconf \
 		diffutils \
-		doxygen \
 		exuberant-ctags \
 		flex \
 		g++ \
 		gawk \
 		gcc \
 		git \
-		gnat \
+		gnat-12 \
 		golang \
+		graphicsmagick-imagemagick-compat \
 		graphviz \
 		lcov \
 		libcrypto++-dev \
@@ -69,7 +69,10 @@ RUN \
 		pkg-config \
 		python2 \
 		python3 \
-		qemu \
+		qemu-system-arm \
+		qemu-system-misc \
+		qemu-system-ppc \
+		qemu-system-x86 \
 		rsync \
 		shellcheck \
 		subversion \
@@ -134,10 +137,6 @@ RUN \
   make -C coreboot filelist && \
   make -C coreboot ctags-project && \
   make -C coreboot cscope-project
-
-RUN \
-  cd /tmp/work && \
-  make -C coreboot doxygen -j
 
 RUN \
   cd /tmp/work && \

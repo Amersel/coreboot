@@ -1,27 +1,28 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <bl31.h>
+#include <boardid.h>
 #include <bootmode.h>
 #include <console/console.h>
 #include <delay.h>
 #include <device/device.h>
 #include <device/mmio.h>
+#include <ec/google/chromeec/ec.h>
 #include <edid.h>
 #include <framebuffer_info.h>
 #include <gpio.h>
+#include <soc/bl31.h>
 #include <soc/ddp.h>
 #include <soc/dpm.h>
 #include <soc/dptx.h>
-#include <soc/gpio.h>
 #include <soc/i2c.h>
 #include <soc/msdc.h>
 #include <soc/mtcmos.h>
+#include <soc/pcie.h>
 #include <soc/spm.h>
 #include <soc/usb.h>
+#include <types.h>
 
 #include "gpio.h"
-
-#include <arm-trusted-firmware/include/export/plat/mediatek/common/plat_params_exp.h>
 
 /* GPIO to schematics names */
 #define GPIO_AP_EDP_BKLTEN GPIO(DGI_D5)
@@ -29,15 +30,31 @@
 #define GPIO_EDP_HPD_1V8 GPIO(GPIO_07)
 #define GPIO_EN_PP3300_DISP_X GPIO(I2SO1_D2)
 
-static void register_reset_to_bl31(void)
+bool mainboard_needs_pcie_init(void)
 {
-	static struct bl_aux_param_gpio param_reset = {
-		.h = { .type = BL_AUX_PARAM_MTK_RESET_GPIO },
-		.gpio = { .polarity = ARM_TF_GPIO_LEVEL_HIGH },
-	};
+	uint32_t sku = sku_id();
 
-	param_reset.gpio.index = GPIO_RESET.id;
-	register_bl31_aux_param(&param_reset.h);
+	if (sku == CROS_SKU_UNKNOWN) {
+		printk(BIOS_WARNING, "Unknown SKU (%#x); assuming PCIe", sku);
+		return true;
+	} else if (sku == CROS_SKU_UNPROVISIONED) {
+		printk(BIOS_WARNING, "Unprovisioned SKU (%#x); assuming PCIe", sku);
+		return true;
+	}
+
+	/*
+	 * All cherry boards share the same SKU encoding. Therefore there is no need to check
+	 * the board here.
+	 * - BIT(1): NVMe (PCIe)
+	 * - BIT(3): UFS (which takes precedence over BIT(1))
+	 */
+	if (sku & BIT(3))
+		return false;
+	if (sku & BIT(1))
+		return true;
+
+	/* Otherwise, eMMC */
+	return false;
 }
 
 /* Set up backlight control pins as output pin and power-off by default */
@@ -132,7 +149,8 @@ static void mainboard_init(struct device *dev)
 	if (spm_init())
 		printk(BIOS_ERR, "spm init failed, system suspend may not work\n");
 
-	register_reset_to_bl31();
+	if (CONFIG(ARM64_USE_ARM_TRUSTED_FIRMWARE))
+		register_reset_to_bl31(GPIO_RESET.id, true);
 }
 
 static void mainboard_enable(struct device *dev)

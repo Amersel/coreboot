@@ -1,9 +1,11 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <console/console.h>
 #include <cbmem.h>
+#include <console/console.h>
 #include <delay.h>
+#include <device/mmio.h>
 #include <intelblocks/crashlog.h>
+#include <intelblocks/pmc_ipc.h>
 #include <string.h>
 
 int __weak cl_get_cpu_record_size(void)
@@ -143,16 +145,18 @@ int pmc_cl_gen_descriptor_table(u32 desc_table_addr,
 	printk(BIOS_DEBUG, "CL PMC desc table: numb of regions is 0x%x at addr 0x%x\n",
 	       descriptor_table->numb_regions, desc_table_addr);
 	for (int i = 0; i < descriptor_table->numb_regions; i++) {
+		if (i >= ARRAY_SIZE(descriptor_table->regions)) {
+			printk(BIOS_ERR, "Maximum number of PMC crashLog descriptor table exceeded (%u/%zu)\n",
+			descriptor_table->numb_regions,
+			ARRAY_SIZE(descriptor_table->regions));
+			break;
+		}
 		desc_table_addr += 4;
 		descriptor_table->regions[i].data = read32((u32 *)(desc_table_addr));
 		total_data_size += descriptor_table->regions[i].bits.size * sizeof(u32);
 		printk(BIOS_DEBUG, "CL PMC desc table: region 0x%x has size 0x%x at offset 0x%x\n",
 			i, descriptor_table->regions[i].bits.size,
 			descriptor_table->regions[i].bits.offset);
-		if (i > 255) {
-			printk(BIOS_ERR, "More than 255 regions in PMC crashLog descriptor table");
-			break;
-		}
 	}
 	return total_data_size;
 }
@@ -329,7 +333,7 @@ void cl_get_pmc_sram_data(void)
 	/* allocate mem for the record to be copied */
 	unsigned long pmc_cl_cbmem_addr;
 
-	pmc_cl_cbmem_addr = (unsigned long) cbmem_add(CBMEM_ID_PMC_CRASHLOG,
+	pmc_cl_cbmem_addr = (unsigned long)cbmem_add(CBMEM_ID_PMC_CRASHLOG,
 						pmc_crashLog_size);
 	if (!pmc_cl_cbmem_addr) {
 		printk(BIOS_ERR, "Unable to allocate CBMEM PMC crashLog entry.\n");
@@ -337,7 +341,7 @@ void cl_get_pmc_sram_data(void)
 	}
 
 	memset((void *)pmc_cl_cbmem_addr, 0, pmc_crashLog_size);
-	dest = (u32 *)(uintptr_t) pmc_cl_cbmem_addr;
+	dest = (u32 *)(uintptr_t)pmc_cl_cbmem_addr;
 	bool pmc_sram = true;
 	pmc_crashlog_desc_table_t descriptor_table =  cl_get_pmc_descriptor_table();
 	if (discovery_buf.bits.discov_mechanism == 1) {
@@ -400,16 +404,16 @@ void cl_get_cpu_sram_data(void)
 
 	/* allocate memory buffers for CPU crashog data to be copied */
 	unsigned long cpu_crashlog_cbmem_addr;
-	cpu_crashlog_cbmem_addr = (unsigned long) cbmem_add(CBMEM_ID_CPU_CRASHLOG,
+	cpu_crashlog_cbmem_addr = (unsigned long)cbmem_add(CBMEM_ID_CPU_CRASHLOG,
 								m_cpu_crashLog_size);
 	if (!cpu_crashlog_cbmem_addr) {
 		printk(BIOS_ERR, "Failed to add CPU main crashLog entries to CBMEM.\n");
 		return;
 	}
 
-	memset((void *) cpu_crashlog_cbmem_addr, 0, m_cpu_crashLog_size);
+	memset((void *)cpu_crashlog_cbmem_addr, 0, m_cpu_crashLog_size);
 	tmp_bar_addr = cl_get_cpu_bar_addr();
-	dest = (u32 *)(uintptr_t) cpu_crashlog_cbmem_addr;
+	dest = (u32 *)(uintptr_t)cpu_crashlog_cbmem_addr;
 	bool pmc_sram = false;
 
 	for (int i = 0 ; i < cpu_cl_disc_tab.header.fields.count ; i++) {

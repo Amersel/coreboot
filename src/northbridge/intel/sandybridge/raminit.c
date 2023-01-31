@@ -31,11 +31,11 @@ static void wait_txt_clear(void)
 		return;
 
 	/* Some TXT public bit */
-	if (!(read32((void *)0xfed30010) & 1))
+	if (!(read32p(0xfed30010) & 1))
 		return;
 
 	/* Wait for TXT clear */
-	while (!(read8((void *)0xfed40000) & (1 << 7)))
+	while (!(read8p(0xfed40000) & (1 << 7)))
 		;
 }
 
@@ -107,7 +107,7 @@ static void setup_sdram_meminfo(ramctr_timing *ctrl)
 
 	/* The 'spd_add_smbios17' function allocates this CBMEM area */
 	struct memory_info *m = cbmem_find(CBMEM_ID_MEMINFO);
-	if (m == NULL)
+	if (!m)
 		return;
 
 	const uint32_t capid0_a = pci_read_config32(HOST_BRIDGE, CAPID0_A);

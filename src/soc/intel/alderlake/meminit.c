@@ -11,7 +11,7 @@
 #define DDR4_PHYSICAL_CH_WIDTH		64
 #define DDR4_CHANNELS			CHANNEL_COUNT(DDR4_PHYSICAL_CH_WIDTH)
 
-#define DDR5_PHYSICAL_CH_WIDTH		32
+#define DDR5_PHYSICAL_CH_WIDTH		64 /* 32*2 */
 #define DDR5_CHANNELS			CHANNEL_COUNT(DDR5_PHYSICAL_CH_WIDTH)
 
 static void set_rcomp_config(FSP_M_CONFIG *mem_cfg, const struct mb_cfg *mb_cfg)
@@ -62,18 +62,16 @@ static const struct soc_mem_cfg soc_mem_cfg[] = {
 		.num_phys_channels = DDR5_CHANNELS,
 		.phys_to_mrc_map = {
 			[0] = 0,
-			[1] = 1,
-			[2] = 4,
-			[3] = 5,
+			[1] = 4,
 		},
 		.md_phy_masks = {
 			/*
-			 * Physical channels 0 and 1 are populated in case of
-			 * half-populated configurations.
+			 * Only channel 0 is populated in case of half-populated
+			 * configuration.
 			 */
-			.half_channel = BIT(0) | BIT(1),
-			/* In mixed topologies, channels 2 and 3 are always memory-down. */
-			.mixed_topo = BIT(2) | BIT(3),
+			.half_channel = BIT(0),
+			/* In mixed topologies, channel 1 is always memory-down. */
+			.mixed_topo = BIT(1),
 		},
 	},
 	[MEM_TYPE_LP4X] = {

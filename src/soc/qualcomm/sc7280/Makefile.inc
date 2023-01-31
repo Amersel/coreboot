@@ -1,3 +1,4 @@
+## SPDX-License-Identifier: GPL-2.0-only
 ifeq ($(CONFIG_SOC_QUALCOMM_SC7280),y)
 
 decompressor-y += decompressor.c
@@ -7,6 +8,7 @@ all-y += ../common/timer.c
 all-y += ../common/gpio.c
 all-y += ../common/clock.c
 all-y += clock.c
+all-y += socinfo.c
 all-y += ../common/spi.c
 all-$(CONFIG_SC7280_QSPI) += ../common/qspi.c
 all-y += ../common/qupv3_config.c
@@ -30,9 +32,11 @@ romstage-y += shrm_load_reset.c
 romstage-y += cpucp_load_reset.c
 romstage-y += ../common/qclib.c
 romstage-y += ../common/mmu.c
+romstage-y += ../common/watchdog.c
 romstage-y += mmu.c
 romstage-y += ../common/usb/usb.c
 romstage-y += carve_out.c
+romstage-y += ../common/aop_load_reset.c
 romstage-$(CONFIG_DRIVERS_UART) += ../common/qupv3_uart.c
 
 ################################################################################
@@ -43,8 +47,14 @@ ramstage-$(CONFIG_DRIVERS_UART) += ../common/qupv3_uart.c
 ramstage-y += ../common/usb/usb.c
 ramstage-y += ../common/usb/snps_usb_phy.c
 ramstage-y += ../common/usb/qmpv4_usb_phy.c
-ramstage-y += ../common/aop_load_reset.c
 ramstage-y += cpucp_load_reset.c
+ramstage-$(CONFIG_MAINBOARD_DO_NATIVE_VGA_INIT) += display/edp_aux.c
+ramstage-$(CONFIG_MAINBOARD_DO_NATIVE_VGA_INIT) += display/edp_ctrl.c
+ramstage-$(CONFIG_MAINBOARD_DO_NATIVE_VGA_INIT) += display/edp_phy_7nm.c
+ramstage-$(CONFIG_MAINBOARD_DO_NATIVE_VGA_INIT) += ../common/display/mdss.c
+ramstage-$(CONFIG_MAINBOARD_DO_NATIVE_VGA_INIT) += display/disp.c
+ramstage-$(CONFIG_PCI) += ../common/pcie_common.c
+ramstage-$(CONFIG_PCI) += pcie.c
 
 ################################################################################
 

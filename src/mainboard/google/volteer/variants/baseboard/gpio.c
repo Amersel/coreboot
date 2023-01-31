@@ -437,7 +437,7 @@ static const struct pad_config early_gpio_table[] = {
 	PAD_CFG_GPI(GPP_A9, NONE, DEEP),
 };
 
-const struct pad_config *__weak variant_base_gpio_table(size_t *num)
+const struct pad_config *baseboard_gpio_table(size_t *num)
 {
 	*num = ARRAY_SIZE(gpio_table);
 	return gpio_table;
@@ -457,6 +457,12 @@ const struct pad_config *__weak variant_early_gpio_table(size_t *num)
 
 const struct pad_config *__weak variant_sleep_gpio_table(u8 slp_typ,
 		size_t *num)
+{
+	*num = 0;
+	return NULL;
+}
+
+const struct pad_config *__weak variant_romstage_gpio_table(size_t *num)
 {
 	*num = 0;
 	return NULL;

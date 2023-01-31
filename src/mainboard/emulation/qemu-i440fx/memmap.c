@@ -22,11 +22,11 @@ unsigned long qemu_get_high_memory_size(void)
 {
 	unsigned long high;
 	outb(HIGH_HIGHRAM_ADDR, CMOS_ADDR_PORT);
-	high = ((unsigned long) inb(CMOS_DATA_PORT)) << 22;
+	high = ((unsigned long)inb(CMOS_DATA_PORT)) << 22;
 	outb(MID_HIGHRAM_ADDR, CMOS_ADDR_PORT);
-	high |= ((unsigned long) inb(CMOS_DATA_PORT)) << 14;
+	high |= ((unsigned long)inb(CMOS_DATA_PORT)) << 14;
 	outb(LOW_HIGHRAM_ADDR, CMOS_ADDR_PORT);
-	high |= ((unsigned long) inb(CMOS_DATA_PORT)) << 6;
+	high |= ((unsigned long)inb(CMOS_DATA_PORT)) << 6;
 	return high;
 }
 
@@ -34,14 +34,14 @@ unsigned long qemu_get_memory_size(void)
 {
 	unsigned long tomk;
 	outb(HIGH_RAM_ADDR, CMOS_ADDR_PORT);
-	tomk = ((unsigned long) inb(CMOS_DATA_PORT)) << 14;
+	tomk = ((unsigned long)inb(CMOS_DATA_PORT)) << 14;
 	outb(LOW_RAM_ADDR, CMOS_ADDR_PORT);
-	tomk |= ((unsigned long) inb(CMOS_DATA_PORT)) << 6;
+	tomk |= ((unsigned long)inb(CMOS_DATA_PORT)) << 6;
 	tomk += 16 * 1024;
 	return tomk;
 }
 
-void *cbmem_top_chipset(void)
+uintptr_t cbmem_top_chipset(void)
 {
 	uintptr_t top = 0;
 
@@ -56,7 +56,7 @@ void *cbmem_top_chipset(void)
 		smm_region(&top, &smm_size);
 	}
 
-	return (void *)top;
+	return top;
 }
 
 /* Nothing to do, MTRRs are no-op on QEMU. */

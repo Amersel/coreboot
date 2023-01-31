@@ -3,7 +3,7 @@
 #ifndef __BASEBOARD_VARIANTS_H__
 #define __BASEBOARD_VARIANTS_H__
 
-#include <amdblocks/gpio.h>
+#include <gpio.h>
 #include <soc/pci_devs.h>
 #include <platform_descriptors.h>
 
@@ -12,13 +12,8 @@
 #define WWAN_DEVFN	PCIE_GPP_2_2_DEVFN
 #define NVME_DEVFN	PCIE_GPP_2_3_DEVFN
 
-/*
- * This function provides base GPIO configuration table. It is typically provided by
- * baseboard using a weak implementation. If GPIO configuration for a variant differs
- * significantly from the baseboard, then the variant can also provide a strong implementation
- * of this function.
- */
-const struct soc_amd_gpio *variant_base_gpio_table(size_t *size);
+/* This function provides base GPIO configuration table. */
+const struct soc_amd_gpio *baseboard_gpio_table(size_t *size);
 /*
  * These functions allow variants to override any GPIOs that are different than the base GPIO
  * configuration provided without having to replace the entire file.
@@ -26,7 +21,7 @@ const struct soc_amd_gpio *variant_base_gpio_table(size_t *size);
 const struct soc_amd_gpio *variant_override_gpio_table(size_t *size);
 const struct soc_amd_gpio *variant_early_override_gpio_table(size_t *size);
 const struct soc_amd_gpio *variant_bootblock_override_gpio_table(size_t *size);
-const struct soc_amd_gpio *variant_pcie_override_gpio_table(size_t *size);
+const struct soc_amd_gpio *variant_romstage_override_gpio_table(size_t *size);
 
 /* This function provides early GPIO init in early bootblock or psp. */
 const struct soc_amd_gpio *variant_early_gpio_table(size_t *size);
@@ -35,7 +30,7 @@ const struct soc_amd_gpio *variant_early_gpio_table(size_t *size);
 const struct soc_amd_gpio *variant_bootblock_gpio_table(size_t *size);
 
 /* This function provides GPIO settings before PCIe enumeration. */
-const struct soc_amd_gpio *variant_pcie_gpio_table(size_t *size);
+const struct soc_amd_gpio *baseboard_romstage_gpio_table(size_t *size);
 
 /* This function provides GPIO settings for eSPI bus. */
 const struct soc_amd_gpio *variant_espi_gpio_table(size_t *size);

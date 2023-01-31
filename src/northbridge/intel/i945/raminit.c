@@ -1,22 +1,25 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <cf9_reset.h>
 #include <console/console.h>
 #include <delay.h>
-#include <device/pci_def.h>
-#include <device/pci_ops.h>
-#include <device/smbus_host.h>
-#include <cf9_reset.h>
-#include <device/mmio.h>
 #include <device/device.h>
+#include <device/dram/ddr2.h>
+#include <device/mmio.h>
+#include <device/pci_ops.h>
+#include <device/pci_type.h>
+#include <device/smbus_host.h>
+#include <inttypes.h>
 #include <lib.h>
 #include <pc80/mc146818rtc.h>
 #include <spd.h>
 #include <string.h>
+#include <timestamp.h>
+#include <types.h>
+
 #include "raminit.h"
 #include "i945.h"
 #include "chip.h"
-#include <device/dram/ddr2.h>
-#include <timestamp.h>
 
 /* Debugging macros. */
 #if CONFIG(DEBUG_RAM_SETUP)
@@ -72,9 +75,9 @@ static __attribute__((noinline)) void do_ram_command(u32 command)
 
 static void ram_read32(uintptr_t offset)
 {
-	PRINTK_DEBUG("   RAM read: %08x\n", offset);
+	PRINTK_DEBUG("   RAM read: %" PRIxPTR "\n", offset);
 
-	read32((void *)offset);
+	read32p(offset);
 }
 
 void sdram_dump_mchbar_registers(void)
@@ -213,7 +216,7 @@ static int sdram_capabilities_core_frequencies(void)
 static void sdram_detect_errors(struct sys_info *sysinfo)
 {
 	u8 reg8;
-	u8 do_reset = 0;
+	bool do_reset = false;
 
 	reg8 = pci_read_config8(PCI_DEV(0, 0x1f, 0), GEN_PMCON_2);
 
@@ -222,7 +225,7 @@ static void sdram_detect_errors(struct sys_info *sysinfo)
 			printk(BIOS_DEBUG, "SLP S4# Assertion Width Violation.\n");
 			/* Write back clears bit 2 */
 			pci_write_config8(PCI_DEV(0, 0x1f, 0), GEN_PMCON_2, reg8);
-			do_reset = 1;
+			do_reset = true;
 
 		}
 
@@ -230,7 +233,7 @@ static void sdram_detect_errors(struct sys_info *sysinfo)
 			printk(BIOS_DEBUG, "DRAM initialization was interrupted.\n");
 			reg8 &= ~(1 << 7);
 			pci_write_config8(PCI_DEV(0, 0x1f, 0), GEN_PMCON_2, reg8);
-			do_reset = 1;
+			do_reset = true;
 		}
 
 		/* Set SLP_S3# Assertion Stretch Enable */
@@ -255,12 +258,12 @@ static void sdram_detect_errors(struct sys_info *sysinfo)
 		if (((sysinfo->dimm[0] != SYSINFO_DIMM_NOT_POPULATED) ||
 		     (sysinfo->dimm[1] != SYSINFO_DIMM_NOT_POPULATED)) &&
 		    !(mchbar_read8(SLFRCS) & (1 << 0))) {
-			do_reset = 1;
+			do_reset = true;
 		}
 		if (((sysinfo->dimm[2] != SYSINFO_DIMM_NOT_POPULATED) ||
 		     (sysinfo->dimm[3] != SYSINFO_DIMM_NOT_POPULATED)) &&
 		    !(mchbar_read8(SLFRCS) & (1 << 1))) {
-			do_reset = 1;
+			do_reset = true;
 		}
 	}
 
@@ -311,10 +314,10 @@ static void gather_common_timing(struct sys_info *sysinfo, struct timings *saved
 
 	printk(BIOS_DEBUG, "This mainboard supports ");
 	if (sdram_capabilities_dual_channel()) {
-		sysinfo->dual_channel = 1;
+		sysinfo->dual_channel = true;
 		printk(BIOS_DEBUG, "Dual Channel Operation.\n");
 	} else {
-		sysinfo->dual_channel = 0;
+		sysinfo->dual_channel = false;
 		printk(BIOS_DEBUG, "only Single Channel Operation.\n");
 	}
 
@@ -423,11 +426,12 @@ static void gather_common_timing(struct sys_info *sysinfo, struct timings *saved
 			die("DDR-II rank size smaller than 128MB is not supported.\n");
 
 		sysinfo->banksize[i * 2] = dimm_info.ranksize_mb / 32;
-		printk(BIOS_DEBUG, "DIMM %d side 0 = %d MB\n", i, sysinfo->banksize[i * 2] * 32);
+		printk(BIOS_DEBUG, "DIMM %d side 0 = %zu MB\n", i,
+			sysinfo->banksize[i * 2] * 32);
 		if (dimm_info.ranks == 2) {
 			sysinfo->banksize[(i * 2) + 1] =
 				dimm_info.ranksize_mb / 32;
-			printk(BIOS_DEBUG, "DIMM %d side 1 = %d MB\n",
+			printk(BIOS_DEBUG, "DIMM %d side 1 = %zu MB\n",
 				i, sysinfo->banksize[(i * 2) + 1] * 32);
 		}
 
@@ -762,7 +766,7 @@ static const u8 single_channel_slew_group_lookup[] = {
 	DQ2330, NC,      CTL3215, NC,      CLK2030, CLK2030, DQ2030, CMD3210
 };
 
-static const u32 *slew_group_lookup(int dual_channel, int index)
+static const u32 *slew_group_lookup(bool dual_channel, int index)
 {
 	const u8 *slew_group;
 	/* Dual Channel needs different tables. */
@@ -899,7 +903,8 @@ static const u8 single_channel_strength_multiplier[] = {
 static void sdram_rcomp_buffer_strength_and_slew(struct sys_info *sysinfo)
 {
 	const u8 *strength_multiplier;
-	int idx, dual_channel;
+	int idx;
+	bool dual_channel;
 
 	/* Set Strength Multipliers */
 
@@ -907,12 +912,12 @@ static void sdram_rcomp_buffer_strength_and_slew(struct sys_info *sysinfo)
 	if (sdram_capabilities_dual_channel()) {
 		printk(BIOS_DEBUG, "Programming Dual Channel RCOMP\n");
 		strength_multiplier = dual_channel_strength_multiplier;
-		dual_channel = 1;
+		dual_channel = true;
 		idx = 5 * sysinfo->dimm[0] + sysinfo->dimm[2];
 	} else {
 		printk(BIOS_DEBUG, "Programming Single Channel RCOMP\n");
 		strength_multiplier = single_channel_strength_multiplier;
-		dual_channel = 0;
+		dual_channel = false;
 		idx = 5 * sysinfo->dimm[0] + sysinfo->dimm[1];
 	}
 
@@ -1138,7 +1143,7 @@ static void sdram_enable_system_memory_io(struct sys_info *sysinfo)
 static int sdram_program_row_boundaries(struct sys_info *sysinfo)
 {
 	int i;
-	int cum0, cum1, tolud, tom, pci_mmio_size;
+	size_t cum0, cum1, tolud, tom, pci_mmio_size;
 	const struct device *dev;
 	const struct northbridge_intel_i945_config *cfg = NULL;
 
@@ -1533,9 +1538,9 @@ static void sdram_set_channel_mode(struct sys_info *sysinfo)
 	     (sysinfo->banksize[4] + sysinfo->banksize[5] +
 	      sysinfo->banksize[6] + sysinfo->banksize[7]))) {
 		/* Both channels equipped with DIMMs of the same size */
-		sysinfo->interleaved = 1;
+		sysinfo->interleaved = true;
 	} else {
-		sysinfo->interleaved = 0;
+		sysinfo->interleaved = false;
 	}
 
 	reg32 = mchbar_read32(DCC);
@@ -1599,7 +1604,8 @@ static void sdram_program_pll_settings(struct sys_info *sysinfo)
 static void sdram_program_graphics_frequency(struct sys_info *sysinfo)
 {
 	u8 reg8;
-	u8 freq, second_vco, voltage;
+	u8 freq, voltage;
+	bool second_vco = false;
 
 #define CRCLK_166MHz	0x00
 #define CRCLK_200MHz	0x01
@@ -1675,10 +1681,8 @@ static void sdram_program_graphics_frequency(struct sys_info *sysinfo)
 	else
 		sysinfo->mvco4x = 0;
 
-	second_vco = 0;
-
 	if (voltage == VOLTAGE_1_50) {
-		second_vco = 1;
+		second_vco = true;
 	} else if ((i945_silicon_revision() > 0) && (freq == CRCLK_250MHz)) {
 		u16 mem = sysinfo->memory_frequency;
 		u16 fsb = sysinfo->fsb_frequency;
@@ -1686,17 +1690,14 @@ static void sdram_program_graphics_frequency(struct sys_info *sysinfo)
 		if ((fsb == 667 && mem == 533) ||
 		    (fsb == 533 && mem == 533) ||
 		    (fsb == 533 && mem == 400)) {
-			second_vco = 1;
+			second_vco = true;
 		}
 
 		if (fsb == 667 && mem == 533)
 			sysinfo->mvco4x = 1;
 	}
 
-	if (second_vco)
-		sysinfo->clkcfg_bit7 = 1;
-	else
-		sysinfo->clkcfg_bit7 = 0;
+	sysinfo->clkcfg_bit7 = second_vco;
 
 	/* Graphics Core Render Clock */
 	pci_update_config16(IGD_DEV, GCFC, ~((7 << 0) | (1 << 13)), freq);
@@ -1771,9 +1772,20 @@ static void sdram_program_memory_frequency(struct sys_info *sysinfo)
 
 	mchbar_write32(CLKCFG, clkcfg);
 
-	/* Make sure the following code is in the cache before we execute it. */
-	goto cache_code;
-vco_update:
+	/*
+	 * Make sure the following code is in the cache before we execute it.
+	 * TODO: Experiments (i945GM) without any cache_code/delay_update
+	 * _seem_ to work even when XIP is disabled. Also on Pentium 4
+	 * the code is not cached at all by default.
+	 */
+	asm volatile (
+		"	jmp cache_code\n"
+		"vco_update:\n"
+		: /* No outputs */
+		: /* No inputs */
+		: "memory"
+	);
+
 	pci_and_config8(PCI_DEV(0, 0x1f, 0), GEN_PMCON_2, (u8)~(1 << 7));
 
 	clkcfg &= ~(1 << 10);
@@ -1797,10 +1809,15 @@ vco_update:
 	clkcfg &= ~(1 << 10);
 	mchbar_write32(CLKCFG, clkcfg);
 
-	goto out;
-cache_code:
-	goto vco_update;
-out:
+	asm volatile (
+		"	jmp out\n"
+		"cache_code:\n"
+		"	jmp vco_update\n"
+		"out:\n"
+		: /* No outputs */
+		: /* No inputs */
+		: "memory"
+	);
 
 	printk(BIOS_DEBUG, "CLKCFG = 0x%08x, ", mchbar_read32(CLKCFG));
 	printk(BIOS_DEBUG, "ok\n");

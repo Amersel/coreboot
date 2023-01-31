@@ -275,7 +275,7 @@ static const struct pad_config gpio_table[] = {
 	PAD_NC(GPIO_210, DN_20K),
 };
 
-const struct pad_config *__weak variant_base_gpio_table(size_t *num)
+const struct pad_config *baseboard_gpio_table(size_t *num)
 {
 	*num = ARRAY_SIZE(gpio_table);
 	return gpio_table;
@@ -375,6 +375,13 @@ variant_sleep_gpio_table(size_t *num, int slp_typ)
 
 	*num = ARRAY_SIZE(sleep_gpio_table);
 	return sleep_gpio_table;
+}
+
+const struct pad_config *__weak
+variant_romstage_gpio_table(size_t *num)
+{
+	*num = 0;
+	return NULL;
 }
 
 static const struct cros_gpio cros_gpios[] = {

@@ -6,9 +6,9 @@
 #include <cpu/x86/msr.h>
 #include <device/device.h>
 #include <fsp/util.h>
+#include <gpio.h>
 #include <intelblocks/cpulib.h>
 #include <option.h>
-#include <soc/gpio.h>
 #include <soc/iomap.h>
 #include <soc/msr.h>
 #include <soc/pci_devs.h>
@@ -125,9 +125,6 @@ static void soc_memory_init_params(FSP_M_CONFIG *m_cfg,
 	m_cfg->TcssItbtPcie2En = is_devfn_enabled(SA_DEVFN_TBT2);
 	m_cfg->TcssItbtPcie3En = is_devfn_enabled(SA_DEVFN_TBT3);
 
-	/* Hyper Threading */
-	m_cfg->HyperThreading = !config->HyperThreadingDisable;
-
 	/* Disable Lock PCU Thermal Management registers */
 	m_cfg->LockPTMregs = 0;
 	/* Channel Hash Mask:0x0001=BIT6 set(Minimal), 0x3FFF=BIT[19:6] set(Maximum) */
@@ -206,12 +203,27 @@ static void soc_memory_init_params(FSP_M_CONFIG *m_cfg,
 			m_cfg->CpuPcieRpEnableMask |= 1 << i;
 	}
 
-	/* Change TmeEnable UPD value according to INTEL_TME Kconfig */
-	m_cfg->TmeEnable = CONFIG(INTEL_TME);
+	m_cfg->TmeEnable = CONFIG(INTEL_TME) && is_tme_supported();
 
 	/* crashLog config */
 	m_cfg->CpuCrashLogDevice = CONFIG(SOC_INTEL_CRASHLOG) && is_devfn_enabled(SA_DEVFN_TMT);
 	m_cfg->CpuCrashLogEnable = m_cfg->CpuCrashLogDevice;
+
+	/* In-Band ECC configuration */
+	if (config->ibecc.enable) {
+		m_cfg->Ibecc = !!config->ibecc.enable;
+		m_cfg->IbeccParity = !!config->ibecc.parity_en;
+		m_cfg->IbeccOperationMode = config->ibecc.mode;
+		if (m_cfg->IbeccOperationMode == IBECC_PER_REGION) {
+			FSP_ARRAY_LOAD(m_cfg->IbeccProtectedRegionEnable,
+				       config->ibecc.region_enable);
+			FSP_ARRAY_LOAD(m_cfg->IbeccProtectedRegionBase,
+				       config->ibecc.region_base);
+			FSP_ARRAY_LOAD(m_cfg->IbeccProtectedRegionMask,
+				       config->ibecc.region_mask);
+		}
+	}
+
 }
 
 void platform_fsp_memory_init_params_cb(FSPM_UPD *mupd, uint32_t version)

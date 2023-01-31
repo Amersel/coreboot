@@ -2,17 +2,22 @@
 
 #define __SIMPLE_DEVICE__
 
+#include <assert.h>
+#include <commonlib/bsd/helpers.h>
 #include <device/device.h>
 #include <device/mmio.h>
 #include <device/pci.h>
+#include <device/pci_def.h>
 #include <device/pci_ids.h>
 #include <device/pci_ops.h>
+#include <device/pci_type.h>
 #include <device/spi.h>
 #include <intelblocks/fast_spi.h>
 #include <intelblocks/gspi.h>
 #include <intelblocks/spi.h>
 #include <soc/pci_devs.h>
 #include <spi-generic.h>
+#include <types.h>
 
 const struct spi_ctrlr_buses spi_ctrlr_bus_map[] = {
 	{ .ctrlr = &fast_spi_flash_ctrlr, .bus_start = 0, .bus_end = 0 },
@@ -110,7 +115,7 @@ static struct spi_bus_operations spi_bus_ops = {
 	.dev_to_bus			= &spi_dev_to_bus,
 };
 
-static struct device_operations spi_dev_ops = {
+struct device_operations spi_dev_ops = {
 	.read_resources			= pci_dev_read_resources,
 	.set_resources			= pci_dev_set_resources,
 	.enable_resources		= pci_dev_enable_resources,
@@ -120,13 +125,9 @@ static struct device_operations spi_dev_ops = {
 };
 
 static const unsigned short pci_device_ids[] = {
-	PCI_DID_INTEL_MTL_HWSEQ_SPI,
 	PCI_DID_INTEL_MTL_GSPI0,
 	PCI_DID_INTEL_MTL_GSPI1,
 	PCI_DID_INTEL_MTL_GSPI2,
-	PCI_DID_INTEL_SPT_SPI1,
-	PCI_DID_INTEL_SPT_SPI2,
-	PCI_DID_INTEL_SPT_SPI3,
 	PCI_DID_INTEL_APL_SPI0,
 	PCI_DID_INTEL_APL_SPI1,
 	PCI_DID_INTEL_APL_SPI2,
@@ -136,26 +137,18 @@ static const unsigned short pci_device_ids[] = {
 	PCI_DID_INTEL_CNL_SPI0,
 	PCI_DID_INTEL_CNL_SPI1,
 	PCI_DID_INTEL_CNL_SPI2,
-	PCI_DID_INTEL_CNL_HWSEQ_SPI,
 	PCI_DID_INTEL_CNP_H_SPI0,
 	PCI_DID_INTEL_CNP_H_SPI1,
 	PCI_DID_INTEL_CNP_H_SPI2,
-	PCI_DID_INTEL_CNP_H_HWSEQ_SPI,
-	PCI_DID_INTEL_LWB_SPI,
-	PCI_DID_INTEL_LWB_SPI_SUPER,
 	PCI_DID_INTEL_ICP_SPI0,
 	PCI_DID_INTEL_ICP_SPI1,
 	PCI_DID_INTEL_ICP_SPI2,
-	PCI_DID_INTEL_ICP_HWSEQ_SPI,
 	PCI_DID_INTEL_CMP_SPI0,
 	PCI_DID_INTEL_CMP_SPI1,
 	PCI_DID_INTEL_CMP_SPI2,
-	PCI_DID_INTEL_CMP_HWSEQ_SPI,
 	PCI_DID_INTEL_CMP_H_SPI0,
 	PCI_DID_INTEL_CMP_H_SPI1,
 	PCI_DID_INTEL_CMP_H_SPI2,
-	PCI_DID_INTEL_CMP_H_HWSEQ_SPI,
-	PCI_DID_INTEL_TGP_SPI0,
 	PCI_DID_INTEL_TGP_GSPI0,
 	PCI_DID_INTEL_TGP_GSPI1,
 	PCI_DID_INTEL_TGP_GSPI2,
@@ -168,17 +161,12 @@ static const unsigned short pci_device_ids[] = {
 	PCI_DID_INTEL_TGP_H_GSPI1,
 	PCI_DID_INTEL_TGP_H_GSPI2,
 	PCI_DID_INTEL_TGP_H_GSPI3,
-	PCI_DID_INTEL_MCC_SPI0,
 	PCI_DID_INTEL_MCC_GSPI0,
 	PCI_DID_INTEL_MCC_GSPI1,
 	PCI_DID_INTEL_MCC_GSPI2,
 	PCI_DID_INTEL_JSP_SPI0,
 	PCI_DID_INTEL_JSP_SPI1,
 	PCI_DID_INTEL_JSP_SPI2,
-	PCI_DID_INTEL_JSP_HWSEQ_SPI,
-	PCI_DID_INTEL_ADP_P_HWSEQ_SPI,
-	PCI_DID_INTEL_ADP_S_HWSEQ_SPI,
-	PCI_DID_INTEL_ADP_M_N_HWSEQ_SPI,
 	PCI_DID_INTEL_ADP_P_SPI0,
 	PCI_DID_INTEL_ADP_P_SPI1,
 	PCI_DID_INTEL_ADP_P_SPI2,
@@ -196,7 +184,6 @@ static const unsigned short pci_device_ids[] = {
 	PCI_DID_INTEL_ADP_M_N_SPI0,
 	PCI_DID_INTEL_ADP_M_N_SPI1,
 	PCI_DID_INTEL_ADP_M_SPI2,
-	PCI_DID_INTEL_SPR_HWSEQ_SPI,
 	PCI_DID_INTEL_DNV_SPI,
 	0
 };

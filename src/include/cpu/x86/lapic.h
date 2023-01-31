@@ -1,10 +1,12 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 #ifndef CPU_X86_LAPIC_H
 #define CPU_X86_LAPIC_H
 
-#include <arch/mmio.h>
 #include <arch/cpu.h>
 #include <cpu/x86/lapic_def.h>
 #include <cpu/x86/msr.h>
+#include <device/mmio.h>
 #include <halt.h>
 #include <stdint.h>
 
@@ -153,7 +155,9 @@ static __always_inline void lapic_send_ipi_self(uint32_t icrlow)
 	/* In case of X2APIC force a short delay, to prevent deadlock in a case
 	 * the immediately following code acquires some lock, like with printk().
 	 */
-	while (CONFIG(X2APIC_ONLY) && i--)
+	const bool x2apic = is_x2apic_mode();
+
+	while (x2apic && i--)
 		cpu_relax();
 }
 
@@ -176,6 +180,7 @@ void stop_this_cpu(void);
 #endif
 
 void enable_lapic(void);
+void enable_lapic_mode(bool try_set_x2apic);
 void disable_lapic(void);
 void setup_lapic_interrupts(void);
 

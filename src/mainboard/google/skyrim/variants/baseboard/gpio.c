@@ -3,7 +3,7 @@
 #include <baseboard/gpio.h>
 #include <baseboard/variants.h>
 #include <commonlib/helpers.h>
-#include <soc/gpio.h>
+#include <gpio.h>
 
 /* GPIO configuration in ramstage*/
 static const struct soc_amd_gpio base_gpio_table[] = {
@@ -51,7 +51,7 @@ static const struct soc_amd_gpio base_gpio_table[] = {
 	/* AC_PRES */
 	PAD_NF(GPIO_23, AC_PRES, PULL_UP),
 	/* SOC_FP_INT_L */
-	PAD_SCI(GPIO_24, PULL_NONE, EDGE_LOW),
+	PAD_SCI(GPIO_24, PULL_NONE, LEVEL_LOW),
 	/* GPIO_25: Not available */
 	/* PCIE_RST0_L */
 	PAD_NFO(GPIO_26, PCIE_RST0_L, HIGH),
@@ -68,7 +68,7 @@ static const struct soc_amd_gpio base_gpio_table[] = {
 	PAD_NF(GPIO_32, LPC_RST_L, PULL_NONE),
 	/* GPIO_33 - GPIO_39: Not available */
 	/* SOC_TCHPAD_INT_ODL */
-	PAD_SCI(GPIO_40, PULL_NONE, EDGE_LOW),
+	PAD_SCI(GPIO_40, PULL_NONE, LEVEL_LOW),
 	/* GPIO_41: Not available */
 	/* WWAN_RST_L */
 	PAD_GPO(GPIO_42, HIGH),
@@ -113,10 +113,11 @@ static const struct soc_amd_gpio base_gpio_table[] = {
 	PAD_NF(GPIO_116, CLK_REQ2_L, PULL_NONE),
 	/* SOC_FPMCU_BOOT0 */
 	PAD_GPO(GPIO_130, LOW),
+	/* Enable touchscreen, release from reset */
 	/* EN_PP3300_TCHSCR */
-	PAD_GPO(GPIO_131, LOW),
+	PAD_GPO(GPIO_131, HIGH),
 	/* TCHSCR_RESET_L */
-	PAD_GPO(GPIO_136, LOW),
+	PAD_GPO(GPIO_136, HIGH),
 	/* SOC_BIOS_WP_L */
 	PAD_GPI(GPIO_138, PULL_NONE),
 	/* EN_SPKR */
@@ -188,8 +189,9 @@ static const struct soc_amd_gpio early_gpio_table[] = {
 	PAD_GPO(GPIO_9, HIGH),
 };
 
-/* PCIE_RST needs to be brought high before FSP-M runs */
-static const struct soc_amd_gpio pcie_gpio_table[] = {
+/* Romstage GPIO configuration */
+static const struct soc_amd_gpio romstage_gpio_table[] = {
+	/* PCIE_RST needs to be brought high before FSP-M runs */
 	/* Deassert all AUX_RESET lines & PCIE_RST */
 	/* WLAN_AUX_RESET_L (ACTIVE LOW) */
 	PAD_GPO(GPIO_7, HIGH),
@@ -197,15 +199,28 @@ static const struct soc_amd_gpio pcie_gpio_table[] = {
 	PAD_NFO(GPIO_26, PCIE_RST0_L, HIGH),
 	/* SD_AUX_RESET_L  */
 	PAD_NFO(GPIO_27, PCIE_RST1_L, HIGH),
+	/* SSD_AUX_RESET_L */
+	PAD_GPO(GPIO_6, HIGH),
+	/* Enable touchscreen, hold in reset */
+	/* EN_PP3300_TCHSCR */
+	PAD_GPO(GPIO_131, HIGH),
+	/* TCHSCR_RESET_L */
+	PAD_GPO(GPIO_136, LOW),
 };
 
-__weak void variant_pcie_gpio_table(const struct soc_amd_gpio **gpio, size_t *size)
+void baseboard_romstage_gpio_table(const struct soc_amd_gpio **gpio, size_t *size)
 {
-	*size = ARRAY_SIZE(pcie_gpio_table);
-	*gpio = pcie_gpio_table;
+	*size = ARRAY_SIZE(romstage_gpio_table);
+	*gpio = romstage_gpio_table;
 }
 
-__weak void variant_base_gpio_table(const struct soc_amd_gpio **gpio, size_t *size)
+__weak void variant_romstage_override_gpio_table(const struct soc_amd_gpio **gpio, size_t *size)
+{
+	*size = 0;
+	*gpio = NULL;
+}
+
+void baseboard_gpio_table(const struct soc_amd_gpio **gpio, size_t *size)
 {
 	*size = ARRAY_SIZE(base_gpio_table);
 	*gpio = base_gpio_table;

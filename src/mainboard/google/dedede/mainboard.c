@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include <acpi/acpi.h>
+#include <acpi/acpigen.h>
 #include <baseboard/variants.h>
 #include <console/console.h>
 #include <device/device.h>
@@ -35,7 +36,7 @@ static void mainboard_init(void *chip_info)
 	const struct pad_config *override_pads;
 	size_t base_num, override_num;
 
-	base_pads = variant_base_gpio_table(&base_num);
+	base_pads = baseboard_gpio_table(&base_num);
 	override_pads = variant_override_gpio_table(&override_num);
 
 	gpio_configure_pads_with_override(base_pads, base_num,
@@ -63,10 +64,46 @@ static unsigned long mainboard_write_acpi_tables(
 	return current;
 }
 
+static void mainboard_generate_s0ix_hook(void)
+{
+	acpigen_write_if_lequal_op_int(ARG0_OP, 1);
+	variant_generate_s0ix_hook(S0IX_ENTRY);
+	acpigen_write_else();
+	variant_generate_s0ix_hook(S0IX_EXIT);
+	acpigen_write_if_end();
+}
+
+static void mainboard_fill_ssdt(const struct device *dev)
+{
+
+	acpigen_write_scope("\\_SB");
+	acpigen_write_method_serialized("MS0X", 1);
+	mainboard_generate_s0ix_hook();
+	acpigen_write_method_end(); /* Method */
+	acpigen_write_scope_end(); /* Scope */
+
+}
+
+void __weak variant_generate_s0ix_hook(enum s0ix_entry entry)
+{
+
+	/* Add board-specific MS0X entries */
+	/*
+	if (s0ix_entry == S0IX_ENTRY) {
+		implement variant operations here
+	}
+	if (s0ix_entry == S0IX_EXIT) {
+		implement variant operations here
+	}
+	*/
+}
+
+
 static void mainboard_enable(struct device *dev)
 {
 	dev->ops->init = mainboard_dev_init;
 	dev->ops->write_acpi_tables = mainboard_write_acpi_tables;
+	dev->ops->acpi_fill_ssdt = mainboard_fill_ssdt;
 }
 
 struct chip_operations mainboard_ops = {

@@ -1,14 +1,15 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/cpu.h>
+#include <adainit.h>
 #include <arch/romstage.h>
-#include <console/console.h>
-#include <cpu/x86/smm.h>
 #include <arch/symbols.h>
 #include <commonlib/helpers.h>
+#include <console/console.h>
+#include <cpu/x86/smm.h>
 #include <program_loading.h>
 #include <romstage_common.h>
 #include <security/vboot/vboot_common.h>
+#include <types.h>
 
 /* If we do not have a constrained _car_stack region size, use the
    following as a guideline for acceptable stack usage. */
@@ -32,13 +33,25 @@ void __noreturn romstage_main(void)
 		printk(BIOS_DEBUG, "Romstage stack size limited to 0x%x!\n",
 			size);
 
-	stack_base = (u32 *) (_ecar_stack - size);
+	stack_base = (u32 *)(_ecar_stack - size);
 
 	for (i = 0; i < num_guards; i++)
 		stack_base[i] = stack_guard;
 
 	if (CONFIG(VBOOT_EARLY_EC_SYNC))
 		vboot_sync_ec();
+
+	/*
+	 * We can generally jump between C and Ada code back and forth
+	 * without trouble. But since we don't have an Ada main() we
+	 * have to do some Ada package initializations that GNAT would
+	 * do there. This has to be done before calling any Ada code.
+	 *
+	 * The package initializations should not have any dependen-
+	 * cies on C code. So we can call them here early, and don't
+	 * have to worry at which point we can start to use Ada.
+	 */
+	romstage_adainit();
 
 	mainboard_romstage_entry();
 
@@ -54,5 +67,4 @@ void __noreturn romstage_main(void)
 
 	prepare_and_run_postcar();
 	/* We do not return here. */
-	die("failed to load postcar\n");
 }

@@ -51,6 +51,7 @@ extern struct device_operations pmc_ops;
 #define   SLEEP_AFTER_POWER_FAIL	(1 << 0)
 
 #define GEN_PMCON_B			0x1024
+#define   ST_FDIS_LOCK			(1 << 21)
 #define   SLP_STR_POL_LOCK		(1 << 18)
 #define   ACPI_BASE_LOCK		(1 << 17)
 #define   PM_DATA_BAR_DIS		(1 << 16)
@@ -76,6 +77,10 @@ extern struct device_operations pmc_ops;
 
 #define PRSTS				0x1810
 
+#define PM_CFG				0x1818
+#define    PM_CFG_DBG_MODE_LOCK		(1 << 27)
+#define    PM_CFG_XRAM_READ_DISABLE	(1 << 22)
+
 #define S3_PWRGATE_POL			0x1828
 #define    S3DC_GATE_SUS		(1 << 1)
 #define    S3AC_GATE_SUS		(1 << 0)
@@ -96,7 +101,7 @@ extern struct device_operations pmc_ops;
 #define   DSX_EN_LAN_WAKE_PIN		(1 << 0)
 #define DSX_CFG_MASK			(0x1f << 0)
 
-#define PMSYNC_TPR_CFG			0x18C4
+#define PMSYNC_TPR_CFG			0x18d4
 #define   PCH2CPU_TPR_CFG_LOCK		(1 << 31)
 #define   PCH2CPU_TT_EN			(1 << 26)
 
@@ -123,6 +128,8 @@ extern struct device_operations pmc_ops;
 #define   HPR_CAUSE0_MI_HRPD		(1 << 10)
 #define   HPR_CAUSE0_MI_HRPC		(1 << 9)
 #define   HPR_CAUSE0_MI_HR		(1 << 8)
+
+#define SLP_S0_RES			0x193c
 
 #define CPPMVRIC			0x1B1C
 #define   XTALSDQDIS			(1 << 22)

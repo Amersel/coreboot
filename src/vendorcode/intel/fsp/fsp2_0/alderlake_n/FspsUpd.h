@@ -815,9 +815,11 @@ typedef struct {
 **/
   UINT8                       PchFivrDynPm;
 
-/** Offset 0x0415 - Reserved
+/** Offset 0x0415 - FIVR VCCST ICCMax Control
+  Enable/Disable FIVR VCCST ICCMax Control.
+  $EN_DIS
 **/
-  UINT8                       Reserved10;
+  UINT8                       PchFivrVccstIccMaxControl;
 
 /** Offset 0x0416 - External V1P05 Icc Max Value
   Granularity of this setting is 1mA and maximal possible value is 500mA
@@ -844,7 +846,7 @@ typedef struct {
 
 /** Offset 0x041D - Reserved
 **/
-  UINT8                       Reserved11[3];
+  UINT8                       Reserved10[3];
 
 /** Offset 0x0420 - Extended BIOS Direct Read Decode Range base
   Bits of 31:16 of a memory address that'll be a base for Extended BIOS Direct Read Decode.
@@ -858,7 +860,7 @@ typedef struct {
 
 /** Offset 0x0428 - Reserved
 **/
-  UINT8                       Reserved12[12];
+  UINT8                       Reserved11[12];
 
 /** Offset 0x0434 - CNVi Configuration
   This option allows for automatic detection of Connectivity Solution. [Auto Detection]
@@ -869,7 +871,7 @@ typedef struct {
 
 /** Offset 0x0435 - Reserved
 **/
-  UINT8                       Reserved13;
+  UINT8                       Reserved12;
 
 /** Offset 0x0436 - CNVi BT Core
   Enable/Disable CNVi BT Core, Default is ENABLE. 0: DISABLE, 1: ENABLE
@@ -987,7 +989,7 @@ typedef struct {
 
 /** Offset 0x0455 - Reserved
 **/
-  UINT8                       Reserved14;
+  UINT8                       Reserved13;
 
 /** Offset 0x0456 - OS Timer
   16 bits Value, Set OS watchdog timer. Setting is invalid if AmtEnabled is 0.
@@ -1023,7 +1025,7 @@ typedef struct {
 
 /** Offset 0x04AF - Reserved
 **/
-  UINT8                       Reserved15;
+  UINT8                       Reserved14;
 
 /** Offset 0x04B0 - PCIE RP Detect Timeout Ms
   The number of milliseconds within 0~65535 in reference code will wait for link to
@@ -1134,7 +1136,7 @@ typedef struct {
 
 /** Offset 0x0521 - Reserved
 **/
-  UINT8                       Reserved16[8];
+  UINT8                       Reserved15[8];
 
 /** Offset 0x0529 - Enable VMD controller
   Enable/disable to VMD controller.0: Disable; 1: Enable(Default)
@@ -1193,7 +1195,7 @@ typedef struct {
 
 /** Offset 0x058D - Reserved
 **/
-  UINT8                       Reserved17[3];
+  UINT8                       Reserved16[3];
 
 /** Offset 0x0590 - VMD Variable
   VMD Variable Pointer.
@@ -1217,7 +1219,7 @@ typedef struct {
 
 /** Offset 0x05A0 - Reserved
 **/
-  UINT8                       Reserved18;
+  UINT8                       Reserved17;
 
 /** Offset 0x05A1 - Enable/Disable PMC-PD Solution
   This policy will enable/disable PMC-PD Solution vs EC-TCPC Solution
@@ -1272,7 +1274,7 @@ typedef struct {
 
 /** Offset 0x05B1 - Reserved
 **/
-  UINT8                       Reserved19;
+  UINT8                       Reserved18;
 
 /** Offset 0x05B2 - ITBT DMA LTR
   TCSS DMA1, DMA2 LTR value
@@ -1281,7 +1283,7 @@ typedef struct {
 
 /** Offset 0x05B6 - Reserved
 **/
-  UINT8                       Reserved20;
+  UINT8                       Reserved19;
 
 /** Offset 0x05B7 - Enable/Disable PTM
   This policy will enable/disable Precision Time Measurement for TCSS PCIe Root Ports
@@ -1306,7 +1308,7 @@ typedef struct {
 
 /** Offset 0x05C7 - Reserved
 **/
-  UINT8                       Reserved21;
+  UINT8                       Reserved20;
 
 /** Offset 0x05C8 - PCIE RP Snoop Latency Override Value
   Latency Tolerance Reporting, Snoop Latency Override Value.
@@ -1358,7 +1360,7 @@ typedef struct {
 
 /** Offset 0x05F3 - Reserved
 **/
-  UINT8                       Reserved22;
+  UINT8                       Reserved21;
 
 /** Offset 0x05F4 - Imon slope correction
   PCODE MMIO Mailbox: Imon slope correction. Specified in 1/100 increment values.
@@ -1385,7 +1387,7 @@ typedef struct {
 
 /** Offset 0x0612 - Reserved
 **/
-  UINT8                       Reserved23[2];
+  UINT8                       Reserved22[2];
 
 /** Offset 0x0614 - Thermal Design Current time window
   PCODE MMIO Mailbox: Thermal Design Current time window. Defined in milli seconds.
@@ -1434,7 +1436,7 @@ typedef struct {
 
 /** Offset 0x063B - Reserved
 **/
-  UINT8                       Reserved24;
+  UINT8                       Reserved23;
 
 /** Offset 0x063C - Thermal Design Current current limit
   PCODE MMIO Mailbox: Thermal Design Current current limit. Specified in 1/8A units.
@@ -1503,7 +1505,7 @@ typedef struct {
 
 /** Offset 0x0687 - Reserved
 **/
-  UINT8                       Reserved25;
+  UINT8                       Reserved24;
 
 /** Offset 0x0688 - CpuBistData
   Pointer CPU BIST Data
@@ -1540,7 +1542,7 @@ typedef struct {
 
 /** Offset 0x0693 - Reserved
 **/
-  UINT8                       Reserved26;
+  UINT8                       Reserved25;
 
 /** Offset 0x0694 - VR Voltage Limit
   PCODE MMIO Mailbox: Voltage Limit. Range is 0 - 7999mV
@@ -1555,7 +1557,17 @@ typedef struct {
 
 /** Offset 0x06A0 - Reserved
 **/
-  UINT8                       Reserved27[10];
+  UINT8                       Reserved26[7];
+
+/** Offset 0x06A7 - VccIn Aux Imon slope correction
+  PCODE MMIO Mailbox: VccIn Aux Imon slope correction. <b>0 - Auto</b> Specified in
+  1/100 increment values. Range is 0-200. 125 = 1.25
+**/
+  UINT8                       VccInAuxImonSlope;
+
+/** Offset 0x06A8 - Reserved
+**/
+  UINT8                      Reserved27[2];
 
 /** Offset 0x06AA - FIVR RFI Spread Spectrum Enable or disable
   Enable or Disable FIVR RFI Spread Spectrum. 0: Disable ; <b> 1: Enable </b>
@@ -1836,7 +1848,7 @@ typedef struct {
 
 /** Offset 0x0896 - Reserved
 **/
-  UINT8                       Reserved33[2];
+  UINT8                      Reserved33[2];
 
 /** Offset 0x0898 - Touch Host Controller Port 1 Interrupt Pin Mux
   Set THC Port 1 Pin Muxing Value if signal can be enabled on multiple pads. Refer
@@ -2212,7 +2224,8 @@ typedef struct {
   UINT8                       SataRstPcieDeviceResetDelay[3];
 
 /** Offset 0x0A42 - UFS enable/disable
-  PCIe Storage Device Reset Delay in milliseconds. Default value is 100ms
+  Enable/Disable UFS controller, One byte for each Controller - (1,0) to enable controller
+  0 and (0,1) to enable controller 1
   $EN_DIS
 **/
   UINT8                       UfsEnable[2];
@@ -3929,7 +3942,7 @@ typedef struct {
 
 /** Offset 0x1036 - Reserved
 **/
-  UINT8                       Reserved58[122];
+  UINT8                       Reserved58[138];
 } FSP_S_CONFIG;
 
 /** Fsp S UPD Configuration
@@ -3948,11 +3961,11 @@ typedef struct {
 **/
   FSP_S_CONFIG                FspsConfig;
 
-/** Offset 0x10B0
+/** Offset 0x10C0
 **/
-  UINT8                       UnusedUpdSpace45[6];
+  UINT8                       UnusedUpdSpace44[6];
 
-/** Offset 0x10B6
+/** Offset 0x10C6
 **/
   UINT16                      UpdTerminator;
 } FSPS_UPD;

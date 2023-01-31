@@ -244,9 +244,9 @@ static uint16_t print_pm1_status(uint16_t pm1_sts)
 	if (!pm1_sts)
 		return 0;
 
-	printk(BIOS_SPEW, "PM1_STS: ");
+	printk(BIOS_DEBUG, "PM1_STS: ");
 	print_num_status_bits(ARRAY_SIZE(pm1_sts_bits), pm1_sts, pm1_sts_bits);
-	printk(BIOS_SPEW, "\n");
+	printk(BIOS_DEBUG, "\n");
 
 	return pm1_sts;
 }
@@ -367,6 +367,17 @@ void soc_clear_pm_registers(uintptr_t pmc_bar)
 {
 }
 
+void pmc_or_mmio32(uint32_t offset, uint32_t ormask)
+{
+	uint32_t reg;
+	uintptr_t pmc_bar;
+
+	pmc_bar = soc_read_pmc_base();
+	reg = read32p(pmc_bar + offset);
+	reg |= ormask;
+	write32p(pmc_bar + offset, reg);
+}
+
 void pmc_clear_prsts(void)
 {
 	uint32_t prsts;
@@ -414,7 +425,13 @@ static int pmc_prev_sleep_state(const struct chipset_power_state *ps)
 		/* Clear SLP_TYP. */
 		pmc_write_pm1_control(ps->pm1_cnt & ~(SLP_TYP));
 	}
-	return soc_prev_sleep_state(ps, prev_sleep_state);
+
+	prev_sleep_state = soc_prev_sleep_state(ps, prev_sleep_state);
+
+	/* Clear PMC PMCON_x register power failure status bits. */
+	pmc_clear_pmcon_pwr_failure_sts();
+
+	return prev_sleep_state;
 }
 
 void pmc_fill_pm_reg_info(struct chipset_power_state *ps)
@@ -475,6 +492,11 @@ void pmc_global_reset_enable(bool enable)
 
 int platform_is_resuming(void)
 {
+	/* Read power state from PMC data structure */
+	if (ENV_RAMSTAGE)
+		return acpi_get_sleep_type() == ACPI_S3;
+
+	/* Read power state from PMC ABASE */
 	if (!(inw(ACPI_BASE_ADDRESS + PM1_STS) & WAK_STS))
 		return 0;
 
@@ -575,9 +597,9 @@ void pmc_gpe_init(void)
 		dw1 = (gpio_cfg >> GPE0_DW_SHIFT(1)) & GPE0_DWX_MASK;
 		dw2 = (gpio_cfg >> GPE0_DW_SHIFT(2)) & GPE0_DWX_MASK;
 	} else {
-		gpio_cfg |= (uint32_t) dw0 << GPE0_DW_SHIFT(0);
-		gpio_cfg |= (uint32_t) dw1 << GPE0_DW_SHIFT(1);
-		gpio_cfg |= (uint32_t) dw2 << GPE0_DW_SHIFT(2);
+		gpio_cfg |= (uint32_t)dw0 << GPE0_DW_SHIFT(0);
+		gpio_cfg |= (uint32_t)dw1 << GPE0_DW_SHIFT(1);
+		gpio_cfg |= (uint32_t)dw2 << GPE0_DW_SHIFT(2);
 	}
 
 	gpio_cfg_reg = read32p(pmc_bar + GPIO_GPE_CFG) & ~gpio_cfg_mask;
@@ -587,6 +609,48 @@ void pmc_gpe_init(void)
 
 	/* Set the routes in the GPIO communities as well. */
 	gpio_route_gpe(dw0, dw1, dw2);
+}
+
+static void pmc_clear_pmcon_pwr_failure_sts_mmio(void)
+{
+	uint8_t *addr = pmc_mmio_regs();
+
+	/*
+	 * Clear PMC GEN_PMCON_A register power failure status bits:
+	 * SUS_PWR_FLR, PWR_FLR bits
+	 * while retaining MS4V write-1-to-clear bit
+	 *
+	 * Note: clearing `GBL_RST_STS` bit earlier than FSP-M/MRC having an adverse effect
+	 * on the PMC sleep type register which results in calculating wrong
+	 * `prev_sleep_state` post a global reset, hence, just clearing the power failure
+	 * status bits rather than clearing the complete PMC PMCON_A register.
+	 */
+	clrbits32((addr + GEN_PMCON_A), (MS4V | GBL_RST_STS));
+}
+
+static void pmc_clear_pmcon_pwr_failure_sts_pci(void)
+{
+#if defined(__SIMPLE_DEVICE__)
+	pci_devfn_t dev = PCI_DEV(0, PCI_SLOT(PCH_DEVFN_PMC), PCI_FUNC(PCH_DEVFN_PMC));
+#else
+	struct device *dev = pcidev_path_on_root(PCH_DEVFN_PMC);
+	if (!dev)
+		return;
+#endif
+
+	pci_or_config32(dev, GEN_PMCON_B, (SUS_PWR_FLR | PWR_FLR));
+}
+
+/*
+ * Clear PMC GEN_PMCON_X register power failure status bits:
+ * SUS_PWR_FLR, PWR_FLR bits (keep the other bits intact)
+ */
+void pmc_clear_pmcon_pwr_failure_sts(void)
+{
+	if (CONFIG(SOC_INTEL_MEM_MAPPED_PM_CONFIGURATION))
+		pmc_clear_pmcon_pwr_failure_sts_mmio();
+	else
+		pmc_clear_pmcon_pwr_failure_sts_pci();
 }
 
 #if ENV_RAMSTAGE

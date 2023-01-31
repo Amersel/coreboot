@@ -1,10 +1,19 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include "board.h"
+#include <boardid.h>
 #include <bootblock_common.h>
+#include <bootmode.h>
+#include <console/console.h>
+#include <delay.h>
 #include <device/device.h>
 #include <device/mmio.h>
+#include <ec/google/chromeec/ec.h>
+#include <edid.h>
 #include <soc/clock.h>
+#include <soc/display/mdssreg.h>
+#include <soc/display/edp_ctrl.h>
+#include <soc/pcie.h>
 #include <soc/qupv3_config_common.h>
 #include <soc/qup_se_handlers_common.h>
 #include <soc/qcom_qup_se.h>
@@ -29,9 +38,9 @@ static void setup_usb(void)
 static void configure_sdhci(void)
 {
 	/* Program eMMC drive strength to 16/10/10 mA */
-	write32((void *)SDC1_TLMM_CFG_ADDR, 0x9FE4);
+	write32p(SDC1_TLMM_CFG_ADDR, 0x9FE4);
 	/* Program SD card drive strength to 16/10/10 mA */
-	write32((void *)SDC2_TLMM_CFG_ADDR, 0x1FE4);
+	write32p(SDC2_TLMM_CFG_ADDR, 0x1FE4);
 }
 
 static void qi2s_configure_gpios(void)
@@ -44,6 +53,56 @@ static void qi2s_configure_gpios(void)
 
 	gpio_configure(GPIO_MI2S1_DATA0, GPIO107_FUNC_MI2S1_DATA0,
 		GPIO_NO_PULL, GPIO_16MA, GPIO_OUTPUT);
+}
+
+static void edp_configure_gpios(void)
+{
+	/* Panel power on GPIO enable */
+	gpio_output(GPIO_PANEL_POWER_ON, 1);
+
+	/* Panel HPD GPIO enable */
+	gpio_input_pulldown(GPIO_PANEL_HPD);
+}
+
+static void display_startup(void)
+{
+	struct edid ed;
+
+	if (!display_init_required()) {
+		printk(BIOS_INFO, "Skipping display init.\n");
+		return;
+	}
+
+	enable_mdss_clk();
+	edp_configure_gpios();
+	mdelay(250); /* Delay for the panel to be up */
+	if (edp_ctrl_init(&ed) == CB_SUCCESS) {
+		mdp_dsi_video_config(&ed);
+		mdp_dsi_video_on();
+		edid_set_framebuffer_bits_per_pixel(&ed, 32, 0);
+		fb_new_framebuffer_info_from_edid(&ed, (uintptr_t)0);
+	}
+}
+
+/*
+ * Determine if board need to perform PCIe initialization.  Will return true if
+ * NVMe initialization is needed, or false if it is an eMMC device.  On
+ * Herobrine, if it is an NVMe enabled platform, logical sku_id & 2 will be
+ * true.
+ */
+bool mainboard_needs_pcie_init(void)
+{
+	uint32_t sku = sku_id();
+
+	if (sku == CROS_SKU_UNKNOWN) {
+		printk(BIOS_WARNING, "Unknown SKU (%#x); assuming PCIe", sku);
+		return true;
+	} else if (sku == CROS_SKU_UNPROVISIONED) {
+		printk(BIOS_WARNING, "Unprovisioned SKU (%#x); assuming PCIe", sku);
+		return true;
+	}
+
+	return !!(sku & 0x2);
 }
 
 static void mainboard_init(struct device *dev)
@@ -102,6 +161,7 @@ static void mainboard_init(struct device *dev)
 
 	setup_usb();
 	qi2s_configure_gpios();
+	display_startup();
 }
 
 static void mainboard_enable(struct device *dev)

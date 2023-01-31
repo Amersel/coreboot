@@ -7,6 +7,8 @@
 
 /* Pad configuration in ramstage for Pujjo */
 static const struct pad_config override_gpio_table[] = {
+	/* A8  : WWAN_RF_DISABLE_ODL */
+	PAD_CFG_GPO(GPP_A8, 1, DEEP),
 	/* D3  : WCAM_RST_L ==> NC */
 	PAD_NC_LOCK(GPP_D3, NONE, LOCK_CONFIG),
 	/* D6  : SRCCLKREQ1# ==> WWAN_EN */
@@ -15,18 +17,30 @@ static const struct pad_config override_gpio_table[] = {
 	PAD_NC_LOCK(GPP_D15, NONE, LOCK_CONFIG),
 	/* D16  : EN_PP1800_PP1200_WCAM_X ==> NC */
 	PAD_NC_LOCK(GPP_D16, NONE, LOCK_CONFIG),
+	/* D17 : NC ==> SD_WAKE_N */
+	PAD_CFG_GPI_LOCK(GPP_D17, NONE, LOCK_CONFIG),
 	/* F12 : WWAN_RST_L */
 	PAD_CFG_GPO_LOCK(GPP_F12, 1, LOCK_CONFIG),
+	/* H19 : SOC_I2C_SUB_INT_ODL */
+	PAD_CFG_GPI_APIC(GPP_H19, NONE, PLTRST, LEVEL, NONE),
 	/* H22  : WCAM_MCLK_R ==> NC */
 	PAD_NC(GPP_H22, NONE),
+	/* H23 : WWAN_SAR_DETECT_ODL */
+	PAD_CFG_GPO(GPP_H23, 1, DEEP),
 };
 
 /* Early pad configuration in bootblock */
 static const struct pad_config early_gpio_table[] = {
 	/* A13 : GPP_A13 ==> GSC_SOC_INT_ODL */
 	PAD_CFG_GPI_APIC(GPP_A13, NONE, PLTRST, LEVEL, INVERT),
+	/*
+	* WWAN_EN is asserted in ramstage to meet the 500 ms warm reset toff
+	* requirement. WWAN_EN must be asserted before WWAN_RST_L is released
+	* (with min delay 0 ms), so this works as long as the pin used for
+	* WWAN_EN comes before the pin used for WWAN_RST_L.
+	*/
 	/* D6  : SRCCLKREQ1# ==> WWAN_EN */
-	PAD_CFG_GPO(GPP_D6, 1, DEEP),
+	PAD_CFG_GPO(GPP_D6, 0, DEEP),
 	/* E12 : THC0_SPI1_IO1 ==> SOC_WP_OD */
 	PAD_CFG_GPI_GPIO_DRIVER(GPP_E12, NONE, DEEP),
 	/* F12 : WWAN_RST_L */

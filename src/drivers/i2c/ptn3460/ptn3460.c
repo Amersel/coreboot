@@ -1,8 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
+#include <device/device.h>
 #include <device/i2c_bus.h>
 #include <types.h>
+#include <bootstate.h>
 
 #include "ptn3460.h"
 
@@ -62,8 +64,16 @@ static int ptn3460_write_edid(struct device *dev, u8 edid_num, u8 *data)
 static void ptn3460_init(struct device *dev)
 {
 	struct ptn_3460_config cfg;
-	uint8_t edid_data[PTN_EDID_LEN], edid_tab, *ptr = (uint8_t *) &cfg;
+	uint8_t edid_data[PTN_EDID_LEN], edid_tab, *ptr = (uint8_t *)&cfg;
 	int i, val;
+
+	/* Guard against re-initialization of the device */
+	static bool init_done = false;
+
+	if (init_done) {
+		printk(BIOS_DEBUG, "Skipping PTN3460 init as it's already initialized\n");
+		return;
+	}
 
 	/* Mainboard provides EDID data. */
 	if (mb_get_edid(edid_data) != CB_SUCCESS) {
@@ -98,8 +108,8 @@ static void ptn3460_init(struct device *dev)
 	}
 	/* Mainboard can modify the configuration data.
 	   Write back configuration data to PTN3460 if modified by mainboard */
-	if (mb_adjust_cfg(&cfg) == PTN_CFG_MODIFIED) {
-		ptr = (uint8_t *) &cfg;
+	if (mb_adjust_cfg(&cfg) == CB_SUCCESS) {
+		ptr = (uint8_t *)&cfg;
 		for (i = 0; i < sizeof(struct ptn_3460_config); i++) {
 			val = i2c_dev_writeb_at(dev, PTN_CONFIG_OFF + i, *ptr++);
 			if (val < 0) {
@@ -109,6 +119,8 @@ static void ptn3460_init(struct device *dev)
 			}
 		}
 	}
+
+	init_done = true;
 }
 
 __weak enum cb_err mb_get_edid(uint8_t edid_data[0x80])
@@ -119,9 +131,9 @@ __weak uint8_t mb_select_edid_table(void)
 {
 	return 0;
 }
-__weak int mb_adjust_cfg(struct ptn_3460_config *cfg_ptr)
+__weak enum cb_err mb_adjust_cfg(struct ptn_3460_config *cfg_ptr)
 {
-	return 0;
+	return CB_ERR;
 }
 
 static struct device_operations ptn3460_ops = {
@@ -139,3 +151,32 @@ struct chip_operations drivers_i2c_ptn3460_ops = {
 	CHIP_NAME("PTN3460")
 	.enable_dev = ptn3460_enable
 };
+
+#if CONFIG(PTN3460_EARLY_INIT)
+
+/**
+ * \brief This function provides a callback for the boot state machine to initialize the
+ *        PTN3460 DP-to-LVDS bridge before graphics initialization in order for the bootsplash
+ *        logo to be shown.
+ * @param  *unused	Unused argument for the callback.
+ */
+
+static void ptn3460_early_init(void *unused)
+{
+	struct device *ptn_dev;
+
+	printk(BIOS_DEBUG, "Attempting PTN3460 early init.\n");
+	ptn_dev = dev_find_slot_on_smbus(0, CONFIG_PTN3460_EARLY_ADDR);
+	if (!ptn_dev) {
+		printk(BIOS_ERR, "Failed to find the PTN3460 device!\n");
+		return;
+	}
+	/* Initialize the I2C controller before it is used. */
+	if (ptn_dev->bus && ptn_dev->bus->dev->ops && ptn_dev->bus->dev->ops->init)
+		ptn_dev->bus->dev->ops->init(ptn_dev->bus->dev);
+	ptn3460_init(ptn_dev);
+}
+
+BOOT_STATE_INIT_ENTRY(BS_DEV_INIT, BS_ON_ENTRY, ptn3460_early_init, NULL);
+
+#endif /* CONFIG(PTN3460_EARLY_INIT) */

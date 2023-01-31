@@ -131,11 +131,12 @@ chip soc/intel/jasperlake
 		end # USB xHCI
 		device pci 15.0 on
 			chip drivers/i2c/hid
-				register "generic.hid" = ""PNP0C50""
+				register "generic.hid" = ""SYNA0000""
+				register "generic.cid" = ""ACPI0C50""
 				register "generic.desc" = ""Synaptics Touchpad""
 				register "generic.irq" = "ACPI_IRQ_WAKE_LEVEL_LOW(GPP_B3_IRQ)"
 				register "generic.wake" = "GPE0_DW0_03"
-				register "generic.probed" = "1"
+				register "generic.detect" = "1"
 				register "hid_desc_reg_offset" = "0x20"
 				device i2c 0x2c on end
 			end
@@ -144,7 +145,7 @@ chip soc/intel/jasperlake
 				register "desc" = ""ELAN Touchpad""
 				register "irq" = "ACPI_IRQ_WAKE_EDGE_LOW(GPP_B3_IRQ)"
 				register "wake" = "GPE0_DW0_03"
-				register "probed" = "1"
+				register "detect" = "1"
 				device i2c 15 on end
 			end
 		end # I2C 0
@@ -153,7 +154,7 @@ chip soc/intel/jasperlake
 				register "generic.hid" = ""ELAN6915""
 				register "generic.desc" = ""ELAN Touchscreen""
 				register "generic.irq" = "ACPI_IRQ_LEVEL_LOW(GPP_D4_IRQ)"
-				register "generic.probed" = "1"
+				register "generic.detect" = "1"
 				register "generic.reset_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPP_D5)"
 				register "generic.reset_delay_ms" = "20"
 				register "generic.reset_off_delay_ms" = "2"
@@ -163,15 +164,14 @@ chip soc/intel/jasperlake
 				register "generic.enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPP_D6)"
 				register "generic.enable_delay_ms" = "1"
 				register "generic.has_power_resource" = "1"
-				register "generic.disable_gpio_export_in_crs" = "1"
 				register "hid_desc_reg_offset" = "0x01"
 				device i2c 15 on end
 			end
 			chip drivers/i2c/generic
 				register "hid" = ""ELAN0001""
 				register "desc" = ""ELAN Touchscreen""
-				register "irq" = "ACPI_IRQ_EDGE_LOW(GPP_D4_IRQ)"
-				register "probed" = "1"
+				register "irq" = "ACPI_IRQ_LEVEL_LOW(GPP_D4_IRQ)"
+				register "detect" = "1"
 				register "reset_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPP_D5)"
 				register "reset_delay_ms" = "20"
 				register "enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPP_D6)"
@@ -182,14 +182,13 @@ chip soc/intel/jasperlake
 			chip drivers/i2c/generic
 				register "hid" = ""RAYD0001""
 				register "desc" = ""Raydium Touchscreen""
-				register "irq" = "ACPI_IRQ_EDGE_LOW(GPP_D4_IRQ)"
-				register "probed" = "1"
+				register "irq" = "ACPI_IRQ_LEVEL_LOW(GPP_D4_IRQ)"
+				register "detect" = "1"
 				register "reset_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPP_D5)"
 				register "reset_delay_ms" = "100"
 				register "enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPP_D6)"
 				register "enable_delay_ms" = "50"
 				register "has_power_resource" = "1"
-				register "disable_gpio_export_in_crs" = "1"
 				device i2c 39 on end
 			end
 		end # I2C 2

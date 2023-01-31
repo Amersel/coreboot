@@ -7,7 +7,7 @@ DefinitionBlock(
 	ACPI_DSDT_REV_2,
 	OEM_ID,
 	ACPI_TABLE_CREATOR,
-	0x20110725	// OEM revision
+	0x20110725
 )
 {
 	#include <acpi/dsdt_top.asl>
@@ -36,7 +36,7 @@ DefinitionBlock(
 	{
 		Device (WLAN)
 		{
-			Name (_ADR, Zero)
+			Name (_ADR, 0)
 		}
 	}
 

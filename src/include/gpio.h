@@ -3,7 +3,10 @@
 #ifndef __SRC_INCLUDE_GPIO_H__
 #define __SRC_INCLUDE_GPIO_H__
 
-#include <soc/gpio.h>
+#include <soc/gpio.h> /* IWYU pragma: export */
+
+#ifndef __ASSEMBLER__ /* __ASSEMBLER__ also covers __ACPI__ case */
+
 #include <types.h>
 
 /* <soc/gpio.h> must typedef a gpio_t that fits in 32 bits. */
@@ -11,6 +14,7 @@ _Static_assert(sizeof(gpio_t) <= sizeof(u32), "gpio_t doesn't fit in lb_gpio");
 
 /* The following functions must be implemented by SoC/board code. */
 int gpio_get(gpio_t gpio);
+int gpio_tx_get(gpio_t gpio);
 void gpio_set(gpio_t gpio, int value);
 void gpio_input_pulldown(gpio_t gpio);
 void gpio_input_pullup(gpio_t gpio);
@@ -95,5 +99,7 @@ static inline uint32_t gpio_binary_first_base3_value(const gpio_t gpio[],
 {
 	return _gpio_base3_value(gpio, num_gpio, 1);
 }
+
+#endif /* !__ASSEMBLER__ */
 
 #endif /* __SRC_INCLUDE_GPIO_H__ */

@@ -2,6 +2,7 @@
 
 /* CACHE_ROM_SIZE defined here. */
 #include <cpu/x86/mtrr.h>
+#include <memlayout.h>
 
 /* This file is included inside a SECTIONS block */
 . = CONFIG_DCACHE_RAM_BASE;
@@ -19,9 +20,9 @@
 	VBOOT2_WORK(., 12K)
 #endif
 #if CONFIG(TPM_MEASURED_BOOT)
-	/* Vboot measured boot TCPA log measurements.
+	/* Vboot measured boot TPM log measurements.
 	 * Needs to be transferred until CBMEM is available */
-	TPM_TCPA_LOG(., 2K)
+	TPM_LOG(., 2K)
 #endif
 	/* Stack for CAR stages. Since it persists across all stages that
 	 * use CAR it can be reused. The chipset/SoC is expected to provide
@@ -58,6 +59,7 @@
 	 * cbmem console. This is useful for clearing this area on a per-stage
 	 * basis when more than one stage uses cache-as-ram. */
 
+#if ENV_SEPARATE_BSS
 	. = ALIGN(ARCH_POINTER_ALIGN_SIZE);
 	_bss = .;
 	/* Allow global uninitialized variables for stages without CAR teardown. */
@@ -65,9 +67,23 @@
 	*(.bss.*)
 	*(.sbss)
 	*(.sbss.*)
+	/* '*_E' GNAT generated global variables actually are un-initialized
+	 * (filled with zeros) variables which are initialized at
+	 * runtime. Therefore, they can be placed in the _bss region. */
+#if CONFIG(ROMSTAGE_LIBHWBASE)
+	*(.data.hw__*_E)
+#endif
+#if CONFIG(EARLY_GFX_GMA)
+	*(.data.gma*_E)
+	/* libgfxinit uses a boolean variable to track its initialization
+	 * state. Since the initial value is False it can safely be placed in
+	 * the _bss region. */
+	*(.data.hw__gfx__gma__initialized)
+#endif
 	. = ALIGN(ARCH_POINTER_ALIGN_SIZE);
 	_ebss = .;
 	RECORD_SIZE(bss)
+#endif
 
 #if ENV_ROMSTAGE && CONFIG(ASAN_IN_ROMSTAGE)
 	_shadow_size = (_ebss - _car_region_start) >> 3;

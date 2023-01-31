@@ -4,6 +4,7 @@
 #define ARCH_CPU_H
 
 #include <types.h>
+#include <arch/cpuid.h> /* IWYU pragma: export */
 
 /*
  * EFLAGS bits
@@ -25,109 +26,6 @@
 #define X86_EFLAGS_VIF	0x00080000 /* Virtual Interrupt Flag */
 #define X86_EFLAGS_VIP	0x00100000 /* Virtual Interrupt Pending */
 #define X86_EFLAGS_ID	0x00200000 /* CPUID detection flag */
-
-struct cpuid_result {
-	uint32_t eax;
-	uint32_t ebx;
-	uint32_t ecx;
-	uint32_t edx;
-};
-
-/*
- * Generic CPUID function
- */
-static inline struct cpuid_result cpuid(int op)
-{
-	struct cpuid_result result;
-	asm volatile(
-		"mov %%ebx, %%edi;"
-		"cpuid;"
-		"mov %%ebx, %%esi;"
-		"mov %%edi, %%ebx;"
-		: "=a" (result.eax),
-		  "=S" (result.ebx),
-		  "=c" (result.ecx),
-		  "=d" (result.edx)
-		: "0" (op)
-		: "edi");
-	return result;
-}
-
-/*
- * Generic Extended CPUID function
- */
-static inline struct cpuid_result cpuid_ext(int op, unsigned int ecx)
-{
-	struct cpuid_result result;
-	asm volatile(
-		"mov %%ebx, %%edi;"
-		"cpuid;"
-		"mov %%ebx, %%esi;"
-		"mov %%edi, %%ebx;"
-		: "=a" (result.eax),
-		  "=S" (result.ebx),
-		  "=c" (result.ecx),
-		  "=d" (result.edx)
-		: "0" (op), "2" (ecx)
-		: "edi");
-	return result;
-}
-
-/*
- * CPUID functions returning a single datum
- */
-static inline unsigned int cpuid_eax(unsigned int op)
-{
-	unsigned int eax;
-
-	__asm__("mov %%ebx, %%edi;"
-		"cpuid;"
-		"mov %%edi, %%ebx;"
-		: "=a" (eax)
-		: "0" (op)
-		: "ecx", "edx", "edi");
-	return eax;
-}
-
-static inline unsigned int cpuid_ebx(unsigned int op)
-{
-	unsigned int eax, ebx;
-
-	__asm__("mov %%ebx, %%edi;"
-		"cpuid;"
-		"mov %%ebx, %%esi;"
-		"mov %%edi, %%ebx;"
-		: "=a" (eax), "=S" (ebx)
-		: "0" (op)
-		: "ecx", "edx", "edi");
-	return ebx;
-}
-
-static inline unsigned int cpuid_ecx(unsigned int op)
-{
-	unsigned int eax, ecx;
-
-	__asm__("mov %%ebx, %%edi;"
-		"cpuid;"
-		"mov %%edi, %%ebx;"
-		: "=a" (eax), "=c" (ecx)
-		: "0" (op)
-		: "edx", "edi");
-	return ecx;
-}
-
-static inline unsigned int cpuid_edx(unsigned int op)
-{
-	unsigned int eax, edx;
-
-	__asm__("mov %%ebx, %%edi;"
-		"cpuid;"
-		"mov %%edi, %%ebx;"
-		: "=a" (eax), "=d" (edx)
-		: "0" (op)
-		: "ecx", "edi");
-	return edx;
-}
 
 static inline unsigned int cpuid_get_max_func(void)
 {
@@ -203,7 +101,7 @@ int cpu_have_cpuid(void);
 
 static inline bool cpu_is_amd(void)
 {
-	return CONFIG(CPU_AMD_AGESA) || CONFIG(CPU_AMD_PI) || CONFIG(SOC_AMD_COMMON);
+	return CONFIG(CPU_AMD_PI) || CONFIG(SOC_AMD_COMMON);
 }
 
 static inline bool cpu_is_intel(void)
@@ -249,23 +147,25 @@ struct per_cpu_segment_data {
 	struct cpu_info *cpu_info;
 };
 
+enum cb_err set_cpu_info(unsigned int index, struct device *cpu);
+
 static inline struct cpu_info *cpu_info(void)
 {
-/* We use a #if because we don't want to mess with the &s below. */
-#if CONFIG(CPU_INFO_V2)
 	struct cpu_info *ci = NULL;
 
-	__asm__("mov %%gs:%c[offset], %[ci]"
+	__asm__ __volatile__("mov %%gs:%c[offset], %[ci]"
 		: [ci] "=r" (ci)
 		: [offset] "i" (offsetof(struct per_cpu_segment_data, cpu_info))
 	);
 
 	return ci;
-#else
-	char s;
-	uintptr_t info = ALIGN_UP((uintptr_t)&s, CONFIG_STACK_SIZE) - sizeof(struct cpu_info);
-	return (struct cpu_info *)info;
-#endif /* CPU_INFO_V2 */
+}
+
+static inline unsigned long cpu_index(void)
+{
+	struct cpu_info *ci;
+	ci = cpu_info();
+	return ci->index;
 }
 
 struct cpuinfo_x86 {
@@ -318,20 +218,6 @@ uint32_t cpu_get_feature_flags_ecx(void);
  * return value in EDX register
  */
 uint32_t cpu_get_feature_flags_edx(void);
-
-/*
- * Previously cpu_index() implementation assumes that cpu_index()
- * function will always getting called from coreboot context
- * (ESP stack pointer will always refer to coreboot).
- *
- * But with MP_SERVICES_PPI implementation in coreboot this
- * assumption might not be true, where FSP context (stack pointer refers
- * to FSP) will request to get cpu_index().
- *
- * Hence new logic to use cpuid to fetch lapic id and matches with
- * cpus_default_apic_id[] variable to return correct cpu_index().
- */
-int cpu_index(void);
 
 #define DETERMINISTIC_CACHE_PARAMETERS_CPUID_IA	0x04
 #define DETERMINISTIC_CACHE_PARAMETERS_CPUID_AMD	0x8000001d

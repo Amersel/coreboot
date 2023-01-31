@@ -9,7 +9,6 @@
 #include <soc/pci_devs.h>
 #include <soc/pm.h>
 #include <soc/soc_info.h>
-#include <stdint.h>
 #include <types.h>
 
 struct pme_map {
@@ -173,7 +172,7 @@ static void pch_log_power_and_resets(const struct chipset_power_state *ps)
 
 	/* TCO Timeout */
 	if (ps->prev_sleep_state != ACPI_S3 &&
-	    ps->tco2_sts & TCO_STS_SECOND_TO)
+	    ps->tco2_sts & TCO2_STS_SECOND_TO)
 		elog_add_event(ELOG_TYPE_TCO_RESET);
 
 	/* Power Button Override */

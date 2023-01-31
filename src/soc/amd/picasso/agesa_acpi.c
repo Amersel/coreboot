@@ -1,24 +1,23 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <acpi/acpi.h>
 #include <acpi/acpi_crat.h>
 #include <acpi/acpi_ivrs.h>
-#include <arch/cpu.h>
-#include <cpu/amd/cpuid.h>
-#include <cpu/amd/msr.h>
-#include <FspGuids.h>
-#include <soc/acpi.h>
-#include <stdint.h>
-#include <device/device.h>
-#include <device/pci_def.h>
-#include <device/pci_ops.h>
+#include <acpi/acpi.h>
 #include <amdblocks/acpi.h>
 #include <amdblocks/cpu.h>
 #include <amdblocks/data_fabric.h>
 #include <amdblocks/ioapic.h>
+#include <cpu/amd/cpuid.h>
+#include <cpu/cpu.h>
+#include <device/device.h>
+#include <device/mmio.h>
+#include <device/pci_def.h>
+#include <device/pci_ops.h>
+#include <FspGuids.h>
+#include <soc/acpi.h>
 #include <soc/data_fabric.h>
 #include <soc/pci_devs.h>
-#include <arch/mmio.h>
+#include <stdint.h>
 
 static unsigned long gen_crat_hsa_entry(struct acpi_crat_header *crat, unsigned long current)
 {
@@ -547,18 +546,19 @@ uintptr_t agesa_write_acpi_tables(const struct device *device, uintptr_t current
 	struct acpi_crat_header *crat;
 
 	/* CRAT */
-	current = ALIGN(current, 8);
+	current = acpi_align_current(current);
 	crat = (struct acpi_crat_header *)current;
 	acpi_create_crat(crat, acpi_fill_crat);
 	current += crat->header.length;
 	acpi_add_table(rsdp, crat);
 
 	/* add ALIB SSDT from HOB */
+	current = acpi_align_current(current);
 	current = add_agesa_fsp_acpi_table(AMD_FSP_ACPI_ALIB_HOB_GUID, "ALIB", rsdp, current);
 
 	/* IVRS */
-	current = ALIGN(current, 8);
-	ivrs = (acpi_ivrs_t *) current;
+	current = acpi_align_current(current);
+	ivrs = (acpi_ivrs_t *)current;
 	acpi_create_ivrs(ivrs, acpi_fill_ivrs);
 	current += ivrs->header.length;
 	acpi_add_table(rsdp, ivrs);

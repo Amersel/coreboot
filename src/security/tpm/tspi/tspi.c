@@ -233,7 +233,7 @@ uint32_t tpm_extend_pcr(int pcr, enum vb2_hash_algorithm digest_algo,
 		}
 
 		printk(BIOS_DEBUG, "TPM: Extending digest for `%s` into PCR %d\n", name, pcr);
-		result = tlcl_extend(pcr, digest, NULL);
+		result = tlcl_extend(pcr, digest, digest_algo);
 		if (result != TPM_SUCCESS) {
 			printk(BIOS_ERR, "TPM: Extending hash for `%s` into PCR %d failed.\n",
 			       name, pcr);
@@ -242,8 +242,7 @@ uint32_t tpm_extend_pcr(int pcr, enum vb2_hash_algorithm digest_algo,
 	}
 
 	if (CONFIG(TPM_MEASURED_BOOT))
-		tcpa_log_add_table_entry(name, pcr, digest_algo,
-			digest, digest_len);
+		tpm_log_add_table_entry(name, pcr, digest_algo, digest, digest_len);
 
 	printk(BIOS_DEBUG, "TPM: Digest of `%s` to PCR %d %s\n",
 	       name, pcr, tspi_tpm_is_setup() ? "measured" : "logged");
@@ -266,7 +265,8 @@ uint32_t tpm_measure_region(const struct region_device *rdev, uint8_t pcr,
 
 	digest_len = vb2_digest_size(TPM_MEASURE_ALGO);
 	assert(digest_len <= sizeof(digest));
-	if (vb2_digest_init(&ctx, TPM_MEASURE_ALGO)) {
+	if (vb2_digest_init(&ctx, vboot_hwcrypto_allowed(), TPM_MEASURE_ALGO,
+			    region_device_sz(rdev))) {
 		printk(BIOS_ERR, "TPM: Error initializing hash.\n");
 		return TPM_E_HASH_ERROR;
 	}

@@ -5,7 +5,7 @@
 #include <cpu/x86/msr.h>
 #include <console/console.h>
 #include <commonlib/bsd/helpers.h>
-#include <stdint.h>
+#include <types.h>
 
 /* Get first available variable MTRR.
  * Returns var# if available, else returns -1.
@@ -55,7 +55,7 @@ void set_var_mtrr(
 
 void clear_all_var_mtrr(void)
 {
-	msr_t mtrr = {0, 0};
+	msr_t mtrr = { .raw = 0 };
 	int vcnt;
 	int i;
 

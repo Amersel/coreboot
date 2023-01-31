@@ -25,11 +25,7 @@ unsigned long acpi_create_srat_lapics(unsigned long current)
 	unsigned int cpu_index = 0;
 
 	for (cpu = all_devices; cpu; cpu = cpu->next) {
-		if ((cpu->path.type != DEVICE_PATH_APIC) ||
-		   (cpu->bus->dev->path.type != DEVICE_PATH_CPU_CLUSTER)) {
-			continue;
-		}
-		if (!cpu->enabled)
+		if (!is_enabled_cpu(cpu))
 			continue;
 		printk(BIOS_DEBUG, "SRAT: lapic cpu_index=%02x, node_id=%02x, apic_id=%02x\n",
 			cpu_index, cpu->path.apic.node_id, cpu->path.apic.apic_id);
@@ -46,17 +42,17 @@ static unsigned int get_srat_memory_entries(acpi_srat_mem_t *srat_mem)
 	unsigned int mmap_index;
 
 	memory_map = get_system_memory_map();
-	assert(memory_map != NULL);
+	assert(memory_map);
 	printk(BIOS_DEBUG, "memory_map: %p\n", memory_map);
 
 	mmap_index = 0;
 	for (int e = 0; e < memory_map->numberEntries; ++e) {
 		const struct SystemMemoryMapElement *mem_element = &memory_map->Element[e];
 		uint64_t addr =
-			(uint64_t) ((uint64_t)mem_element->BaseAddress <<
+			(uint64_t)((uint64_t)mem_element->BaseAddress <<
 				MEM_ADDR_64MB_SHIFT_BITS);
 		uint64_t size =
-			(uint64_t) ((uint64_t)mem_element->ElementSize <<
+			(uint64_t)((uint64_t)mem_element->ElementSize <<
 				MEM_ADDR_64MB_SHIFT_BITS);
 
 		printk(BIOS_DEBUG, "memory_map %d addr: 0x%llx, BaseAddress: 0x%x, size: 0x%llx, "
@@ -85,10 +81,10 @@ static unsigned int get_srat_memory_entries(acpi_srat_mem_t *srat_mem)
 
 		srat_mem[mmap_index].type = 1; /* Memory affinity structure */
 		srat_mem[mmap_index].length = sizeof(acpi_srat_mem_t);
-		srat_mem[mmap_index].base_address_low = (uint32_t) (addr & 0xffffffff);
-		srat_mem[mmap_index].base_address_high = (uint32_t) (addr >> 32);
-		srat_mem[mmap_index].length_low = (uint32_t) (size & 0xffffffff);
-		srat_mem[mmap_index].length_high = (uint32_t) (size >> 32);
+		srat_mem[mmap_index].base_address_low = (uint32_t)(addr & 0xffffffff);
+		srat_mem[mmap_index].base_address_high = (uint32_t)(addr >> 32);
+		srat_mem[mmap_index].length_low = (uint32_t)(size & 0xffffffff);
+		srat_mem[mmap_index].length_high = (uint32_t)(size >> 32);
 		srat_mem[mmap_index].proximity_domain = mem_element->SocketId;
 		srat_mem[mmap_index].flags = SRAT_ACPI_MEMORY_ENABLED;
 		if ((mem_element->Type & MEMTYPE_VOLATILE_MASK) == 0)
@@ -262,13 +258,13 @@ static unsigned long acpi_create_drhd(unsigned long current, int socket,
 
 	// Add HPET
 	if (socket == 0 && stack == CSTACK) {
-		uint16_t hpet_capid = read16((void *)HPET_BASE_ADDRESS);
+		uint16_t hpet_capid = read16p(HPET_BASE_ADDRESS);
 		uint16_t num_hpets = (hpet_capid >> 0x08) & 0x1F;  // Bits [8:12] has hpet count
 		printk(BIOS_SPEW, "%s hpet_capid: 0x%x, num_hpets: 0x%x\n",
 			__func__, hpet_capid, num_hpets);
 		//BIT 15
 		if (num_hpets && (num_hpets != 0x1f) &&
-			(read32((void *)(HPET_BASE_ADDRESS + 0x100)) & (0x00008000))) {
+			(read32p(HPET_BASE_ADDRESS + 0x100) & (0x00008000))) {
 			union p2sb_bdf hpet_bdf = p2sb_get_hpet_bdf();
 			printk(BIOS_DEBUG, "    [Message-capable HPET Device] Enumeration ID: 0x%x, "
 				"PCI Bus Number: 0x%x, PCI Path: 0x%x, 0x%x\n",
@@ -297,7 +293,7 @@ static unsigned long acpi_create_atsr(unsigned long current, const IIO_UDS *hob)
 			uint32_t vtd_base = iio_resource.StackRes[stack].VtdBarAddress;
 			if (!vtd_base)
 				continue;
-			uint64_t vtd_mmio_cap = read64((void *)(vtd_base + VTD_EXT_CAP_LOW));
+			uint64_t vtd_mmio_cap = read64p(vtd_base + VTD_EXT_CAP_LOW);
 			printk(BIOS_SPEW, "%s socket: %d, stack: %d, bus: 0x%x, vtd_base: 0x%x, "
 				"vtd_mmio_cap: 0x%llx\n",
 				__func__, socket, stack, bus, vtd_base, vtd_mmio_cap);
@@ -332,16 +328,16 @@ static unsigned long acpi_create_rmrr(unsigned long current)
 	ptr = cbmem_find(CBMEM_ID_STORAGE_DATA);
 	if (!ptr) {
 		ptr = cbmem_add(CBMEM_ID_STORAGE_DATA, size);
-		assert(ptr != NULL);
+		assert(ptr);
 		memset(ptr, 0, size);
 	}
 
 	unsigned long tmp = current;
 	printk(BIOS_DEBUG, "[Reserved Memory Region] PCI Segment Number: 0x%x, Base Address: 0x%x, "
 		"End Address (limit): 0x%x\n",
-		0, (uint32_t) ptr, (uint32_t) ((uint32_t) ptr + size - 1));
-	current += acpi_create_dmar_rmrr(current, 0, (uint32_t) ptr,
-		(uint32_t) ((uint32_t) ptr + size - 1));
+		0, (uint32_t)ptr, (uint32_t)((uint32_t)ptr + size - 1));
+	current += acpi_create_dmar_rmrr(current, 0, (uint32_t)ptr,
+		(uint32_t)((uint32_t)ptr + size - 1));
 
 	printk(BIOS_DEBUG, "    [PCI Endpoint Device] Enumeration ID: 0x%x, PCI Bus Number: 0x%x, "
 		"PCI Path: 0x%x, 0x%x\n",
@@ -418,24 +414,24 @@ unsigned long northbridge_write_acpi_tables(const struct device *device,
 	const config_t *const config = config_of(device);
 
 	/* SRAT */
-	current = ALIGN(current, 8);
+	current = ALIGN_UP(current, 8);
 	printk(BIOS_DEBUG, "ACPI:    * SRAT at %lx\n", current);
-	srat = (acpi_srat_t *) current;
+	srat = (acpi_srat_t *)current;
 	acpi_create_srat(srat, acpi_fill_srat);
 	current += srat->header.length;
 	acpi_add_table(rsdp, srat);
 
 	/* SLIT */
-	current = ALIGN(current, 8);
+	current = ALIGN_UP(current, 8);
 	printk(BIOS_DEBUG, "ACPI:   * SLIT at %lx\n", current);
-	slit = (acpi_slit_t *) current;
+	slit = (acpi_slit_t *)current;
 	acpi_create_slit(slit, acpi_fill_slit);
 	current += slit->header.length;
 	acpi_add_table(rsdp, slit);
 
 	/* DMAR */
 	if (config->vtd_support) {
-		current = ALIGN(current, 8);
+		current = ALIGN_UP(current, 8);
 		dmar = (acpi_dmar_t *)current;
 		enum dmar_flags flags = DMAR_INTR_REMAP;
 

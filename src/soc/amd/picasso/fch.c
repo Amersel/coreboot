@@ -2,9 +2,7 @@
 
 #include <device/mmio.h>
 #include <bootstate.h>
-#include <cpu/amd/msr.h>
 #include <cpu/x86/smm.h>
-#include <cpu/x86/msr.h>
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_ops.h>
@@ -33,7 +31,7 @@
  * amd_pci_int_defs.h, just add the pair at the end of this table.
  * Order is not important.
  */
-const static struct irq_idx_name irq_association[] = {
+static const struct irq_idx_name irq_association[] = {
 	{ PIRQ_A,	"INTA#" },
 	{ PIRQ_B,	"INTB#" },
 	{ PIRQ_C,	"INTC#" },
@@ -166,12 +164,12 @@ static void al2ahb_clock_gate(void)
 	uint8_t al2ahb_val;
 	uintptr_t al2ahb_base = ALINK_AHB_ADDRESS;
 
-	al2ahb_val = read8((void *)(al2ahb_base + AL2AHB_CONTROL_CLK_OFFSET));
+	al2ahb_val = read8p(al2ahb_base + AL2AHB_CONTROL_CLK_OFFSET);
 	al2ahb_val |= AL2AHB_CLK_GATE_EN;
-	write8((void *)(al2ahb_base + AL2AHB_CONTROL_CLK_OFFSET), al2ahb_val);
-	al2ahb_val = read8((void *)(al2ahb_base + AL2AHB_CONTROL_HCLK_OFFSET));
+	write8p(al2ahb_base + AL2AHB_CONTROL_CLK_OFFSET, al2ahb_val);
+	al2ahb_val = read8p(al2ahb_base + AL2AHB_CONTROL_HCLK_OFFSET);
 	al2ahb_val |= AL2AHB_HCLK_GATE_EN;
-	write8((void *)(al2ahb_base + AL2AHB_CONTROL_HCLK_OFFSET), al2ahb_val);
+	write8p(al2ahb_base + AL2AHB_CONTROL_HCLK_OFFSET, al2ahb_val);
 }
 
 /* configure the general purpose PCIe clock outputs according to the devicetree settings */

@@ -7,6 +7,10 @@
 
 /* Pad configuration in ramstage */
 static const struct pad_config gpio_table[] = {
+
+	/* GPIO A0-A6, A9-A10 default function is NF1 for eSPI interface when
+	  eSPI is enabled */
+
 	/* SSD1_PWREN  CPU SSD1 */
 	PAD_CFG_GPO(GPP_D14, 1, PLTRST),
 	/* SSD1_RESET  CPU SSD1 */
@@ -41,8 +45,6 @@ static const struct pad_config gpio_table[] = {
 	PAD_CFG_GPI(GPP_E17, NONE, PLTRST),
 	/* EC_SLP_S0_CS_N */
 	PAD_CFG_GPO(GPP_F9, 1, PLTRST),
-	/* WIFI RF KILL */
-	PAD_CFG_GPO(GPP_E3, 1, PLTRST),
 	/* DISP_AUX_N_BIAS_GPIO */
 	PAD_CFG_GPO(GPP_E23, 1, PLTRST),
 	/* WWAN WAKE N*/
@@ -187,13 +189,6 @@ static const struct pad_config gpio_table[] = {
 	/* I2S0_RXD */
 	PAD_CFG_NF(GPP_R3, NONE, DEEP, NF2),
 
-	/* I2S2_SFRM */
-	PAD_CFG_NF(GPP_A8, NONE, DEEP, NF1),
-	/* I2S2_TXD */
-	PAD_CFG_NF(GPP_A9, NONE, DEEP, NF1),
-	/* I2S2_RXD */
-	PAD_CFG_NF(GPP_A10, NONE, DEEP, NF1),
-
 	/* I2S_MCLK1_OUT */
 	PAD_CFG_NF(GPP_D19, NONE, DEEP, NF1),
 	/* I2S_MCLK2_INOUT */
@@ -240,6 +235,7 @@ static const struct pad_config gpio_table[] = {
 	PAD_NC(GPP_D8, NONE),
 	PAD_CFG_NF(GPP_H19, NONE, DEEP, NF1),
 	PAD_CFG_NF(GPP_F19, NONE, DEEP, NF1),
+	PAD_CFG_NF(GPP_A8, NONE, DEEP, NF1),
 
 	/* DDP1/2/3/4/A/B/C  CTRLCLK and CTRLDATA pins */
 	PAD_CFG_NF(GPP_E18, NONE, DEEP, NF4),
@@ -266,6 +262,8 @@ static const struct pad_config gpio_table[] = {
 	PAD_CFG_NF(GPP_A21, NONE, DEEP, NF1),
 	/* A22 : HDMI CRLS CTRLDATA */
 	PAD_CFG_NF(GPP_A22, NONE, DEEP, NF1),
+	/* H1_PCH_INT_ODL */
+	PAD_CFG_GPI_APIC(GPP_E3, NONE, PLTRST, LEVEL, INVERT)
 };
 
 void variant_configure_gpio_pads(void)

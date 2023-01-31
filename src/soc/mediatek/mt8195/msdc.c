@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
+/* SPDX-License-Identifier: GPL-2.0-only OR MIT */
 
 #include <device/mmio.h>
+#include <gpio.h>
 #include <soc/addressmap.h>
-#include <soc/gpio.h>
 #include <soc/i2c.h>
 #include <soc/regulator.h>
 #include <soc/msdc.h>
@@ -103,6 +103,6 @@ void mtk_msdc_configure_sdcard(void)
 	if (CONFIG(BOARD_GOOGLE_CHERRY))
 		mt6360_init(I2C7);
 
-	mainboard_enable_regulator(MTK_REGULATOR_VCCQ, 1);
-	mainboard_enable_regulator(MTK_REGULATOR_VCC, 1);
+	mainboard_enable_regulator(MTK_REGULATOR_VCCQ, true);
+	mainboard_enable_regulator(MTK_REGULATOR_VCC, true);
 }

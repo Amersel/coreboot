@@ -20,8 +20,6 @@ ramstage-$(CONFIG_INTEL_LYNXPOINT_LP) += serialio.c
 
 ifneq ($(CONFIG_VARIANT_DIR),)
 ramstage-srcs += src/mainboard/$(MAINBOARDDIR)/variants/$(VARIANT_DIR)/hda_verb.c
-else
-ramstage-srcs += src/mainboard/$(MAINBOARDDIR)/hda_verb.c
 endif
 
 ramstage-y += me_status.c
@@ -36,6 +34,9 @@ smm-y += pmutil.c usb_ehci.c usb_xhci.c
 bootblock-y += early_pch.c
 romstage-y += early_usb.c early_me.c me_status.c early_pch.c
 romstage-y += pmutil.c
+
+romstage-$(CONFIG_USE_NATIVE_RAMINIT) += early_pch_native.c early_usb_native.c iobp.c thermal.c
+subdirs-$(CONFIG_USE_NATIVE_RAMINIT) += hsio
 
 ifeq ($(CONFIG_INTEL_LYNXPOINT_LP),y)
 romstage-y += lp_gpio.c

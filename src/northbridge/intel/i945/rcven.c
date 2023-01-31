@@ -2,8 +2,10 @@
 
 #include <console/console.h>
 #include <device/mmio.h>
-#include "raminit.h"
+#include <types.h>
+
 #include "i945.h"
+#include "raminit.h"
 
 /**
  * sample the strobes signal
@@ -27,8 +29,8 @@ static u32 sample_strobes(int channel_offset, struct sys_info *sysinfo)
 	}
 
 	for (i = 0; i < 28; i++) {
-		read32((void *)addr);
-		read32((void *)(addr + 0x80));
+		read32p(addr);
+		read32p(addr + 0x80);
 	}
 
 	reg32 = mchbar_read32(RCVENMT);

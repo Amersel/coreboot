@@ -106,6 +106,7 @@ static uint8_t find_register_fw_filename_psp_dir(char *fw_name, char *filename,
 	amd_fw_type fw_type = AMD_FW_INVALID;
 	amd_fw_entry *psp_tableptr;
 	uint8_t subprog;
+	uint8_t instance = 0;
 
 	if (strcmp(fw_name, "PSPBTLDR_WL_FILE") == 0) {
 		if (cb_config->have_whitelist) {
@@ -170,6 +171,18 @@ static uint8_t find_register_fw_filename_psp_dir(char *fw_name, char *filename,
 	} else if (strcmp(fw_name, "PSP_SMUFW2_SUB2_FILE") == 0) {
 		fw_type = AMD_FW_PSP_SMU_FIRMWARE2;
 		subprog = 2;
+	} else if (strcmp(fw_name, "PSP_BOOT_DRIVER_FILE") == 0) {
+		fw_type = AMD_BOOT_DRIVER;
+		subprog = 0;
+	} else if (strcmp(fw_name, "PSP_SOC_DRIVER_FILE") == 0) {
+		fw_type = AMD_SOC_DRIVER;
+		subprog = 0;
+	} else if (strcmp(fw_name, "PSP_DEBUG_DRIVER_FILE") == 0) {
+		fw_type = AMD_DEBUG_DRIVER;
+		subprog = 0;
+	} else if (strcmp(fw_name, "PSP_INTERFACE_DRIVER_FILE") == 0) {
+		fw_type = AMD_INTERFACE_DRIVER;
+		subprog = 0;
 	} else if (strcmp(fw_name, "PSP_SEC_DBG_KEY_FILE") == 0) {
 		if (cb_config->unlock_secure) {
 			fw_type = AMD_FW_PSP_SECURED_DEBUG;
@@ -262,6 +275,51 @@ static uint8_t find_register_fw_filename_psp_dir(char *fw_name, char *filename,
 		} else {
 			fw_type = AMD_FW_SKIP;
 		}
+	} else if (strcmp(fw_name, "PSP_C20MP_FILE") == 0) {
+		fw_type = AMD_FW_C20_MP;
+		subprog = 0;
+	} else if (strcmp(fw_name, "RIB_FILE") == 0) {
+		fw_type = AMD_RIB;
+		subprog = 0;
+	} else if (strcmp(fw_name, "AMF_SRAM_FILE") == 0) {
+		fw_type = AMD_FW_AMF_SRAM;
+		subprog = 0;
+	} else if (strcmp(fw_name, "AMF_DRAM_FILE_INS0") == 0) {
+		fw_type = AMD_FW_AMF_DRAM;
+		subprog = 0;
+		instance = 0;
+	} else if (strcmp(fw_name, "AMF_DRAM_FILE_INS1") == 0) {
+		fw_type = AMD_FW_AMF_DRAM;
+		subprog = 0;
+		instance = 1;
+	} else if (strcmp(fw_name, "AMF_WLAN_FILE_INS0") == 0) {
+		fw_type = AMD_FW_AMF_WLAN;
+		subprog = 0;
+		instance = 0;
+	} else if (strcmp(fw_name, "AMF_WLAN_FILE_INS1") == 0) {
+		fw_type = AMD_FW_AMF_WLAN;
+		subprog = 0;
+		instance = 1;
+	} else if (strcmp(fw_name, "AMF_MFD_FILE") == 0) {
+		fw_type = AMD_FW_AMF_MFD;
+		subprog = 0;
+	} else if (strcmp(fw_name, "MPCCX_FILE") == 0) {
+		fw_type = AMD_FW_MPCCX;
+		subprog = 0;
+	} else if (strcmp(fw_name, "LSDMA_FILE") == 0) {
+		fw_type = AMD_FW_LSDMA;
+		subprog = 0;
+	} else if (strcmp(fw_name, "MINIMSMU_FILE") == 0) {
+		fw_type = AMD_FW_MINIMSMU;
+		instance = 0;
+		subprog = 0;
+	} else if (strcmp(fw_name, "MINIMSMU_FILE_INS1") == 0) {
+		fw_type = AMD_FW_MINIMSMU;
+		instance = 1;
+		subprog = 0;
+	} else if (strcmp(fw_name, "SRAM_FW_EXT_FILE") == 0) {
+		fw_type = AMD_FW_SRAM_FW_EXT;
+		subprog = 0;
 	} else if (strcmp(fw_name, "PSP_DRIVERS_FILE") == 0) {
 		fw_type = AMD_DRIVER_ENTRIES;
 		subprog = 0;
@@ -315,6 +373,13 @@ static uint8_t find_register_fw_filename_psp_dir(char *fw_name, char *filename,
 	} else if (strcmp(fw_name, "SPIROM_CONFIG_FILE") == 0) {
 		fw_type = AMD_FW_SPIROM_CFG;
 		subprog = 0;
+	} else if (strcmp(fw_name, "MPIO_FILE") == 0) {
+		fw_type = AMD_FW_MPIO;
+		subprog = 0;
+	} else if (strcmp(fw_name, "TPMLITE_FILE") == 0) {
+		printf("TPMLITE\n");
+		fw_type = AMD_FW_TPMLITE;
+		subprog = 0;
 	} else if (strcmp(fw_name, "PSP_KVM_ENGINE_DUMMY_FILE") == 0) {
 		fw_type = AMD_FW_KVM_IMAGE;
 		subprog = 0;
@@ -331,6 +396,48 @@ static uint8_t find_register_fw_filename_psp_dir(char *fw_name, char *filename,
 	} else if (strcmp(fw_name, "TA_IKEK_FILE") == 0) {
 		fw_type = AMD_TA_IKEK;
 		subprog = 0;
+	} else if (strcmp(fw_name, "PSP_OEM_ABL_KEY_FILE") == 0) {
+		fw_type = AMD_FW_ABL_PUBKEY;
+		subprog = 0;
+	} else if (strcmp(fw_name, "PSP_MP5FW_SUB0_FILE") == 0) {
+		fw_type = AMD_FW_MP5;
+		subprog = 0;
+	} else if (strcmp(fw_name, "PSP_MP5FW_SUB1_FILE") == 0) {
+		fw_type = AMD_FW_MP5;
+		subprog = 1;
+	} else if (strcmp(fw_name, "PSP_MP5FW_SUB2_FILE") == 0) {
+		fw_type = AMD_FW_MP5;
+		subprog = 2;
+	} else if (strcmp(fw_name, "PSP_DXIOFW_FILE") == 0) {
+		fw_type = AMD_FW_DXIO;
+		subprog = 0;
+	} else if (strcmp(fw_name, "PSP_MPIOFW_FILE") == 0) {
+		fw_type = AMD_FW_MPIO;
+		subprog = 0;
+	} else if (strcmp(fw_name, "PSP_RIB_FILE") == 0) {
+		fw_type = AMD_RIB;
+		subprog = 0;
+	} else if (strcmp(fw_name, "FEATURE_TABLE_FILE") == 0) {
+		fw_type = AMD_FW_FCFG_TABLE;
+		subprog = 0;
+	} else if (strcmp(fw_name, "PSP_MPDMATFFW_FILE") == 0) {
+		fw_type = AMD_FW_MPDMA_TF;
+		subprog = 0;
+	} else if (strcmp(fw_name, "PSP_GMI3PHYFW_FILE") == 0) {
+		fw_type = AMD_FW_GMI3_PHY;
+		subprog = 0;
+	} else if (strcmp(fw_name, "PSP_MPDMAPMFW_FILE") == 0) {
+		fw_type = AMD_FW_MPDMA_PM;
+		subprog = 0;
+	} else if (strcmp(fw_name, "PSP_TOKEN_UNLOCK_FILE") == 0) {
+		fw_type = AMD_TOKEN_UNLOCK;
+		subprog = 0;
+	} else if (strcmp(fw_name, "SEV_DATA_FILE") == 0) {
+		fw_type = AMD_SEV_DATA;
+		subprog = 0;
+	} else if (strcmp(fw_name, "SEV_CODE_FILE") == 0) {
+		fw_type = AMD_SEV_CODE;
+		subprog = 0;
 	} else {
 		fw_type = AMD_FW_INVALID;
 		/* TODO: Add more */
@@ -341,7 +448,8 @@ static uint8_t find_register_fw_filename_psp_dir(char *fw_name, char *filename,
 	if (fw_type != AMD_FW_SKIP && fw_type != AMD_FW_INVALID) {
 		while (psp_tableptr->type != AMD_FW_INVALID) {
 			/* instance are not used in PSP table */
-			if (psp_tableptr->type == fw_type && psp_tableptr->subprog == subprog) {
+			if (psp_tableptr->type == fw_type && psp_tableptr->subprog == subprog
+				&& psp_tableptr->inst  == instance) {
 				psp_tableptr->filename = filename;
 				SET_LEVEL(psp_tableptr, level_to_set, PSP,
 					cb_config->recovery_ab);
@@ -375,13 +483,13 @@ static uint8_t find_register_fw_filename_bios_dir(char *fw_name, char *filename,
 	if (strncmp(fw_name, PMUI_STR_BASE, PMU_STR_BASE_LEN) == 0) {
 		assert(strlen(fw_name) == PMU_STR_ALL_LEN);
 		fw_type = AMD_BIOS_PMUI;
-		subprog = fw_name[PMU_STR_SUB_INDEX] - '0';
-		instance = fw_name[PMU_STR_INS_INDEX] - '0';
+		subprog = strtol(&fw_name[PMU_STR_SUB_INDEX], NULL, 16);
+		instance = strtol(&fw_name[PMU_STR_INS_INDEX], NULL, 16);
 	} else if (strncmp(fw_name, PMUD_STR_BASE, PMU_STR_BASE_LEN) == 0) {
 		assert(strlen(fw_name) == PMU_STR_ALL_LEN);
 		fw_type = AMD_BIOS_PMUD;
-		subprog = fw_name[PMU_STR_SUB_INDEX] - '0';
-		instance = fw_name[PMU_STR_INS_INDEX] - '0';
+		subprog = strtol(&fw_name[PMU_STR_SUB_INDEX], NULL, 16);
+		instance = strtol(&fw_name[PMU_STR_INS_INDEX], NULL, 16);
 	} else if (strcmp(fw_name, "RTM_PUBKEY_FILE") == 0) {
 		fw_type = AMD_BIOS_RTM_PUBKEY;
 		subprog = 0;

@@ -1,11 +1,14 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 
+#include <acpi/acpi.h>
 #include <acpi/acpigen.h>
 #include <assert.h>
+#include <commonlib/bsd/helpers.h>
 #include <console/console.h>
 #include <intelblocks/acpi.h>
 #include <intelblocks/pmc_ipc.h>
 #include <stdlib.h>
+#include <string.h>
 #include <types.h>
 
 #define LPI_S0_HELPER_UUID		"c4eb40a0-6cd2-11e2-bcfd-0800200c9a66"
@@ -13,15 +16,26 @@
 #define SYSTEM_POWER_MANAGEMENT_HID	"INT33A1"
 #define SYSTEM_POWER_MANAGEMENT_CID	"PNP0D80"
 #define EC_S0IX_HOOK			"\\_SB.PCI0.LPCB.EC0.S0IX"
+#define EC_DISPLAY_HOOK			"\\_SB.PCI0.LPCB.EC0.EDSX"
 #define MAINBOARD_HOOK			"\\_SB.MS0X"
 #define MAINBOARD_DISPLAY_HOOK		"\\_SB.MDSX"
 #define ENABLE_PM_BITS_HOOK		"\\_SB.PCI0.EGPM"
 #define RESTORE_PM_BITS_HOOK		"\\_SB.PCI0.RGPM"
 #define THUNDERBOLT_DEVICE		"\\_SB.PCI0.TXHC"
 #define THUNDERBOLT_IOM_DPOF		"\\_SB.PCI0.DPOF"
-#define LPI_STATES_ALL			0xff
-#define MIN_DEVICE_STATE		ACPI_DEVICE_SLEEP_D0
 #define PEPD_SCOPE			"\\_SB.PCI0"
+
+#define MIN_DEVICE_STATE	ACPI_DEVICE_SLEEP_D0
+#define LPI_STATES_ALL		0xff
+
+enum {
+	LPI_REVISION_0 = 0,
+};
+
+enum {
+	LPI_DISABLED = 0,
+	LPI_ENABLED = 1,
+};
 
 struct reg_info {
 	uint8_t *addr;
@@ -77,9 +91,8 @@ static void read_pmc_lpm_requirements(const struct soc_pmc_lpm *lpm,
  * device, one that is known to exist, i.e.  ACPI_CPU_STRING.  expects at least
  * one device and crashes without it with a bluescreen.
  */
-__weak void soc_lpi_get_constraints(void *unused)
+static void acpi_gen_default_lpi_constraints(void)
 {
-	char path[16];
 	printk(BIOS_INFO, "Returning default LPI constraint package\n");
 
 	/*
@@ -93,8 +106,7 @@ __weak void soc_lpi_get_constraints(void *unused)
 	{
 		acpigen_write_package(3);
 		{
-			snprintf(path, sizeof(path), CONFIG_ACPI_CPU_STRING, 0);
-			acpigen_emit_namestring(path);
+			acpigen_write_processor_namestring(0);
 			acpigen_write_integer(0); /* device disabled */
 			acpigen_write_package(2);
 			{
@@ -111,6 +123,107 @@ __weak void soc_lpi_get_constraints(void *unused)
 		acpigen_write_package_end();
 	}
 	acpigen_write_package_end();
+}
+
+__weak struct min_sleep_state *soc_get_min_sleep_state_array(size_t *size)
+{
+	printk(BIOS_DEBUG, "Empty min sleep state array returned\n");
+	*size = 0;
+	return NULL;
+}
+
+static enum acpi_device_sleep_states get_min_sleep_state(
+	const struct device *dev, struct min_sleep_state *states_arr, size_t size)
+{
+	if (!is_dev_enabled(dev))
+		return ACPI_DEVICE_SLEEP_NONE;
+	switch (dev->path.type) {
+	case DEVICE_PATH_APIC:
+		return MIN_DEVICE_STATE;
+
+	case DEVICE_PATH_PCI:
+		/* skip external buses*/
+		if ((dev->bus->secondary != 0) || (!states_arr))
+			return ACPI_DEVICE_SLEEP_NONE;
+		for (size_t i = 0; i < size; i++)
+			if (states_arr[i].pci_dev == dev->path.pci.devfn)
+				return states_arr[i].min_sleep_state;
+		printk(BIOS_WARNING, "Unknown min d_state for %x\n", dev->path.pci.devfn);
+		return ACPI_DEVICE_SLEEP_NONE;
+
+	default:
+		return ACPI_DEVICE_SLEEP_NONE;
+	}
+}
+
+/* Generate the LPI constraint table */
+static void acpi_lpi_get_constraints(void *unused)
+{
+	unsigned int num_entries = 0;
+	const struct device *dev;
+	enum acpi_device_sleep_states min_sleep_state;
+	size_t size;
+	struct min_sleep_state *states_arr = soc_get_min_sleep_state_array(&size);
+
+	if (size && states_arr) {
+		for (dev = all_devices; dev; dev = dev->next) {
+			if (get_min_sleep_state(dev, states_arr, size)
+				!= ACPI_DEVICE_SLEEP_NONE)
+				num_entries++;
+		}
+	}
+	if (!num_entries) {
+		acpi_gen_default_lpi_constraints();
+	} else {
+		acpigen_emit_byte(RETURN_OP);
+		acpigen_write_package(num_entries);
+
+		size_t cpu_index = 0;
+		for (dev = all_devices; dev; dev = dev->next) {
+			min_sleep_state = get_min_sleep_state(dev, states_arr, size);
+			if (min_sleep_state == ACPI_DEVICE_SLEEP_NONE)
+				continue;
+
+			acpigen_write_package(3);
+			{
+				/* Emit the device path */
+				switch (dev->path.type) {
+				case DEVICE_PATH_PCI:
+					acpigen_emit_namestring(acpi_device_path(dev));
+					break;
+
+				case DEVICE_PATH_APIC:
+					acpigen_write_processor_namestring(cpu_index++);
+					break;
+
+				default:
+					/* Unhandled */
+					printk(BIOS_WARNING,
+						"Unhandled device path type %d\n",
+						dev->path.type);
+					acpigen_emit_namestring(NULL);
+					break;
+				}
+
+				acpigen_write_integer(LPI_ENABLED);
+				acpigen_write_package(2);
+				{
+					acpigen_write_integer(LPI_REVISION_0);
+					acpigen_write_package(2); /* no optional device info */
+					{
+						/* Assume constraints apply to all entries */
+						acpigen_write_integer(LPI_STATES_ALL);
+						/* min D-state */
+						acpigen_write_integer(min_sleep_state);
+					}
+					acpigen_write_package_end();
+				}
+				acpigen_write_package_end();
+			}
+			acpigen_write_package_end();
+		}
+		acpigen_write_package_end();
+	}
 }
 
 static void lpi_s0ix_entry(void *unused)
@@ -166,6 +279,12 @@ static void lpi_s0ix_exit(void *unused)
 
 static void lpi_display_on(void *unused)
 {
+	/* Inform the EC */
+	acpigen_write_if_cond_ref_of(EC_DISPLAY_HOOK);
+	acpigen_emit_namestring(EC_DISPLAY_HOOK);
+	acpigen_write_integer(1);
+	acpigen_write_if_end();
+
 	/* Provide a board level S0ix hook */
 	acpigen_write_if_cond_ref_of(MAINBOARD_DISPLAY_HOOK);
 	acpigen_emit_namestring(MAINBOARD_DISPLAY_HOOK);
@@ -175,6 +294,12 @@ static void lpi_display_on(void *unused)
 
 static void lpi_display_off(void *unused)
 {
+	/* Inform the EC */
+	acpigen_write_if_cond_ref_of(EC_DISPLAY_HOOK);
+	acpigen_emit_namestring(EC_DISPLAY_HOOK);
+	acpigen_write_integer(0);
+	acpigen_write_if_end();
+
 	/* Provide a board level S0ix hook */
 	acpigen_write_if_cond_ref_of(MAINBOARD_DISPLAY_HOOK);
 	acpigen_emit_namestring(MAINBOARD_DISPLAY_HOOK);
@@ -184,7 +309,7 @@ static void lpi_display_off(void *unused)
 
 static void (*lpi_s0_helpers[])(void *) = {
 	NULL,			/* enumerate functions (autogenerated) */
-	soc_lpi_get_constraints,/* get device constraints */
+	acpi_lpi_get_constraints,/* get device constraints */
 	NULL,			/* get crash dump device */
 	lpi_display_off,	/* display off notify */
 	lpi_display_on,		/* display on notify */

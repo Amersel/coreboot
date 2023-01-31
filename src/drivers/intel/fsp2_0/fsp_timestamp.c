@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 
-#include <commonlib/bsd/compiler.h>
 #include <console/console.h>
 #include <fsp/util.h>
 #include <lib.h>
@@ -46,7 +45,7 @@ struct fpdt_pei_ext_perf_header {
 static void print_guid_record(const struct generic_event_record *rec)
 {
 	printk(BIOS_INFO, "%5x\t%16llu\t\t", rec->progress_id, TIMESTAMP_MS(rec->timestamp));
-	fsp_print_guid(rec->guid);
+	fsp_print_guid(BIOS_INFO, rec->guid);
 	printk(BIOS_INFO, "\n");
 }
 
@@ -55,7 +54,7 @@ static void print_string_record(const struct generic_event_record *rec)
 	size_t str_len = rec->header.length - offsetof(struct generic_event_record, string);
 	printk(BIOS_INFO, "%5x\t%16llu\t\t%*s/",
 	       rec->progress_id, TIMESTAMP_MS(rec->timestamp), (int)str_len, rec->string);
-	fsp_print_guid(rec->guid);
+	fsp_print_guid(BIOS_INFO, rec->guid);
 	printk(BIOS_INFO, "\n");
 }
 

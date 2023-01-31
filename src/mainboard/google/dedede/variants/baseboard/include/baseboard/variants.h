@@ -10,10 +10,16 @@
 /* The next set of functions return the gpio table and fill in the number of
  * entries for each table. */
 
-const struct pad_config *variant_base_gpio_table(size_t *num);
+const struct pad_config *baseboard_gpio_table(size_t *num);
 const struct pad_config *variant_early_gpio_table(size_t *num);
 const struct pad_config *variant_sleep_gpio_table(size_t *num);
 const struct pad_config *variant_override_gpio_table(size_t *num);
+const struct pad_config *variant_romstage_gpio_table(size_t *num);
+
+enum s0ix_entry {
+	S0IX_EXIT,
+	S0IX_ENTRY,
+};
 
 /**
  * Get board's Hardware features as defined in FW_CONFIG
@@ -44,4 +50,6 @@ void variant_devtree_update(void);
 
 /* Modify LTE devictree settings during ramstage. */
 void update_lte_device(struct acpi_gpio *lte_reset_gpio, struct acpi_gpio *lte_enable_gpio);
+
+void variant_generate_s0ix_hook(enum s0ix_entry);
 #endif /*__BASEBOARD_VARIANTS_H__ */

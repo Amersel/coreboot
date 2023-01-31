@@ -5,7 +5,6 @@
 #include <console/console.h>
 #include <cpu/cpu.h>
 #include <cpu/x86/mtrr.h>
-#include <cpu/x86/msr.h>
 #include <cpu/x86/mp.h>
 #include <cpu/intel/microcode.h>
 #include <intelblocks/cfg.h>
@@ -60,14 +59,13 @@ static const struct cpu_device_id cpu_table[] = {
 	{ X86_VENDOR_INTEL, CPUID_COFFEELAKE_B0 },
 	{ X86_VENDOR_INTEL, CPUID_COFFEELAKE_P0 },
 	{ X86_VENDOR_INTEL, CPUID_COFFEELAKE_R0 },
-	{ X86_VENDOR_INTEL, CPUID_ICELAKE_A0 },
-	{ X86_VENDOR_INTEL, CPUID_ICELAKE_B0 },
 	{ X86_VENDOR_INTEL, CPUID_COMETLAKE_U_A0 },
 	{ X86_VENDOR_INTEL, CPUID_COMETLAKE_U_K0_S0 },
 	{ X86_VENDOR_INTEL, CPUID_COMETLAKE_H_S_6_2_G0 },
 	{ X86_VENDOR_INTEL, CPUID_COMETLAKE_H_S_6_2_G1 },
 	{ X86_VENDOR_INTEL, CPUID_COMETLAKE_H_S_10_2_P0 },
-	{ X86_VENDOR_INTEL, CPUID_COMETLAKE_H_S_10_2_Q0_P1 },
+	{ X86_VENDOR_INTEL, CPUID_COMETLAKE_H_S_10_2_P1 },
+	{ X86_VENDOR_INTEL, CPUID_COMETLAKE_H_S_10_2_Q0 },
 	{ X86_VENDOR_INTEL, CPUID_TIGERLAKE_A0 },
 	{ X86_VENDOR_INTEL, CPUID_TIGERLAKE_B0 },
 	{ X86_VENDOR_INTEL, CPUID_TIGERLAKE_R0 },
@@ -194,10 +192,10 @@ void before_post_cpus_init(void)
 	if (!CONFIG(USE_COREBOOT_MP_INIT))
 		return;
 
-	if (mp_run_on_all_cpus(&wrapper_init_core_prmrr, NULL) != CB_SUCCESS)
+	if (mp_run_on_all_cpus(wrapper_init_core_prmrr, NULL) != CB_SUCCESS)
 		printk(BIOS_ERR, "core PRMRR sync failure\n");
 
-	if (mp_run_on_all_cpus(&wrapper_set_bios_done, NULL) != CB_SUCCESS)
+	if (mp_run_on_all_cpus(wrapper_set_bios_done, NULL) != CB_SUCCESS)
 		printk(BIOS_ERR, "Set BIOS Done failure\n");
 
 	intel_reload_microcode();

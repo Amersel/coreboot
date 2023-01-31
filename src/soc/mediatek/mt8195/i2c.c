@@ -1,11 +1,11 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
+/* SPDX-License-Identifier: GPL-2.0-only OR MIT */
 
 #include <assert.h>
 #include <console/console.h>
 #include <device/mmio.h>
 #include <device/i2c_simple.h>
+#include <gpio.h>
 #include <soc/i2c.h>
-#include <soc/gpio.h>
 
 struct mtk_i2c mtk_i2c_bus_controller[] = {
 	[0] = {

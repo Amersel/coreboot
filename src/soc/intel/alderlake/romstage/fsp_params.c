@@ -8,10 +8,11 @@
 #include <drivers/wifi/generic/wifi.h>
 #include <fsp/fsp_debug_event.h>
 #include <fsp/util.h>
+#include <gpio.h>
+#include <intelbasecode/debug_feature.h>
 #include <intelblocks/cpulib.h>
 #include <intelblocks/pcie_rp.h>
 #include <option.h>
-#include <soc/gpio.h>
 #include <soc/iomap.h>
 #include <soc/msr.h>
 #include <soc/pci_devs.h>
@@ -19,6 +20,8 @@
 #include <soc/romstage.h>
 #include <soc/soc_chip.h>
 #include <string.h>
+
+#include "ux.h"
 
 #define FSP_CLK_NOTUSED			0xFF
 #define FSP_CLK_LAN			0x70
@@ -54,6 +57,10 @@ static void pcie_rp_init(FSP_M_CONFIG *m_cfg, uint32_t en_mask, enum pcie_rp_typ
 	static unsigned int clk_req_mapping = 0;
 
 	for (i = 0; i < cfg_count; i++) {
+		if (CONFIG(SOC_INTEL_COMPLIANCE_TEST_MODE)) {
+			m_cfg->PcieClkSrcUsage[i] = FSP_CLK_FREE_RUNNING;
+			continue;
+		}
 		if (!(en_mask & BIT(i)))
 			continue;
 		if (cfg[i].flags & PCIE_RP_CLK_SRC_UNUSED)
@@ -146,8 +153,10 @@ static void fill_fspm_mrc_params(FSP_M_CONFIG *m_cfg,
 {
 	m_cfg->SaGv = config->sagv;
 	m_cfg->RMT = config->RMT;
-	if (config->max_dram_speed_mts)
+	if (config->max_dram_speed_mts) {
 		m_cfg->DdrFreqLimit = config->max_dram_speed_mts;
+		m_cfg->DdrSpeedControl = 1;
+	}
 }
 
 static void fill_fspm_cpu_params(FSP_M_CONFIG *m_cfg,
@@ -171,7 +180,7 @@ static void fill_fspm_security_params(FSP_M_CONFIG *m_cfg,
 {
 	/* Disable BIOS Guard */
 	m_cfg->BiosGuard = 0;
-	m_cfg->TmeEnable = CONFIG(INTEL_TME);
+	m_cfg->TmeEnable = CONFIG(INTEL_TME) && is_tme_supported();
 }
 
 static void fill_fspm_uart_params(FSP_M_CONFIG *m_cfg,
@@ -218,6 +227,9 @@ static void fill_fspm_misc_params(FSP_M_CONFIG *m_cfg,
 							ARRAY_SIZE(path));
 	if (is_dev_enabled(dev))
 		m_cfg->CnviDdrRfim = wifi_generic_cnvi_ddr_rfim_enabled(dev);
+
+	/* Skip MBP HOB */
+	m_cfg->SkipMbpHob = config->skip_mbp_hob;
 }
 
 static void fill_fspm_audio_params(FSP_M_CONFIG *m_cfg,
@@ -333,6 +345,24 @@ static void fill_fspm_trace_params(FSP_M_CONFIG *m_cfg,
 	m_cfg->CpuCrashLogEnable = m_cfg->CpuCrashLogDevice;
 }
 
+static void fill_fspm_ibecc_params(FSP_M_CONFIG *m_cfg,
+		const struct soc_intel_alderlake_config *config)
+{
+	/* In-Band ECC configuration */
+	if (config->ibecc.enable) {
+		m_cfg->Ibecc = config->ibecc.enable;
+		m_cfg->IbeccOperationMode = config->ibecc.mode;
+		if (m_cfg->IbeccOperationMode == IBECC_MODE_PER_REGION) {
+			FSP_ARRAY_LOAD(m_cfg->IbeccProtectedRangeEnable,
+				       config->ibecc.range_enable);
+			FSP_ARRAY_LOAD(m_cfg->IbeccProtectedRangeBase,
+				       config->ibecc.range_base);
+			FSP_ARRAY_LOAD(m_cfg->IbeccProtectedRangeMask,
+				       config->ibecc.range_mask);
+		}
+	}
+}
+
 static void soc_memory_init_params(FSP_M_CONFIG *m_cfg,
 		const struct soc_intel_alderlake_config *config)
 {
@@ -353,10 +383,16 @@ static void soc_memory_init_params(FSP_M_CONFIG *m_cfg,
 		fill_fspm_usb4_params,
 		fill_fspm_vtd_params,
 		fill_fspm_trace_params,
+		fill_fspm_ibecc_params,
 	};
 
 	for (size_t i = 0; i < ARRAY_SIZE(fill_fspm_params); i++)
 		fill_fspm_params[i](m_cfg, config);
+}
+
+static void debug_override_memory_init_params(FSP_M_CONFIG *mupd)
+{
+	debug_get_pch_cpu_tracehub_modes(&mupd->CpuTraceHubMode, &mupd->PchTraceHubMode);
 }
 
 void platform_fsp_memory_init_params_cb(FSPM_UPD *mupd, uint32_t version)
@@ -381,10 +417,26 @@ void platform_fsp_memory_init_params_cb(FSPM_UPD *mupd, uint32_t version)
 			m_cfg->SerialDebugMrcLevel = 0;
 		}
 	}
+
+	/*
+	 * If valid MRC cache data is not found, FSP should perform a memory
+	 * training. Memory training can take a while so let's inform the end
+	 * user with an on-screen text message.
+	 */
+	if (!arch_upd->NvsBufferPtr)
+		ux_inform_user_of_update_operation("memory training");
+
 	config = config_of_soc();
 
 	soc_memory_init_params(m_cfg, config);
 	mainboard_memory_init_params(mupd);
+
+	/* Override the memory init params through runtime debug capability */
+	if (CONFIG(SOC_INTEL_COMMON_BASECODE_DEBUG_FEATURE))
+		debug_override_memory_init_params(m_cfg);
+
+	if (CONFIG(HWBASE_STATIC_MMIO))
+		m_cfg->GttMmAdr = CONFIG_GFX_GMA_DEFAULT_MMIO;
 }
 
 __weak void mainboard_memory_init_params(FSPM_UPD *memupd)

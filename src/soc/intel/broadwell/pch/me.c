@@ -598,7 +598,10 @@ static void intel_me_finalize(struct device *dev)
 	u16 reg16;
 
 	/* S3 path will have hidden this device already */
-	if (!mei_base_address || mei_base_address == (u8 *) 0xfffffff0)
+	if (!mei_base_address || mei_base_address == (u8 *)0xfffffff0)
+		return;
+
+	if (!CONFIG(DISABLE_ME_PCI))
 		return;
 
 	/* Make sure IO is disabled */
@@ -1023,7 +1026,7 @@ static void intel_me_init(struct device *dev)
 static void intel_me_enable(struct device *dev)
 {
 	/* Avoid talking to the device in S3 path */
-	if (acpi_is_wakeup_s3()) {
+	if (acpi_is_wakeup_s3() && CONFIG(DISABLE_ME_PCI)) {
 		dev->enabled = 0;
 		pch_disable_devfn(dev);
 	}

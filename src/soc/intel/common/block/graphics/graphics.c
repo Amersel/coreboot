@@ -148,12 +148,12 @@ static uintptr_t graphics_get_gtt_base(void)
 
 uint32_t graphics_gtt_read(unsigned long reg)
 {
-	return read32((void *)(graphics_get_gtt_base() + reg));
+	return read32p(graphics_get_gtt_base() + reg);
 }
 
 void graphics_gtt_write(unsigned long reg, uint32_t data)
 {
-	write32((void *)(graphics_get_gtt_base() + reg), data);
+	write32p(graphics_get_gtt_base() + reg, data);
 }
 
 void graphics_gtt_rmw(unsigned long reg, uint32_t andmask, uint32_t ormask)
@@ -164,11 +164,35 @@ void graphics_gtt_rmw(unsigned long reg, uint32_t andmask, uint32_t ormask)
 	graphics_gtt_write(reg, val);
 }
 
-static const struct device_operations graphics_ops = {
-	.read_resources		= pci_dev_read_resources,
+static void graphics_dev_read_resources(struct device *dev)
+{
+	pci_dev_read_resources(dev);
+
+	if (CONFIG(SOC_INTEL_GFX_NON_PREFETCHABLE_MMIO)) {
+		struct resource *res_bar0 = find_resource(dev, PCI_BASE_ADDRESS_0);
+		if (res_bar0->flags & IORESOURCE_PREFETCH)
+			res_bar0->flags &= ~IORESOURCE_PREFETCH;
+	}
+
+	/*
+	 * If libhwbase static MMIO driver is used, IGD BAR 0 has to be set to
+	 * CONFIG_GFX_GMA_DEFAULT_MMIO for the libgfxinit to operate properly.
+	 */
+	if (CONFIG(MAINBOARD_USE_LIBGFXINIT) && CONFIG(HWBASE_STATIC_MMIO)) {
+		struct resource *res_bar0 = find_resource(dev, PCI_BASE_ADDRESS_0);
+		res_bar0->base = CONFIG_GFX_GMA_DEFAULT_MMIO;
+		res_bar0->flags |= IORESOURCE_ASSIGNED;
+		pci_dev_set_resources(dev);
+		res_bar0->flags |= IORESOURCE_FIXED;
+	}
+}
+
+const struct device_operations graphics_ops = {
+	.read_resources		= graphics_dev_read_resources,
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
 	.init			= gma_init,
+	.final			= pci_dev_request_bus_master,
 	.ops_pci		= &pci_dev_ops_pci,
 #if CONFIG(HAVE_ACPI_TABLES)
 	.acpi_fill_ssdt		= gma_generate_ssdt,
@@ -187,6 +211,7 @@ static const unsigned short pci_device_ids[] = {
 	PCI_DID_INTEL_MTL_P_GT2_1,
 	PCI_DID_INTEL_MTL_P_GT2_2,
 	PCI_DID_INTEL_MTL_P_GT2_3,
+	PCI_DID_INTEL_MTL_P_GT2_4,
 	PCI_DID_INTEL_APL_IGD_HD_505,
 	PCI_DID_INTEL_APL_IGD_HD_500,
 	PCI_DID_INTEL_CNL_GT2_ULX_1,
@@ -201,36 +226,7 @@ static const unsigned short pci_device_ids[] = {
 	PCI_DID_INTEL_GLK_IGD_EU12,
 	PCI_DID_INTEL_WHL_GT1_ULT_1,
 	PCI_DID_INTEL_WHL_GT2_ULT_1,
-	PCI_DID_INTEL_KBL_GT1_SULTM,
-	PCI_DID_INTEL_KBL_GT1_SHALM_1,
-	PCI_DID_INTEL_KBL_GT1_SHALM_2,
-	PCI_DID_INTEL_KBL_GT1_SSRVM,
-	PCI_DID_INTEL_KBL_GT1F_DT2,
-	PCI_DID_INTEL_KBL_GT2_SULXM,
-	PCI_DID_INTEL_KBL_GT2_SULTM,
-	PCI_DID_INTEL_KBL_GT2_SULTMR,
-	PCI_DID_INTEL_KBL_GT2_SSRVM,
-	PCI_DID_INTEL_KBL_GT2_SWSTM,
-	PCI_DID_INTEL_KBL_GT2_SHALM,
-	PCI_DID_INTEL_KBL_GT2_DT2P2,
-	PCI_DID_INTEL_KBL_GT2F_SULTM,
-	PCI_DID_INTEL_KBL_GT3E_SULTM_1,
-	PCI_DID_INTEL_KBL_GT3E_SULTM_2,
-	PCI_DID_INTEL_KBL_GT4_SHALM,
 	PCI_DID_INTEL_AML_GT2_ULX,
-	PCI_DID_INTEL_SKL_GT1F_DT2,
-	PCI_DID_INTEL_SKL_GT1_SULTM,
-	PCI_DID_INTEL_SKL_GT2_DT2P1,
-	PCI_DID_INTEL_SKL_GT2_SULXM,
-	PCI_DID_INTEL_SKL_GT2_SULTM,
-	PCI_DID_INTEL_SKL_GT2_SHALM,
-	PCI_DID_INTEL_SKL_GT2_SWKSM,
-	PCI_DID_INTEL_SKL_GT3_SULTM,
-	PCI_DID_INTEL_SKL_GT3E_SULTM_1,
-	PCI_DID_INTEL_SKL_GT3E_SULTM_2,
-	PCI_DID_INTEL_SKL_GT3FE_SSRVM,
-	PCI_DID_INTEL_SKL_GT4_SHALM,
-	PCI_DID_INTEL_SKL_GT4E_SWSTM,
 	PCI_DID_INTEL_CFL_H_GT2,
 	PCI_DID_INTEL_CFL_H_XEON_GT2,
 	PCI_DID_INTEL_CFL_S_GT1_1,
@@ -240,22 +236,6 @@ static const unsigned short pci_device_ids[] = {
 	PCI_DID_INTEL_CFL_S_GT2_3,
 	PCI_DID_INTEL_CFL_S_GT2_4,
 	PCI_DID_INTEL_CFL_S_GT2_5,
-	PCI_DID_INTEL_ICL_GT0_ULT,
-	PCI_DID_INTEL_ICL_GT0_5_ULT,
-	PCI_DID_INTEL_ICL_GT1_ULT,
-	PCI_DID_INTEL_ICL_GT2_ULX_0,
-	PCI_DID_INTEL_ICL_GT2_ULX_1,
-	PCI_DID_INTEL_ICL_GT2_ULT_1,
-	PCI_DID_INTEL_ICL_GT2_ULX_2,
-	PCI_DID_INTEL_ICL_GT2_ULT_2,
-	PCI_DID_INTEL_ICL_GT2_ULX_3,
-	PCI_DID_INTEL_ICL_GT2_ULT_3,
-	PCI_DID_INTEL_ICL_GT2_ULX_4,
-	PCI_DID_INTEL_ICL_GT2_ULT_4,
-	PCI_DID_INTEL_ICL_GT2_ULX_5,
-	PCI_DID_INTEL_ICL_GT2_ULT_5,
-	PCI_DID_INTEL_ICL_GT2_ULX_6,
-	PCI_DID_INTEL_ICL_GT3_ULT,
 	PCI_DID_INTEL_CML_GT1_ULT_1,
 	PCI_DID_INTEL_CML_GT1_ULT_2,
 	PCI_DID_INTEL_CML_GT2_ULT_1,
@@ -264,6 +244,8 @@ static const unsigned short pci_device_ids[] = {
 	PCI_DID_INTEL_CML_GT1_ULT_4,
 	PCI_DID_INTEL_CML_GT2_ULT_5,
 	PCI_DID_INTEL_CML_GT2_ULT_6,
+	PCI_DID_INTEL_CML_GT2_ULT_7,
+	PCI_DID_INTEL_CML_GT2_ULT_8,
 	PCI_DID_INTEL_CML_GT2_ULT_3,
 	PCI_DID_INTEL_CML_GT2_ULT_4,
 	PCI_DID_INTEL_CML_GT1_ULX_1,

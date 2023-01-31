@@ -8,17 +8,17 @@
 #define __SIMPLE_DEVICE__
 
 #include <acpi/acpi.h>
+#include <console/console.h>
 #include <device/mmio.h>
 #include <device/pci_ops.h>
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_def.h>
-#include <console/console.h>
+#include <gpio.h>
 #include <intelblocks/pmclib.h>
 #include <intelblocks/lpc_lib.h>
 #include <intelblocks/tco.h>
 #include <soc/gpe.h>
-#include <soc/gpio.h>
 #include <soc/iomap.h>
 #include <soc/pci_devs.h>
 #include <soc/pm.h>
@@ -136,12 +136,12 @@ uint8_t *pmc_mmio_regs(void)
 	/* 4KiB alignment. */
 	reg32 &= ~0xfff;
 
-	return (void *)(uintptr_t) reg32;
+	return (void *)(uintptr_t)reg32;
 }
 
 uintptr_t soc_read_pmc_base(void)
 {
-	return (uintptr_t) (pmc_mmio_regs());
+	return (uintptr_t)(pmc_mmio_regs());
 }
 
 uint32_t *soc_pmc_etr_addr(void)

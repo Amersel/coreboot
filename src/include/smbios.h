@@ -34,6 +34,22 @@ int smbios_write_type38(unsigned long *current, int *handle,
 int smbios_write_type41(unsigned long *current, int *handle,
 			const char *name, u8 instance, u16 segment,
 			u8 bus, u8 device, u8 function, u8 device_type);
+enum smbios_temp_location;
+enum smbios_temp_status;
+int smbios_write_type28(unsigned long *current, int *handle,
+			const char *name,
+			const enum smbios_temp_location location,
+			const enum smbios_temp_status status,
+			u16 max_value, u16 min_value,
+			u16 resolution, u16 tolerance,
+			u16 accuracy,
+			u32 oem,
+			u16 nominal_value);
+
+int smbios_write_type43(unsigned long *current, int *handle, const u32 vendor_id,
+			const u8 major_spec_ver, const u8 minor_spec_ver,
+			const u32 fw_ver1, const u32 fw_ver2, const char *description,
+			const u64 characteristics, const u32 oem_defined);
 
 struct device;
 int get_smbios_data(struct device *dev, int *handle, unsigned long *current);
@@ -194,6 +210,7 @@ typedef enum {
 	MEMORY_TYPE_HBM2 = 0x21,
 	MEMORY_TYPE_DDR5 = 0x22,
 	MEMORY_TYPE_LPDDR5 = 0x23,
+	MEMORY_TYPE_HBM3 = 0x24,
 } smbios_memory_type;
 
 typedef enum {
@@ -250,9 +267,12 @@ typedef enum {
 	SMBIOS_MEMORY_DEVICE = 17,
 	SMBIOS_MEMORY_ARRAY_MAPPED_ADDRESS = 19,
 	SMBIOS_MEMORY_DEVICE_MAPPED_ADDRESS = 20,
+	SMBIOS_TEMPERATURE_PROBE = 28,
 	SMBIOS_SYSTEM_BOOT_INFORMATION = 32,
 	SMBIOS_IPMI_DEVICE_INFORMATION = 38,
+	SMBIOS_SYSTEM_POWER_SUPPLY = 39,
 	SMBIOS_ONBOARD_DEVICES_EXTENDED_INFORMATION = 41,
+	SMBIOS_TPM_DEVICE = 43,
 	SMBIOS_END_OF_TABLE = 127,
 } smbios_struct_type_t;
 
@@ -465,6 +485,92 @@ struct smbios_type4 {
 
 #define SMBIOS_PROCESSOR_STATUS_POPULATED		(1 << 6)
 #define SMBIOS_PROCESSOR_STATUS_CPU_ENABLED		(1 << 0)
+
+/* enum for socket type */
+enum smbios_processor_upgrade_field {
+	PROCESSOR_UPGRADE_OTHER = 0x01,
+	PROCESSOR_UPGRADE_UNKNOWN = 0x02,
+	PROCESSOR_UPGRADE_DAUGHTER_BOARD = 0x03,
+	PROCESSOR_UPGRADE_ZIF_SOCKET = 0x04,
+	PROCESSOR_UPGRADE_REPLACEABLE_PIGGY_BACK = 0x05,
+	PROCESSOR_UPGRADE_NONE = 0x06,
+	PROCESSOR_UPGRADE_LIF_SOCKET = 0x07,
+	PROCESSOR_UPGRADE_SLOT_1 = 0x08,
+	PROCESSOR_UPGRADE_SLOT_2 = 0x09,
+	PROCESSOR_UPGRADE_370_PIN_SOCKET = 0x0a,
+	PROCESSOR_UPGRADE_SLOT_A = 0x0b,
+	PROCESSOR_UPGRADE_SLOT_M = 0x0c,
+	PROCESSOR_UPGRADE_SOCKET_423 = 0x0d,
+	PROCESSOR_UPGRADE_SOCKET_A = 0x0e,
+	PROCESSOR_UPGRADE_SOCKET_478 = 0x0f,
+	PROCESSOR_UPGRADE_SOCKET_754 = 0x10,
+	PROCESSOR_UPGRADE_SOCKET_940 = 0x11,
+	PROCESSOR_UPGRADE_SOCKET_939 = 0x12,
+	PROCESSOR_UPGRADE_SOCKET_MPGA604 = 0x13,
+	PROCESSOR_UPGRADE_SOCKET_LGA771 = 0x14,
+	PROCESSOR_UPGRADE_SOCKET_LGA775 = 0x15,
+	PROCESSOR_UPGRADE_SOCKET_S1 = 0x16,
+	PROCESSOR_UPGRADE_SOCKET_AM2 = 0x17,
+	PROCESSOR_UPGRADE_SOCKET_F = 0x18,
+	PROCESSOR_UPGRADE_SOCKET_LGA1366 = 0x19,
+	PROCESSOR_UPGRADE_SOCKET_G34 = 0x1a,
+	PROCESSOR_UPGRADE_SOCKET_AM3 = 0x1b,
+	PROCESSOR_UPGRADE_SOCKET_C32 = 0x1c,
+	PROCESSOR_UPGRADE_SOCKET_LGA1156 = 0x1d,
+	PROCESSOR_UPGRADE_SOCKET_LGA1567 = 0x1e,
+	PROCESSOR_UPGRADE_SOCKET_PGA988A = 0x1f,
+	PROCESSOR_UPGRADE_SOCKET_BGA1288 = 0x20,
+	PROCESSOR_UPGRADE_SOCKET_RPGA988B = 0x21,
+	PROCESSOR_UPGRADE_SOCKET_BGA1023 = 0x22,
+	PROCESSOR_UPGRADE_SOCKET_BGA1224 = 0x23,
+	PROCESSOR_UPGRADE_SOCKET_LGA1155 = 0x24,
+	PROCESSOR_UPGRADE_SOCKET_LGA1356 = 0x25,
+	PROCESSOR_UPGRADE_SOCKET_LGA2011 = 0x26,
+	PROCESSOR_UPGRADE_SOCKET_FS1 = 0x27,
+	PROCESSOR_UPGRADE_SOCKET_FS2 = 0x28,
+	PROCESSOR_UPGRADE_SOCKET_FM1 = 0x29,
+	PROCESSOR_UPGRADE_SOCKET_FM2 = 0x2a,
+	PROCESSOR_UPGRADE_SOCKET_LGA2011_3 = 0x2b,
+	PROCESSOR_UPGRADE_SOCKET_LGA1356_3 = 0x2c,
+	PROCESSOR_UPGRADE_SOCKET_LGA1150 = 0x2d,
+	PROCESSOR_UPGRADE_SOCKET_BGA1168 = 0x2e,
+	PROCESSOR_UPGRADE_SOCKET_BGA1234 = 0x2f,
+	PROCESSOR_UPGRADE_SOCKET_BGA1364 = 0x30,
+	PROCESSOR_UPGRADE_SOCKET_AM4 = 0x31,
+	PROCESSOR_UPGRADE_SOCKET_LGA1151 = 0x32,
+	PROCESSOR_UPGRADE_SOCKET_BGA1356 = 0x33,
+	PROCESSOR_UPGRADE_SOCKET_BGA1440 = 0x34,
+	PROCESSOR_UPGRADE_SOCKET_BGA1515 = 0x35,
+	PROCESSOR_UPGRADE_SOCKET_LGA3647_1 = 0x36,
+	PROCESSOR_UPGRADE_SOCKET_SP3 = 0x37,
+	PROCESSOR_UPGRADE_SOCKET_SP3R2 = 0x38,
+	PROCESSOR_UPGRADE_SOCKET_LGA2066 = 0x39,
+	PROCESSOR_UPGRADE_SOCKET_BGA1392 = 0x3a,
+	PROCESSOR_UPGRADE_SOCKET_BGA1510 = 0x3b,
+	PROCESSOR_UPGRADE_SOCKET_BGA1528 = 0x3c,
+	PROCESSOR_UPGRADE_SOCKET_LGA4189 = 0x3d,
+	PROCESSOR_UPGRADE_SOCKET_LGA1200 = 0x3e,
+	PROCESSOR_UPGRADE_SOCKET_LGA4677 = 0x3f,
+	PROCESSOR_UPGRADE_SOCKET_LGA1700 = 0x40,
+	PROCESSOR_UPGRADE_SOCKET_BGA1744 = 0x41,
+	PROCESSOR_UPGRADE_SOCKET_BGA1781 = 0x42,
+	PROCESSOR_UPGRADE_SOCKET_BGA1211 = 0x43,
+	PROCESSOR_UPGRADE_SOCKET_BGA2422 = 0x44,
+	PROCESSOR_UPGRADE_SOCKET_LGA1211 = 0x45,
+	PROCESSOR_UPGRADE_SOCKET_LGA2422 = 0x46,
+	PROCESSOR_UPGRADE_SOCKET_LGA5773 = 0x47,
+	PROCESSOR_UPGRADE_SOCKET_BGA5773 = 0x48,
+};
+
+/* defines for processor family */
+#define SMBIOS_PROCESSOR_FAMILY_OTHER			0x01
+#define SMBIOS_PROCESSOR_FAMILY_UNKNOWN			0x02
+#define SMBIOS_PROCESSOR_FAMILY_XEON			0xb3
+
+/* defines for processor characteristics */
+#define PROCESSOR_64BIT_CAPABLE				(1 << 2)
+#define PROCESSOR_MULTI_CORE				(1 << 3)
+#define PROCESSOR_POWER_PERFORMANCE_CONTROL		(1 << 7)
 
 /* defines for supported_sram_type/current_sram_type */
 
@@ -702,6 +808,7 @@ enum misc_slot_type {
 	SlotTypePciExpressMini52pinWithBSKO = 0x21,
 	SlotTypePciExpressMini52pinWithoutBSKO = 0x22,
 	SlotTypePciExpressMini76pin = 0x23,
+	SlotTypePciExpressOCPNIC30SFF = 0x26,
 	SlotTypePC98C20 = 0xA0,
 	SlotTypePC98C24 = 0xA1,
 	SlotTypePC98E = 0xA2,
@@ -915,6 +1022,46 @@ struct smbios_type20 {
 	u8 eos[2];
 } __packed;
 
+/* Bit[7..5] = Temp status */
+enum smbios_temp_status {
+	SMBIOS_TEMP_STATUS_OTHER = 0x01,
+	SMBIOS_TEMP_STATUS_UNKNOWN,
+	SMBIOS_TEMP_STATUS_OK,
+	SMBIOS_TEMP_STATUS_NONCRITICAL,
+	SMBIOS_TEMP_STATUS_CRITICAL,
+	SMBIOS_TEMP_STATUS_NONREC,			// Non-Recoverable.
+};
+
+/* Bit[4..0] = Temp location */
+enum smbios_temp_location {
+	SMBIOS_TEMP_LOCATION_OTHER = 0x01,
+	SMBIOS_TEMP_LOCATION_UNKNOWN,
+	SMBIOS_TEMP_LOCATION_PROCESSOR,
+	SMBIOS_TEMP_LOCATION_DISK,
+	SMBIOS_TEMP_LOCATION_BAY,			// Peripheral Bay.
+	SMBIOS_TEMP_LOCATION_SMM,			// System Management Module.
+	SMBIOS_TEMP_LOCATION_BOARD,			// Motherboard.
+	SMBIOS_TEMP_LOCATION_MM,			// Memory.
+	SMBIOS_TEMP_LOCATION_PM,			// Processor Module.
+	SMBIOS_TEMP_LOCATION_POW,			// Power Unit.
+	SMBIOS_TEMP_LOCATION_ADDCARD,
+};
+
+struct smbios_type28 {
+	struct smbios_header header;
+	u8 description;
+	u8 location_and_status;
+	u16 maximum_value;
+	u16 minimum_value;
+	u16 resolution;
+	u16 tolerance;
+	u16 accuracy;
+	u32 oem_defined;
+	u16 nominal_value;
+	u8 eos[2];
+} __packed;
+
+
 struct smbios_type32 {
 	struct smbios_header header;
 	u8 reserved[6];
@@ -941,6 +1088,69 @@ enum smbios_bmc_interface_type {
 	SMBIOS_BMC_INTERFACE_BLOCK,
 	SMBIOS_BMC_INTERFACE_SMBUS,
 };
+
+typedef enum {
+	PowerSupplyTypeOther = 1,
+	PowerSupplyTypeUnknown = 2,
+	PowerSupplyTypeLinear = 3,
+	PowerSupplyTypeSwitching = 4,
+	PowerSupplyTypeBattery = 5,
+	PowerSupplyTypeUps = 6,
+	PowerSupplyTypeConverter = 7,
+	PowerSupplyTypeRegulator = 8
+} power_supply_type;
+
+typedef enum {
+	PowerSupplyStatusOther = 1,
+	PowerSupplyStatusUnknown = 2,
+	PowerSupplyStatusOk = 3,
+	PowerSupplyStatusNonCritical = 4,
+	PowerSupplyStatusCritical = 5
+} power_supply_status;
+
+typedef enum {
+	PowerSupplyInputVoltageRangeSwitchingOther = 1,
+	PowerSupplyInputVoltageRangeSwitchingUnknown = 2,
+	PowerSupplyInputVoltageRangeSwitchingManual = 3,
+	PowerSupplyInputVoltageRangeSwitchingAutoSwitch = 4,
+	PowerSupplyInputVoltageRangeSwitchingWideRange = 5,
+	PowerSupplyInputVoltageRangeSwitchingNotApplicable = 6
+} power_supply_input_voltage_range_switching;
+
+struct power_supply_ch {
+	u16 reserved				:2;
+	u16 power_supply_type			:4;
+	u16 power_supply_status			:3;
+	u16 input_voltage_range_switch		:4;
+	u16 power_supply_unplugged		:1;
+	u16 power_supply_present		:1;
+	u16 power_supply_hot_replaceble		:1;
+};
+
+struct smbios_type39 {
+	struct smbios_header header;
+	u8 power_unit_group;
+	u8 location;
+	u8 device_name;
+	u8 manufacturer;
+	u8 serial_number;
+	u8 asset_tag_number;
+	u8 model_part_number;
+	u8 revision_level;
+	u16 max_power_capacity;
+	u16 power_supply_characteristics;
+	u16 input_voltage_probe_handle;
+	u16 cooling_device_handle;
+	u16 input_current_probe_handle;
+	u8 eos[2];
+} __packed;
+
+int smbios_write_type39(unsigned long *current, int *handle,
+			u8 unit_group, const char *loc, const char *dev_name,
+			const char *man, const char *serial_num,
+			const char *tag_num, const char *part_num,
+			const char *rev_lvl, u16 max_pow_cap,
+			const struct power_supply_ch *ps_ch);
 
 typedef enum {
 	SMBIOS_DEVICE_TYPE_OTHER = 0x01,
@@ -973,6 +1183,25 @@ struct smbios_type41 {
 	u8 bus_number;
 	u8 function_number: 3;
 	u8 device_number: 5;
+	u8 eos[2];
+} __packed;
+
+
+#define SMBIOS_TPM_DEVICE_CHARACTERISTICS_NOT_SUPPORTED (1ULL << 2)
+#define SMBIOS_TPM_DEVICE_FAMILY_CONFIGURABLE_VIA_FW_UPD (1ULL << 3)
+#define SMBIOS_TPM_DEVICE_FAMILY_CONFIGURABLE_VIA_PLATFORM_SW_SUPPORT (1ULL << 4)
+#define SMBIOS_TPM_DEVICE_FAMILY_CONFIGURABLE_VIA_OEM_PROPRIETARY (1ULL << 5)
+
+struct smbios_type43 {
+	struct smbios_header header;
+	u32 vendor_id;
+	u8 major_spec_ver;
+	u8 minor_spec_ver;
+	u32 fw_ver1;
+	u32 fw_ver2;
+	u8 description;
+	u64 characteristics;
+	u32 oem_defined;
 	u8 eos[2];
 } __packed;
 

@@ -116,10 +116,6 @@ chip soc/intel/alderlake
 
 	register "cnvi_bt_audio_offload" = "true"
 
-	# set EPP to 45%: 45 * 256/100 = 115 = 0x73
-	register "enable_energy_perf_pref" = "true"
-	register "energy_perf_pref_value" = "0x73"
-
 	# Intel Common SoC Config
 	register "common_soc_config" = "{
 		.i2c[0] = {
@@ -142,7 +138,7 @@ chip soc/intel/alderlake
 	# Configure external V1P05/Vnn/VnnSx Rails
 	register "ext_fivr_settings" = "{
 		.configure_ext_fivr = 1,
-		.v1p05_enable_bitmap = FIVR_ENABLE_ALL_SX,
+		.v1p05_enable_bitmap = FIVR_ENABLE_ALL_SX & ~FIVR_ENABLE_S0,
 		.vnn_enable_bitmap = FIVR_ENABLE_ALL_SX,
 		.vnn_sx_enable_bitmap = FIVR_ENABLE_ALL_SX,
 		.v1p05_supported_voltage_bitmap = FIVR_VOLTAGE_NORMAL,
@@ -153,6 +149,8 @@ chip soc/intel/alderlake
 		.v1p05_icc_max_ma = 500,
 		.vnn_icc_max_ma = 500,
 	}"
+
+	register "skip_mbp_hob" = "1"
 
 	device domain 0 on
 		device ref igpu on end

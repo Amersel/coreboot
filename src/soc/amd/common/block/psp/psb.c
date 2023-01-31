@@ -1,11 +1,12 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/mmio.h>
-#include <bootstate.h>
 #include <amdblocks/reset.h>
+#include <amdblocks/smn.h>
+#include <bootstate.h>
 #include <console/console.h>
-#include <cpu/amd/msr.h>
+#include <device/mmio.h>
 #include <types.h>
+
 #include "psp_def.h"
 
 #define PSB_STATUS_OFFSET	0x10994

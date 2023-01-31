@@ -1,19 +1,21 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <acpi/acpigen.h>
-#include <arch/cpu.h>
 #include <bootstate.h>
 #include <cbmem.h>
 #include <console/console.h>
+#include <cpu/cpu.h>
 #include <crc_byte.h>
 #include <device/device.h>
 #include <device/dram/spd.h>
+#include <device/pci_ids.h>
 #include <drivers/intel/gma/opregion.h>
 #include <gpio.h>
 #include <intelblocks/gpio.h>
 #include <intelblocks/pmclib.h>
 #include <smbios.h>
-#include <soc/gpio.h>
+#include <soc/pm.h>
+#include <string.h>
 #include <types.h>
 
 #include "eeprom.h"
@@ -104,11 +106,7 @@ static void update_board_layout(void)
 
 	/* Update CPU fields */
 	for (struct device *cpu = all_devices; cpu; cpu = cpu->next) {
-		if (cpu->path.type != DEVICE_PATH_APIC)
-			continue;
-		if (cpu->bus->dev->path.type != DEVICE_PATH_CPU_CLUSTER)
-			continue;
-		if (!cpu->enabled)
+		if (!is_enabled_cpu(cpu))
 			continue;
 		layout.cpu_count++;
 		if (!layout.cpu_name[0])
@@ -174,6 +172,25 @@ static void mainboard_final(struct device *dev)
 	pmc_soc_set_afterg3_en(on);
 }
 
+static const char *format_pn(const char *prefix, size_t offset)
+{
+	static char buffer[32 + HERMES_SN_PN_LENGTH] = { 0 };
+
+	const char *part_num = eeprom_read_serial(offset, "N/A");
+
+	snprintf(buffer, sizeof(buffer), "%s%s", prefix, part_num);
+
+	return buffer;
+}
+
+static void mainboard_smbios_strings(struct device *dev, struct smbios_type11 *t)
+{
+	const size_t board_offset = offsetof(struct eeprom_layout, board_part_number);
+	const size_t product_offset = offsetof(struct eeprom_layout, product_part_number);
+	t->count = smbios_add_string(t->eos, format_pn("Board P/N: ", board_offset));
+	t->count = smbios_add_string(t->eos, format_pn("Product P/N: ", product_offset));
+}
+
 #if CONFIG(HAVE_ACPI_TABLES)
 static void mainboard_acpi_fill_ssdt(const struct device *dev)
 {
@@ -219,6 +236,7 @@ static void mainboard_enable(struct device *dev)
 	mb_usb2_fp2_pwr_enable(1);
 
 	dev->ops->final = mainboard_final;
+	dev->ops->get_smbios_strings = mainboard_smbios_strings;
 
 #if CONFIG(HAVE_ACPI_TABLES)
 	dev->ops->acpi_fill_ssdt = mainboard_acpi_fill_ssdt;
@@ -229,6 +247,31 @@ struct chip_operations mainboard_ops = {
 	.init       = mainboard_init,
 	.enable_dev = mainboard_enable,
 };
+
+static void log_reset_causes(void)
+{
+	struct chipset_power_state *ps = pmc_get_power_state();
+
+	if (!ps) {
+		printk(BIOS_ERR, "chipset_power_state not found!\n");
+		return;
+	}
+
+	union {
+		struct eeprom_reset_cause_regs regs;
+		uint8_t raw[sizeof(struct eeprom_reset_cause_regs)];
+	} reset_cause = {
+		.regs = {
+			.gblrst_cause0 = ps->gblrst_cause[0],
+			.gblrst_cause1 = ps->gblrst_cause[1],
+			.hpr_cause0 = ps->hpr_cause0,
+		},
+	};
+
+	const size_t base = offsetof(struct eeprom_layout, reset_cause_regs);
+	for (size_t i = 0; i < ARRAY_SIZE(reset_cause.raw); i++)
+		eeprom_write_byte(reset_cause.raw[i], base + i);
+}
 
 /* Must happen before MPinit */
 static void mainboard_early(void *unused)
@@ -254,6 +297,31 @@ static void mainboard_early(void *unused)
 		READ_EEPROM_FSP_S((&supd), FspsConfig.TurboMode);
 		config->cpu_turbo_disable = !supd.FspsConfig.TurboMode;
 	}
+
+	log_reset_causes();
 }
 
 BOOT_STATE_INIT_ENTRY(BS_PRE_DEVICE, BS_ON_EXIT, mainboard_early, NULL);
+
+/*
+ * coreboot only exposes the last framebuffer that is set up.
+ * The ASPEED BMC will always be initialized after the IGD due to its higher
+ * bus number. To have coreboot only expose the IGD framebuffer skip the init
+ * function on the ASPEED.
+ */
+static void mainboard_configure_internal_gfx(void *unused)
+{
+	struct device *dev;
+	const struct eeprom_board_settings *board_cfg = get_board_settings();
+	if (!board_cfg)
+		return;
+
+	if (board_cfg->primary_video == PRIMARY_VIDEO_INTEL) {
+		dev = dev_find_device(PCI_VID_ASPEED, PCI_DID_ASPEED_AST2050_VGA, NULL);
+		dev->on_mainboard = false;
+		dev->enabled = false;
+		dev->ops->init = NULL;
+	}
+}
+
+BOOT_STATE_INIT_ENTRY(BS_DEV_RESOURCES, BS_ON_ENTRY, mainboard_configure_internal_gfx, NULL)

@@ -4,9 +4,10 @@
 #define _SOC_CHIP_H_
 
 #include <drivers/i2c/designware/dw_i2c.h>
+#include <drivers/intel/gma/gma.h>
 #include <device/pci_ids.h>
+#include <gpio.h>
 #include <intelblocks/cfg.h>
-#include <intelblocks/gpio.h>
 #include <intelblocks/gspi.h>
 #include <intelblocks/power_limit.h>
 #include <intelblocks/pcie_rp.h>
@@ -19,6 +20,25 @@
 #include <soc/vr_config.h>
 #include <stdint.h>
 
+/* Define config parameters for In-Band ECC (IBECC). */
+#define MAX_IBECC_REGIONS	8
+
+/* In-Band ECC Operation Mode */
+enum ibecc_mode {
+	IBECC_MODE_PER_REGION,
+	IBECC_MODE_NONE,
+	IBECC_MODE_ALL
+};
+
+struct ibecc_config {
+	bool enable;
+	enum ibecc_mode mode;
+	bool range_enable[MAX_IBECC_REGIONS];
+	uint16_t range_base[MAX_IBECC_REGIONS];
+	uint16_t range_mask[MAX_IBECC_REGIONS];
+	/* add ECC error injection if needed by a mainboard */
+};
+
 /* Types of different SKUs */
 enum soc_intel_alderlake_power_limits {
 	ADL_P_142_242_282_15W_CORE,
@@ -30,18 +50,25 @@ enum soc_intel_alderlake_power_limits {
 	ADL_M_282_15W_CORE,
 	ADL_M_242_CORE,
 	ADL_P_442_45W_CORE,
+	ADL_N_081_7W_CORE,
 	ADL_N_081_15W_CORE,
 	ADL_N_041_6W_CORE,
 	ADL_N_021_6W_CORE,
 	ADL_S_882_35W_CORE,
 	ADL_S_882_65W_CORE,
 	ADL_S_882_125W_CORE,
+	ADL_S_882_150W_CORE,
 	ADL_S_842_35W_CORE,
 	ADL_S_842_65W_CORE,
 	ADL_S_842_125W_CORE,
 	ADL_S_642_125W_CORE,
 	ADL_S_602_35W_CORE,
 	ADL_S_602_65W_CORE,
+	ADL_S_402_60W_CORE,
+	ADL_S_402_58W_CORE,
+	ADL_S_402_35W_CORE,
+	ADL_S_202_46W_CORE,
+	ADL_S_202_35W_CORE,
 	RPL_P_682_642_482_45W_CORE,
 	RPL_P_682_482_282_28W_CORE,
 	RPL_P_282_242_142_15W_CORE,
@@ -51,14 +78,19 @@ enum soc_intel_alderlake_power_limits {
 /* TDP values for different SKUs */
 enum soc_intel_alderlake_cpu_tdps {
 	TDP_6W  = 6,
+	TDP_7W  = 7,
 	TDP_9W  = 9,
 	TDP_12W = 12,
 	TDP_15W = 15,
 	TDP_28W = 28,
 	TDP_35W = 35,
 	TDP_45W = 45,
+	TDP_46W = 46,
+	TDP_58W = 58,
+	TDP_60W = 60,
 	TDP_65W = 65,
-	TDP_125W = 125
+	TDP_125W = 125,
+	TDP_150W = 150
 };
 
 /* Mapping of different SKUs based on CPU ID and TDP values */
@@ -80,6 +112,7 @@ static const struct {
 	{ PCI_DID_INTEL_ADL_M_ID_1, ADL_M_282_12W_CORE, TDP_12W },
 	{ PCI_DID_INTEL_ADL_M_ID_1, ADL_M_282_15W_CORE, TDP_15W },
 	{ PCI_DID_INTEL_ADL_M_ID_2, ADL_M_242_CORE, TDP_9W },
+	{ PCI_DID_INTEL_ADL_N_ID_1, ADL_N_081_7W_CORE, TDP_7W },
 	{ PCI_DID_INTEL_ADL_N_ID_1, ADL_N_081_15W_CORE, TDP_15W },
 	{ PCI_DID_INTEL_ADL_N_ID_2, ADL_N_041_6W_CORE, TDP_6W },
 	{ PCI_DID_INTEL_ADL_N_ID_3, ADL_N_041_6W_CORE, TDP_6W },
@@ -87,15 +120,23 @@ static const struct {
 	{ PCI_DID_INTEL_ADL_S_ID_1, ADL_S_882_35W_CORE, TDP_35W },
 	{ PCI_DID_INTEL_ADL_S_ID_1, ADL_S_882_65W_CORE, TDP_65W },
 	{ PCI_DID_INTEL_ADL_S_ID_1, ADL_S_882_125W_CORE, TDP_125W },
+	{ PCI_DID_INTEL_ADL_S_ID_1, ADL_S_882_150W_CORE, TDP_150W },
 	{ PCI_DID_INTEL_ADL_S_ID_3, ADL_S_842_35W_CORE, TDP_35W },
 	{ PCI_DID_INTEL_ADL_S_ID_3, ADL_S_842_65W_CORE, TDP_65W },
 	{ PCI_DID_INTEL_ADL_S_ID_3, ADL_S_842_125W_CORE, TDP_125W },
 	{ PCI_DID_INTEL_ADL_S_ID_8, ADL_S_642_125W_CORE, TDP_125W },
 	{ PCI_DID_INTEL_ADL_S_ID_10, ADL_S_602_35W_CORE, TDP_35W },
 	{ PCI_DID_INTEL_ADL_S_ID_10, ADL_S_602_65W_CORE, TDP_65W },
+	{ PCI_DID_INTEL_ADL_S_ID_11, ADL_S_402_35W_CORE, TDP_35W },
+	{ PCI_DID_INTEL_ADL_S_ID_11, ADL_S_402_58W_CORE, TDP_58W },
+	{ PCI_DID_INTEL_ADL_S_ID_11, ADL_S_402_60W_CORE, TDP_60W },
+	{ PCI_DID_INTEL_ADL_S_ID_12, ADL_S_202_35W_CORE, TDP_35W },
+	{ PCI_DID_INTEL_ADL_S_ID_12, ADL_S_202_46W_CORE, TDP_46W },
 	{ PCI_DID_INTEL_RPL_P_ID_1, RPL_P_682_642_482_45W_CORE, TDP_45W },
 	{ PCI_DID_INTEL_RPL_P_ID_2, RPL_P_682_482_282_28W_CORE, TDP_28W },
 	{ PCI_DID_INTEL_RPL_P_ID_3, RPL_P_282_242_142_15W_CORE, TDP_15W },
+	{ PCI_DID_INTEL_RPL_P_ID_4, RPL_P_282_242_142_15W_CORE, TDP_15W },
+	{ PCI_DID_INTEL_RPL_P_ID_5, RPL_P_282_242_142_15W_CORE, TDP_15W },
 };
 
 /* Types of display ports */
@@ -251,6 +292,9 @@ struct soc_intel_alderlake_config {
 
 	/* TCC activation offset */
 	uint32_t tcc_offset;
+
+	/* In-Band ECC (IBECC) configuration */
+	struct ibecc_config ibecc;
 
 	/* System Agent dynamic frequency support. Only effects ULX/ULT CPUs.
 	 * When enabled memory will be training at two different frequencies.
@@ -621,6 +665,20 @@ struct soc_intel_alderlake_config {
 	 * Set this to 1 in order to disable Package C-state demotion.
 	 */
 	bool disable_package_c_state_demotion;
+
+	/*
+	 * Enable or Disable Skipping MBP HOB.
+	 * Default is set to 0 and set to 1 to skip the MBP HOB.
+	 */
+	bool skip_mbp_hob;
+
+	/* i915 struct for GMA backlight control */
+	struct i915_gpu_controller_info gfx;
+
+	/*
+	 * IGD panel configuration
+	 */
+	struct i915_gpu_panel_config panel_cfg;
 };
 
 typedef struct soc_intel_alderlake_config config_t;

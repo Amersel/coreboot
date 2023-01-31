@@ -4,42 +4,67 @@
 #define TSPI_H_
 
 #include <security/tpm/tss.h>
-#include <commonlib/tcpa_log_serialized.h>
+#include <commonlib/tpm_log_serialized.h>
 #include <commonlib/region.h>
 #include <vb2_api.h>
 
 #define TPM_PCR_MAX_LEN 64
 #define HASH_DATA_CHUNK_SIZE 1024
+#define MAX_TPM_LOG_ENTRIES 50
+/* Assumption of 2K TCPA log size reserved for CAR/SRAM */
+#define MAX_PRERAM_TPM_LOG_ENTRIES 15
 
 /**
  * Get the pointer to the single instance of global
- * tcpa log data, and initialize it when necessary
+ * TPM log data, and initialize it when necessary
  */
-struct tcpa_table *tcpa_log_init(void);
+void *tpm_log_init(void);
 
 /**
- * Clears the pre-RAM tcpa log data and initializes
+ * Get the pointer to the single CBMEM instance of global
+ * TPM log data, and initialize it when necessary
+ */
+void *tpm_log_cbmem_init(void);
+
+/**
+ * Clears the pre-RAM TPM log data and initializes
  * any content with default values
  */
-void tcpa_preram_log_clear(void);
+void tpm_preram_log_clear(void);
 
 /**
- * Add table entry for cbmem TCPA log.
+ * Retrieves number of entries currently stored in the log.
+ */
+uint16_t tpm_log_get_size(const void *log_table);
+
+/**
+ * Copies data from pre-RAM TPM log to CBMEM (RAM) log
+ */
+void tpm_log_copy_entries(const void *from, void *to);
+
+/**
+ * Retrieves an entry from a log. Returns non-zero on invalid index or error.
+ */
+int tpm_log_get(int entry_idx, int *pcr, const uint8_t **digest_data,
+		enum vb2_hash_algorithm *digest_algo, const char **event_name);
+
+/**
+ * Add table entry for cbmem TPM log.
  * @param name Name of the hashed data
  * @param pcr PCR used to extend hashed data
  * @param diget_algo sets the digest algorithm
  * @param digest sets the hash extended into the tpm
  * @param digest_len the length of the digest
  */
-void tcpa_log_add_table_entry(const char *name, const uint32_t pcr,
-			      enum vb2_hash_algorithm digest_algo,
-			      const uint8_t *digest,
-			      const size_t digest_len);
+void tpm_log_add_table_entry(const char *name, const uint32_t pcr,
+			     enum vb2_hash_algorithm digest_algo,
+			     const uint8_t *digest,
+			     const size_t digest_len);
 
 /**
- * Dump TCPA log entries on console
+ * Dump TPM log entries on console
  */
-void tcpa_log_dump(void *unused);
+void tpm_log_dump(void *unused);
 
 /**
  * Ask vboot for a digest and extend a TPM PCR with it.

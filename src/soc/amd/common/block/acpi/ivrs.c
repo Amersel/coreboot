@@ -5,15 +5,16 @@
 #include <amdblocks/cpu.h>
 #include <amdblocks/data_fabric.h>
 #include <amdblocks/ioapic.h>
-#include <arch/mmio.h>
+#include <arch/ioapic.h>
 #include <console/console.h>
 #include <cpu/amd/cpuid.h>
-#include <cpu/amd/msr.h>
 #include <device/device.h>
+#include <device/mmio.h>
 #include <device/pci_def.h>
 #include <device/pci_ops.h>
 #include <soc/acpi.h>
 #include <soc/data_fabric.h>
+#include <soc/iomap.h>
 #include <soc/pci_devs.h>
 
 #define MAX_DEV_ID 0xFFFF
@@ -27,7 +28,7 @@ unsigned long acpi_fill_ivrs_ioapic(acpi_ivrs_t *ivrs, unsigned long current)
 	ivhd_ioapic->dte_setting = IVHD_DTE_LINT_1_PASS | IVHD_DTE_LINT_0_PASS |
 				   IVHD_DTE_SYS_MGT_NO_TRANS | IVHD_DTE_NMI_PASS |
 				   IVHD_DTE_EXT_INT_PASS | IVHD_DTE_INIT_PASS;
-	ivhd_ioapic->handle = FCH_IOAPIC_ID;
+	ivhd_ioapic->handle = get_ioapic_id(VIO_APIC_VADDR);
 	ivhd_ioapic->source_dev_id = PCI_DEVFN(SMBUS_DEV, SMBUS_FUNC);
 	ivhd_ioapic->variety = IVHD_SPECIAL_DEV_IOAPIC;
 	current += sizeof(ivrs_ivhd_special_t);
@@ -36,7 +37,7 @@ unsigned long acpi_fill_ivrs_ioapic(acpi_ivrs_t *ivrs, unsigned long current)
 	memset(ivhd_ioapic, 0, sizeof(*ivhd_ioapic));
 
 	ivhd_ioapic->type = IVHD_DEV_8_BYTE_EXT_SPECIAL_DEV;
-	ivhd_ioapic->handle = GNB_IOAPIC_ID;
+	ivhd_ioapic->handle = get_ioapic_id((u8 *)GNB_IO_APIC_ADDR);
 	ivhd_ioapic->source_dev_id = PCI_DEVFN(0, 1);
 	ivhd_ioapic->variety = IVHD_SPECIAL_DEV_IOAPIC;
 	current += sizeof(ivrs_ivhd_special_t);
@@ -62,7 +63,7 @@ static unsigned long ivhd_describe_hpet(unsigned long current)
 static unsigned long ivhd_describe_f0_device(unsigned long current,
 						uint16_t dev_id, uint8_t datasetting)
 {
-	ivrs_ivhd_f0_entry_t *ivhd_f0 = (ivrs_ivhd_f0_entry_t *) current;
+	ivrs_ivhd_f0_entry_t *ivhd_f0 = (ivrs_ivhd_f0_entry_t *)current;
 
 	ivhd_f0->type = IVHD_DEV_VARIABLE;
 	ivhd_f0->dev_id = dev_id;
@@ -287,7 +288,7 @@ static unsigned long acpi_fill_ivrs11(unsigned long current, acpi_ivrs_t *ivrs)
 	ivhd_11->iommu_base_high = ivrs->ivhd.iommu_base_high;
 	ivhd_11->pci_segment_group = 0x0000;
 	ivhd_11->iommu_info = ivrs->ivhd.iommu_info;
-	ivhd11_attr_ptr = (ivhd11_iommu_attr_t *) &ivrs->ivhd.iommu_feature_info;
+	ivhd11_attr_ptr = (ivhd11_iommu_attr_t *)&ivrs->ivhd.iommu_feature_info;
 	ivhd_11->iommu_attributes.perf_counters = ivhd11_attr_ptr->perf_counters;
 	ivhd_11->iommu_attributes.perf_counter_banks = ivhd11_attr_ptr->perf_counter_banks;
 	ivhd_11->iommu_attributes.msi_num_ppr = ivhd11_attr_ptr->msi_num_ppr;

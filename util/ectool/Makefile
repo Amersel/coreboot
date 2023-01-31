@@ -1,12 +1,12 @@
 ## SPDX-License-Identifier: GPL-2.0-only
 
-CC = gcc
+CC ?= gcc
 WERROR=-Werror
 CFLAGS = -O2 -Wall -Wextra -Wshadow $(WERROR)
 PROGRAM = ectool
-INSTALL = /usr/bin/env install
-PREFIX  = /usr/local
-OS_ARCH = $(shell uname)
+INSTALL ?= /usr/bin/env install
+PREFIX  ?= /usr/local
+OS_ARCH ?= $(shell uname)
 
 ifeq ($(shell uname -o 2>/dev/null), Cygwin)
 LDFLAGS = -lioperm
@@ -22,7 +22,8 @@ $(PROGRAM): ec.o ectool.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 install: $(PROGRAM)
-	$(INSTALL) $(PROGRAM) $(PREFIX)/sbin
+	$(INSTALL) -d $(DESTDIR)$(PREFIX)/sbin
+	$(INSTALL) $(PROGRAM) $(DESTDIR)$(PREFIX)/sbin
 
 clean:
 	rm -f *.o $(PROGRAM) junit.xml

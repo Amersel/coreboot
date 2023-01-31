@@ -4,18 +4,23 @@
 #include <cbfs.h>
 #include <console/console.h>
 #include <cpu/intel/cpu_ids.h>
+#include <cpu/intel/microcode.h>
 #include <device/device.h>
 #include <device/pci.h>
 #include <fsp/api.h>
 #include <fsp/fsp_debug_event.h>
 #include <fsp/ppi/mp_service_ppi.h>
 #include <fsp/util.h>
+#include <option.h>
 #include <intelblocks/cse.h>
+#include <intelblocks/irq.h>
 #include <intelblocks/lpss.h>
+#include <intelblocks/mp_init.h>
+#include <intelblocks/systemagent.h>
 #include <intelblocks/xdci.h>
 #include <intelpch/lockdown.h>
-#include <intelblocks/tcss.h>
 #include <security/vboot/vboot_common.h>
+#include <soc/cpu.h>
 #include <soc/gpio_soc_defs.h>
 #include <soc/intel/common/vbt.h>
 #include <soc/pci_devs.h>
@@ -23,8 +28,9 @@
 #include <soc/ramstage.h>
 #include <soc/soc_chip.h>
 #include <soc/soc_info.h>
-#include <soc/cpu.h>
+#include <stdlib.h>
 #include <string.h>
+#include <types.h>
 
 /* THC assignment definition */
 #define THC_NONE	0
@@ -34,6 +40,219 @@
 /* SATA DEVSLP idle timeout default values */
 #define DEF_DMVAL	15
 #define DEF_DITOVAL	625
+
+static const struct slot_irq_constraints irq_constraints[] = {
+	{
+		.slot = PCI_DEV_SLOT_PCIE_3,
+		.fns = {
+			FIXED_INT_PIRQ(PCI_DEVFN_PCIE12, PCI_INT_A, PIRQ_A),
+		},
+	},
+	{
+		.slot = PCI_DEV_SLOT_IGD,
+		.fns = {
+			/* INTERRUPT_PIN is RO/0x01 */
+			FIXED_INT_ANY_PIRQ(PCI_DEV_SLOT_IGD, PCI_INT_A),
+		},
+	},
+	{
+		.slot = PCI_DEV_SLOT_DPTF,
+		.fns = {
+			ANY_PIRQ(PCI_DEVFN_DPTF),
+		},
+	},
+	{
+		.slot = PCI_DEV_SLOT_IPU,
+		.fns = {
+			/* INTERRUPT_PIN is RO/0x01, and INTERRUPT_LINE is RW,
+			   but S0ix fails when not set to 16 (b/193434192) */
+			FIXED_INT_PIRQ(PCI_DEVFN_IPU, PCI_INT_A, PIRQ_A),
+		},
+	},
+	{
+		.slot = PCI_DEV_SLOT_PCIE_2,
+		.fns = {
+			FIXED_INT_PIRQ(PCI_DEVFN_PCIE9, PCI_INT_A, PIRQ_A),
+			FIXED_INT_PIRQ(PCI_DEVFN_PCIE10, PCI_INT_B, PIRQ_B),
+			FIXED_INT_PIRQ(PCI_DEVFN_PCIE11, PCI_INT_C, PIRQ_C),
+		},
+	},
+	{
+		.slot = PCI_DEV_SLOT_TBT,
+		.fns = {
+			ANY_PIRQ(PCI_DEVFN_TBT0),
+			ANY_PIRQ(PCI_DEVFN_TBT1),
+			ANY_PIRQ(PCI_DEVFN_TBT2),
+			ANY_PIRQ(PCI_DEVFN_TBT3),
+		},
+	},
+	{
+		.slot = PCI_DEV_SLOT_GNA,
+		.fns = {
+			/* INTERRUPT_PIN is RO/0x01 */
+			FIXED_INT_ANY_PIRQ(PCI_DEVFN_GNA, PCI_INT_A),
+		},
+	},
+	{
+		.slot = PCI_DEV_SLOT_VPU,
+		.fns = {
+			/* INTERRUPT_PIN is RO/0x01 */
+			FIXED_INT_ANY_PIRQ(PCI_DEVFN_VPU, PCI_INT_A),
+		},
+	},
+	{
+		.slot = PCI_DEV_SLOT_TCSS,
+		.fns = {
+			ANY_PIRQ(PCI_DEVFN_TCSS_XHCI),
+			ANY_PIRQ(PCI_DEVFN_TCSS_XDCI),
+		},
+	},
+	{
+		.slot = PCI_DEV_SLOT_THC,
+		.fns = {
+			ANY_PIRQ(PCI_DEVFN_THC0),
+			ANY_PIRQ(PCI_DEVFN_THC1),
+		},
+	},
+	{
+		.slot = PCI_DEV_SLOT_ISH,
+		.fns = {
+			DIRECT_IRQ(PCI_DEVFN_ISH),
+			DIRECT_IRQ(PCI_DEVFN_GSPI2),
+			ANY_PIRQ(PCI_DEVFN_UFS),
+		},
+	},
+	{
+		.slot = PCI_DEV_SLOT_XHCI,
+		.fns = {
+			ANY_PIRQ(PCI_DEVFN_XHCI),
+			DIRECT_IRQ(PCI_DEVFN_USBOTG),
+			ANY_PIRQ(PCI_DEVFN_CNVI_WIFI),
+		},
+	},
+	{
+		.slot = PCI_DEV_SLOT_SIO0,
+		.fns = {
+			DIRECT_IRQ(PCI_DEVFN_I2C0),
+			DIRECT_IRQ(PCI_DEVFN_I2C1),
+			DIRECT_IRQ(PCI_DEVFN_I2C2),
+			DIRECT_IRQ(PCI_DEVFN_I2C3),
+		},
+	},
+	{
+		.slot = PCI_DEV_SLOT_CSE,
+		.fns = {
+			ANY_PIRQ(PCI_DEVFN_CSE),
+			ANY_PIRQ(PCI_DEVFN_CSE_2),
+			ANY_PIRQ(PCI_DEVFN_CSE_IDER),
+			ANY_PIRQ(PCI_DEVFN_CSE_KT),
+			ANY_PIRQ(PCI_DEVFN_CSE_3),
+			ANY_PIRQ(PCI_DEVFN_CSE_4),
+		},
+	},
+	{
+		.slot = PCI_DEV_SLOT_SATA,
+		.fns = {
+			ANY_PIRQ(PCI_DEVFN_SATA),
+		},
+	},
+	{
+		.slot = PCI_DEV_SLOT_SIO1,
+		.fns = {
+			DIRECT_IRQ(PCI_DEVFN_I2C4),
+			DIRECT_IRQ(PCI_DEVFN_I2C5),
+			DIRECT_IRQ(PCI_DEVFN_UART2),
+		},
+	},
+	{
+		.slot = PCI_DEV_SLOT_PCIE_1,
+		.fns = {
+			FIXED_INT_PIRQ(PCI_DEVFN_PCIE1, PCI_INT_A, PIRQ_A),
+			FIXED_INT_PIRQ(PCI_DEVFN_PCIE2, PCI_INT_B, PIRQ_B),
+			FIXED_INT_PIRQ(PCI_DEVFN_PCIE3, PCI_INT_C, PIRQ_C),
+			FIXED_INT_PIRQ(PCI_DEVFN_PCIE4, PCI_INT_D, PIRQ_D),
+			FIXED_INT_PIRQ(PCI_DEVFN_PCIE5, PCI_INT_A, PIRQ_A),
+			FIXED_INT_PIRQ(PCI_DEVFN_PCIE6, PCI_INT_B, PIRQ_B),
+			FIXED_INT_PIRQ(PCI_DEVFN_PCIE7, PCI_INT_C, PIRQ_C),
+			FIXED_INT_PIRQ(PCI_DEVFN_PCIE8, PCI_INT_D, PIRQ_D),
+		},
+	},
+	{
+		.slot = PCI_DEV_SLOT_SIO2,
+		.fns = {
+			/* UART0 shares an interrupt line with TSN0, so must use
+			   a PIRQ */
+			FIXED_INT_ANY_PIRQ(PCI_DEVFN_UART0, PCI_INT_A),
+			/* UART1 shares an interrupt line with TSN1, so must use
+			   a PIRQ */
+			FIXED_INT_ANY_PIRQ(PCI_DEVFN_UART1, PCI_INT_B),
+			DIRECT_IRQ(PCI_DEVFN_GSPI0),
+			DIRECT_IRQ(PCI_DEVFN_GSPI1),
+		},
+	},
+	{
+		.slot = PCI_DEV_SLOT_ESPI,
+		.fns = {
+			ANY_PIRQ(PCI_DEVFN_HDA),
+			ANY_PIRQ(PCI_DEVFN_SMBUS),
+			ANY_PIRQ(PCI_DEVFN_GBE),
+			/* INTERRUPT_PIN is RO/0x01 */
+			FIXED_INT_ANY_PIRQ(PCI_DEVFN_NPK, PCI_INT_A),
+		},
+	},
+};
+
+bool is_pch_slot(unsigned int devfn)
+{
+	if (PCI_SLOT(devfn) >= MIN_PCH_SLOT)
+		return true;
+	const struct pcie_rp_group *group;
+	for (group = get_pcie_rp_table(); group->count; ++group) {
+		if (PCI_SLOT(devfn) == group->slot)
+			return true;
+	}
+	return false;
+}
+
+static const SI_PCH_DEVICE_INTERRUPT_CONFIG *pci_irq_to_fsp(size_t *out_count)
+{
+	const struct pci_irq_entry *entry = get_cached_pci_irqs();
+	SI_PCH_DEVICE_INTERRUPT_CONFIG *config;
+	size_t pch_total = 0;
+	size_t cfg_count = 0;
+
+	if (!entry)
+		return NULL;
+
+	/* Count PCH devices */
+	while (entry) {
+		if (is_pch_slot(entry->devfn))
+			++pch_total;
+		entry = entry->next;
+	}
+
+	/* Convert PCH device entries to FSP format */
+	config = calloc(pch_total, sizeof(*config));
+	entry = get_cached_pci_irqs();
+	while (entry) {
+		if (!is_pch_slot(entry->devfn)) {
+			entry = entry->next;
+			continue;
+		}
+
+		config[cfg_count].Device = PCI_SLOT(entry->devfn);
+		config[cfg_count].Function = PCI_FUNC(entry->devfn);
+		config[cfg_count].IntX = (SI_PCH_INT_PIN)entry->pin;
+		config[cfg_count].Irq = entry->irq;
+		++cfg_count;
+
+		entry = entry->next;
+	}
+
+	*out_count = cfg_count;
+
+	return config;
+}
 
 /*
  * ME End of Post configuration
@@ -59,6 +278,7 @@ static const pci_devfn_t i2c_dev[] = {
 static const pci_devfn_t gspi_dev[] = {
 	PCI_DEVFN_GSPI0,
 	PCI_DEVFN_GSPI1,
+	PCI_DEVFN_GSPI2,
 };
 
 static const pci_devfn_t uart_dev[] = {
@@ -81,9 +301,26 @@ static const pci_devfn_t uart_dev[] = {
  */
 static int get_l1_substate_control(enum L1_substates_control ctl)
 {
-	if ((ctl > L1_SS_L1_2) || (ctl == L1_SS_FSP_DEFAULT))
+	if (CONFIG(SOC_INTEL_COMPLIANCE_TEST_MODE))
+		ctl = L1_SS_DISABLED;
+	else if ((ctl > L1_SS_L1_2) || (ctl == L1_SS_FSP_DEFAULT))
 		ctl = L1_SS_L1_2;
 	return ctl - 1;
+}
+
+/*
+ * get_aspm_control() ensures that the right UPD value is set in fsp_params.
+ * 0: Disable ASPM
+ * 1: L0s only
+ * 2: L1 only
+ * 3: L0s and L1
+ * 4: Auto configuration
+ */
+static unsigned int get_aspm_control(enum ASPM_control ctl)
+{
+	if (ctl > ASPM_AUTO)
+		ctl = ASPM_AUTO;
+	return ctl;
 }
 
 __weak void mainboard_update_soc_chip_config(struct soc_intel_meteorlake_config *config)
@@ -117,24 +354,43 @@ static void fill_fsps_lpss_params(FSP_S_CONFIG *s_cfg,
 	}
 }
 
-static void fill_fsps_cpu_params(FSP_S_CONFIG *s_cfg,
+static void fill_fsps_microcode_params(FSP_S_CONFIG *s_cfg,
 		const struct soc_intel_meteorlake_config *config)
 {
 	const struct microcode *microcode_file;
 	size_t microcode_len;
 
 	/* Locate microcode and pass to FSP-S for 2nd microcode loading */
-	microcode_file = cbfs_map("cpu_microcode_blob.bin", &microcode_len);
+	microcode_file = intel_microcode_find();
 
-	if ((microcode_file != NULL) && (microcode_len != 0)) {
-		/* Update CPU Microcode patch base address/size */
-		s_cfg->MicrocodeRegionBase = (uint32_t)microcode_file;
-		s_cfg->MicrocodeRegionSize = (uint32_t)microcode_len;
+	if (microcode_file != NULL) {
+		microcode_len = get_microcode_size(microcode_file);
+		if (microcode_len != 0) {
+			/* Update CPU Microcode patch base address/size */
+			s_cfg->MicrocodeRegionBase = (uint32_t)(uintptr_t)microcode_file;
+			s_cfg->MicrocodeRegionSize = (uint32_t)microcode_len;
+		}
 	}
+}
 
-	/* Use coreboot MP PPI services if Kconfig is enabled */
-	if (CONFIG(USE_INTEL_FSP_TO_CALL_COREBOOT_PUBLISH_MP_PPI))
-		s_cfg->CpuMpPpi = (uintptr_t) mp_fill_ppi_services_data();
+static void fill_fsps_cpu_params(FSP_S_CONFIG *s_cfg,
+		const struct soc_intel_meteorlake_config *config)
+{
+	/*
+	 * FIXME: FSP assumes ownership of the APs (Application Processors)
+	 * upon passing `NULL` pointer to the CpuMpPpi FSP-S UPD.
+	 * Hence, pass a valid pointer to the CpuMpPpi UPD unconditionally.
+	 * This would avoid APs from getting hijacked by FSP while coreboot
+	 * decides to set SkipMpInit UPD.
+	 */
+	s_cfg->CpuMpPpi = (uintptr_t) mp_fill_ppi_services_data();
+
+	/*
+	 * Fill `2nd microcode loading FSP UPD` if FSP is running CPU feature
+	 * programming.
+	 */
+	if (CONFIG(MTL_USE_FSP_MP_INIT))
+		fill_fsps_microcode_params(s_cfg, config);
 }
 
 
@@ -147,6 +403,7 @@ static void fill_fsps_igd_params(FSP_S_CONFIG *s_cfg,
 	/* Check if IGD is present and fill Graphics init param accordingly */
 	s_cfg->PeiGraphicsPeimInit = CONFIG(RUN_FSP_GOP) && is_devfn_enabled(PCI_DEVFN_IGD);
 	s_cfg->LidStatus = CONFIG(RUN_FSP_GOP);
+	s_cfg->PavpEnable = CONFIG(PAVP);
 }
 
 static void fill_fsps_tcss_params(FSP_S_CONFIG *s_cfg,
@@ -245,10 +502,6 @@ static void fill_fsps_xdci_params(FSP_S_CONFIG *s_cfg,
 static void fill_fsps_uart_params(FSP_S_CONFIG *s_cfg,
 		const struct soc_intel_meteorlake_config *config)
 {
-	if (CONFIG(FSP_USES_CB_DEBUG_EVENT_HANDLER) && CONFIG(CONSOLE_SERIAL) &&
-			 CONFIG(FSP_ENABLE_SERIAL_DEBUG))
-		s_cfg->FspEventHandler = (UINT32)((FSP_EVENT_HANDLER *)
-				fsp_debug_event_handler);
 	ASSERT(ARRAY_SIZE(s_cfg->SerialIoUartAutoFlow) > CONFIG_UART_FOR_CONSOLE);
 	s_cfg->SerialIoUartAutoFlow[CONFIG_UART_FOR_CONSOLE] = 0;
 }
@@ -328,38 +581,30 @@ static void fill_fsps_vmd_params(FSP_S_CONFIG *s_cfg,
 static void fill_fsps_tbt_params(FSP_S_CONFIG *s_cfg,
 		const struct soc_intel_meteorlake_config *config)
 {
-	int max_port = get_max_tbt_pcie_port();
-
-	memset(s_cfg->ITbtPcieRootPortEn, 0, sizeof(s_cfg->ITbtPcieRootPortEn));
-	for (int i = 0; i < max_port; i++)
-		s_cfg->ITbtPcieRootPortEn[i] = !(config->tbt_pcie_port_disable[i]);
+	for (int i = 0; i < ARRAY_SIZE(s_cfg->ITbtPcieRootPortEn); i++)
+		s_cfg->ITbtPcieRootPortEn[i] = is_devfn_enabled(PCI_DEVFN_TBT(i));
 }
 
 static void fill_fsps_8254_params(FSP_S_CONFIG *s_cfg,
 		const struct soc_intel_meteorlake_config *config)
 {
 	/* Legacy 8254 timer support */
-	s_cfg->Enable8254ClockGating = !CONFIG(USE_LEGACY_8254_TIMER);
-	s_cfg->Enable8254ClockGatingOnS3 = !CONFIG(USE_LEGACY_8254_TIMER);
+	bool use_8254 = get_uint_option("legacy_8254_timer", CONFIG(USE_LEGACY_8254_TIMER));
+	s_cfg->Enable8254ClockGating = !use_8254;
+	s_cfg->Enable8254ClockGatingOnS3 = !use_8254;
 }
 
-static void fill_fsps_storage_params(FSP_S_CONFIG *s_cfg,
+static void fill_fsps_pm_timer_params(FSP_S_CONFIG *s_cfg,
 		const struct soc_intel_meteorlake_config *config)
 {
-	/* Enable Hybrid storage auto detection */
-	if (CONFIG(SOC_INTEL_CSE_LITE_SKU) && cse_is_hfs3_fw_sku_lite()
-		&& vboot_recovery_mode_enabled() && !cse_is_hfs1_com_normal()) {
-		/*
-		 * CSE Lite SKU does not support hybrid storage dynamic configuration
-		 * in CSE RO boot, and FSP does not allow to send the strap override
-		 * HECI commands if CSE is not in normal mode; hence, hybrid storage
-		 * mode is disabled on CSE RO boot in recovery boot mode.
-		 */
-		printk(BIOS_INFO, "cse_lite: CSE RO boot. HybridStorageMode disabled\n");
-		s_cfg->HybridStorageMode = 0;
-	} else {
-		s_cfg->HybridStorageMode = config->hybrid_storage_mode;
-	}
+	/*
+	 * Legacy PM ACPI Timer (and TCO Timer)
+	 * This *must* be 1 in any case to keep FSP from
+	 *  1) enabling PM ACPI Timer emulation in uCode.
+	 *  2) disabling the PM ACPI Timer.
+	 * We handle both by ourself!
+	 */
+	s_cfg->EnableTcoTimer = 1;
 }
 
 static void fill_fsps_pcie_params(FSP_S_CONFIG *s_cfg,
@@ -375,28 +620,29 @@ static void fill_fsps_pcie_params(FSP_S_CONFIG *s_cfg,
 				get_l1_substate_control(rp_cfg->PcieRpL1Substates);
 		s_cfg->PcieRpLtrEnable[i] = !!(rp_cfg->flags & PCIE_RP_LTR);
 		s_cfg->PcieRpAdvancedErrorReporting[i] = !!(rp_cfg->flags & PCIE_RP_AER);
-		s_cfg->PcieRpHotPlug[i] = !!(rp_cfg->flags & PCIE_RP_HOTPLUG);
+		s_cfg->PcieRpHotPlug[i] = !!(rp_cfg->flags & PCIE_RP_HOTPLUG)
+				|| CONFIG(SOC_INTEL_COMPLIANCE_TEST_MODE);
 		s_cfg->PcieRpClkReqDetect[i] = !!(rp_cfg->flags & PCIE_RP_CLK_REQ_DETECT);
+		if (rp_cfg->pcie_rp_aspm)
+			s_cfg->PcieRpAspm[i] = get_aspm_control(rp_cfg->pcie_rp_aspm);
 	}
+	s_cfg->PcieComplianceTestMode = CONFIG(SOC_INTEL_COMPLIANCE_TEST_MODE);
 }
 
 static void fill_fsps_misc_power_params(FSP_S_CONFIG *s_cfg,
 		const struct soc_intel_meteorlake_config *config)
 {
+	/* Skip setting D0I3 bit for all HECI devices */
+	s_cfg->DisableD0I3SettingForHeci = 1;
+
 	s_cfg->Hwp = 1;
 	s_cfg->Cx = 1;
 	s_cfg->PsOnEnable = 1;
+	s_cfg->PkgCStateLimit = LIMIT_AUTO;
 	/* Enable the energy efficient turbo mode */
 	s_cfg->EnergyEfficientTurbo = 1;
-
-	/*
-	 * UPDATEME: This is WA for HFPGA
-	 * Disable Pch Pm Energy Report
-	 * Energy Report is disabled to enhance boottime with HFPGA.
-	 */
-	s_cfg->PchPmDisableEnergyReport = 1;
-
 	s_cfg->PmcLpmS0ixSubStateEnableMask = get_supported_lpm_mask();
+	s_cfg->PkgCStateDemotion = !config->disable_package_c_state_demotion;
 }
 
 
@@ -410,14 +656,35 @@ static void fill_fsps_ai_params(FSP_S_CONFIG *s_cfg,
 		const struct soc_intel_meteorlake_config *config)
 {
 	s_cfg->GnaEnable = is_devfn_enabled(PCI_DEVFN_GNA);
+	s_cfg->VpuEnable = is_devfn_enabled(PCI_DEVFN_VPU);
+}
+
+static void fill_fsps_irq_params(FSP_S_CONFIG *s_cfg,
+				 const struct soc_intel_meteorlake_config *config)
+{
+	if (!assign_pci_irqs(irq_constraints, ARRAY_SIZE(irq_constraints)))
+		die("ERROR: Unable to assign PCI IRQs, and no _PRT table available\n");
+
+	size_t pch_count = 0;
+	const SI_PCH_DEVICE_INTERRUPT_CONFIG *upd_irqs = pci_irq_to_fsp(&pch_count);
+
+	s_cfg->DevIntConfigPtr = (UINT32)((uintptr_t)upd_irqs);
+	s_cfg->NumOfDevIntConfig = pch_count;
+	printk(BIOS_INFO, "IRQ: Using dynamically assigned PCI IO-APIC IRQs\n");
 }
 
 static void arch_silicon_init_params(FSPS_ARCH_UPD *s_arch_cfg)
 {
-	/* UPDATEME: Disable for VP
+	/*
 	 * EnableMultiPhaseSiliconInit for running MultiPhaseSiInit
 	 */
-	s_arch_cfg->EnableMultiPhaseSiliconInit = 0;
+	s_arch_cfg->EnableMultiPhaseSiliconInit = 1;
+
+	/* Assign FspEventHandler arch Upd to use coreboot debug event handler */
+	if (CONFIG(FSP_USES_CB_DEBUG_EVENT_HANDLER) && CONFIG(CONSOLE_SERIAL) &&
+			 CONFIG(FSP_ENABLE_SERIAL_DEBUG))
+		s_arch_cfg->FspEventHandler = (FSP_EVENT_HANDLER)
+				fsp_debug_event_handler;
 }
 
 static void soc_silicon_init_params(FSP_S_CONFIG *s_cfg,
@@ -426,7 +693,7 @@ static void soc_silicon_init_params(FSP_S_CONFIG *s_cfg,
 	/* Override settings per board if required. */
 	mainboard_update_soc_chip_config(config);
 
-	const void (*fill_fsps_params[])(FSP_S_CONFIG *s_cfg,
+	 void (*fill_fsps_params[])(FSP_S_CONFIG *s_cfg,
 			const struct soc_intel_meteorlake_config *config) = {
 		fill_fsps_lpss_params,
 		fill_fsps_cpu_params,
@@ -443,11 +710,12 @@ static void soc_silicon_init_params(FSP_S_CONFIG *s_cfg,
 		fill_fsps_vmd_params,
 		fill_fsps_tbt_params,
 		fill_fsps_8254_params,
-		fill_fsps_storage_params,
+		fill_fsps_pm_timer_params,
 		fill_fsps_pcie_params,
 		fill_fsps_misc_power_params,
 		fill_fsps_ufs_params,
 		fill_fsps_ai_params,
+		fill_fsps_irq_params,
 	};
 
 	for (size_t i = 0; i < ARRAY_SIZE(fill_fsps_params); i++)
@@ -473,6 +741,7 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
  * Phase   |  FSP return point                                |  Purpose
  * ------- + ------------------------------------------------ + -------------------------------
  *   1     |  After TCSS initialization completed             |  for TCSS specific init
+ *   2     |  Before BIOS Reset CPL is set by FSP-S           |  for CPU specific init
  */
 void platform_fsp_multi_phase_init_cb(uint32_t phase_index)
 {
@@ -486,6 +755,14 @@ void platform_fsp_multi_phase_init_cb(uint32_t phase_index)
 			const config_t *config = config_of_soc();
 			tcss_configure(config->typec_aux_bias_pads);
 		}
+		break;
+	case 2:
+		/* CPU specific initialization here */
+		printk(BIOS_DEBUG, "FSP MultiPhaseSiInit %s/%s called\n",
+			__FILE__, __func__);
+		before_post_cpus_init();
+		/* Enable BIOS Reset CPL */
+		enable_bios_reset_cpl();
 		break;
 	default:
 		break;

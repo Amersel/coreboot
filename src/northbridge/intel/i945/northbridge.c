@@ -10,6 +10,7 @@
 #include <device/pci_ids.h>
 #include <acpi/acpi.h>
 #include <cpu/intel/smm_reloc.h>
+#include <cpu/intel/speedstep.h>
 #include "i945.h"
 
 static void mch_domain_read_resources(struct device *dev)
@@ -101,7 +102,7 @@ static const char *northbridge_acpi_name(const struct device *dev)
 	if (dev->path.type == DEVICE_PATH_DOMAIN)
 		return "PCI0";
 
-	if (dev->path.type != DEVICE_PATH_PCI || dev->bus->secondary != 0)
+	if (!is_pci_dev_on_bus(dev, 0))
 		return NULL;
 
 	switch (dev->path.pci.devfn) {
@@ -116,13 +117,13 @@ void northbridge_write_smram(u8 smram)
 {
 	struct device *dev = pcidev_on_root(0, 0);
 
-	if (dev == NULL)
+	if (!dev)
 		die("could not find pci 00:00.0!\n");
 
 	pci_write_config8(dev, SMRAM, smram);
 }
 
-static struct device_operations pci_domain_ops = {
+struct device_operations i945_pci_domain_ops = {
 	.read_resources   = mch_domain_read_resources,
 	.set_resources    = mch_domain_set_resources,
 	.scan_bus         = pci_domain_scan_bus,
@@ -155,22 +156,17 @@ static const struct pci_driver mc_driver __pci_driver = {
 	.devices = pci_device_ids,
 };
 
-static struct device_operations cpu_bus_ops = {
+struct device_operations i945_cpu_bus_ops = {
 	.read_resources   = noop_read_resources,
 	.set_resources    = noop_set_resources,
 	.init             = mp_cpu_bus_init,
 };
 
-static void enable_dev(struct device *dev)
-{
-	/* Set the operations if it is a special bus type */
-	if (dev->path.type == DEVICE_PATH_DOMAIN)
-		dev->ops = &pci_domain_ops;
-	else if (dev->path.type == DEVICE_PATH_CPU_CLUSTER)
-		dev->ops = &cpu_bus_ops;
-}
-
 struct chip_operations northbridge_intel_i945_ops = {
 	CHIP_NAME("Intel i945 Northbridge")
-	.enable_dev = enable_dev,
 };
+
+bool northbridge_support_slfm(void)
+{
+	return false;
+}

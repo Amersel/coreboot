@@ -192,6 +192,8 @@ detect_special_flags() {
 
 	testcc "$GCC"      "$CFLAGS_GCC -Wno-address-of-packed-member $FLAGS_GCC" &&
 		CFLAGS_GCC="$CFLAGS_GCC -Wno-address-of-packed-member"
+	testcc "$GCC"      "$CFLAGS_GCC --param=min-pagesize=1024 $FLAGS_GCC" &&
+		CFLAGS_GCC="$CFLAGS_GCC --param=min-pagesize=1024"
 	case "$architecture" in
 	x86)
 		;;
@@ -201,6 +203,10 @@ detect_special_flags() {
 		testld "$GCC" "$FLAGS_GCC" "${GCCPREFIX}ld${LINKER_SUFFIX}" \
 		  "$LDFLAGS --fix-cortex-a53-843419" && \
 		  LDFLAGS_ARM64_A53_ERRATUM_843419+=" --fix-cortex-a53-843419"
+		;;
+	riscv)
+		testcc "$GCC" "$FLAGS_GCC -march=rv64iadc_zicsr_zifencei" &&
+		  ARCH_SUFFIX="_zicsr_zifencei"
 		;;
 	esac
 }
@@ -221,6 +227,7 @@ report_arch_toolchain() {
 # elf${TWIDTH}-${TBFDARCH} toolchain (${GCC})
 ARCH_SUPPORTED+=${TARCH}
 SUBARCH_SUPPORTED+=${TSUPP-${TARCH}}
+ARCH_SUFFIX_${TARCH}:=${ARCH_SUFFIX}
 
 # GCC
 GCC_CC_${TARCH}:=${GCC}
@@ -230,6 +237,13 @@ GCC_CFLAGS_${TARCH}+=-fno-delete-null-pointer-checks -Wlogical-op
 GCC_ADAFLAGS_${TARCH}:=${FLAGS_GCC}
 GCC_COMPILER_RT_${TARCH}:=${CC_RT_GCC}
 GCC_COMPILER_RT_FLAGS_${TARCH}:=${CC_RT_EXTRA_GCC}
+EOF
+if [ "${TARCH}" = "x86_64" ]; then
+cat <<EOF
+	GCC_CFLAGS_${TARCH} += -malign-data=abi
+EOF
+fi
+cat <<EOF
 
 # Clang
 CLANG_CC_${TARCH}:=${CLANG}
@@ -265,7 +279,7 @@ EOF
 # to use i586 instead.
 if [ "${TARCH}" = "x86_64" ]; then
 cat <<EOF
-	CFLAGS_${TARCH} += -march=nocona -malign-data=abi
+	CFLAGS_${TARCH} += -march=nocona
 EOF
 fi
 
@@ -285,6 +299,7 @@ cat <<EOF
 CPP_${TARCH}:=${GCCPREFIX}cpp
 AS_${TARCH}:=${GCCPREFIX}as ${ASFLAGS}
 LD_${TARCH}:=${GCCPREFIX}ld${LINKER_SUFFIX} ${LDFLAGS}
+GCOV_${TARCH}:=${GCCPREFIX}gcov
 EOF
 
 	if [ "${TARCH}" = "arm64" ] && \
@@ -398,6 +413,7 @@ test_architecture() {
 	unset TABI TARCH TBFDARCH TCLIST TENDIAN TSUPP TWIDTH
 	unset CC_RT_EXTRA_GCC CC_RT_EXTRA_CLANG
 	unset GCC CLANG
+	unset ARCH_SUFFIX
 	if type "arch_config_$architecture" > /dev/null; then
 		"arch_config_$architecture"
 	else
@@ -452,7 +468,7 @@ test_architecture() {
 		# but that's more of a clang limitation. Let's be optimistic
 		# that this will change in the future.
 		CLANG="${clang_prefix}clang"
-		CFLAGS_CLANG="-target ${clang_arch}-${TABI} $CFLAGS_CLANG -ccc-gcc-name ${GCC}"
+		CFLAGS_CLANG="-target ${clang_arch}-${TABI} $CFLAGS_CLANG"
 	fi
 }
 

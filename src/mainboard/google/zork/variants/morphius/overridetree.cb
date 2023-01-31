@@ -30,7 +30,6 @@ chip soc/amd/picasso
 	register "telemetry_vddcr_soc_offset" = "0"
 
 	# Set STAPM confiuration for tablet mode
-	register "dptc_enable" = "1"
 	register "slow_ppt_limit_tablet_mode_mW" = "20000"
 	register "fast_ppt_limit_tablet_mode_mW" = "24000"
 	register "sustained_power_limit_tablet_mode_mW" = "12000"
@@ -104,15 +103,16 @@ chip soc/amd/picasso
 			register "desc" = ""ELAN Touchpad""
 			register "irq_gpio" = "ACPI_GPIO_IRQ_LEVEL_LOW(GPIO_9)"
 			register "wake" = "GEVENT_22"
-			register "probed" = "1"
+			register "detect" = "1"
 			device i2c 15 on end
 		end
 		chip drivers/i2c/hid
-			register "generic.hid" = ""PNP0C50""
+			register "generic.hid" = ""SYNA0000""
+			register "generic.cid" = ""ACPI0C50""
 			register "generic.desc" = ""Synaptics Touchpad""
 			register "generic.irq_gpio" = "ACPI_GPIO_IRQ_LEVEL_LOW(GPIO_9)"
 			register "generic.wake" = "GEVENT_22"
-			register "generic.probed" = "1"
+			register "generic.detect" = "1"
 			register "hid_desc_reg_offset" = "0x20"
 			device i2c 2c on end
 		end
@@ -120,7 +120,7 @@ chip soc/amd/picasso
 			register "generic.hid" = ""GDIX0000""
 			register "generic.desc" = ""Goodix Touchscreen""
 			register "generic.irq_gpio" = "ACPI_GPIO_IRQ_LEVEL_LOW(GPIO_12)"
-			register "generic.probed" = "1"
+			register "generic.detect" = "1"
 			register "generic.enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPIO_90)"
 			register "generic.enable_delay_ms" = "10"
 			register "generic.reset_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPIO_140)"
@@ -129,7 +129,6 @@ chip soc/amd/picasso
 			register "generic.stop_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPIO_144)"
 			register "generic.stop_off_delay_ms" = "1"
 			register "generic.has_power_resource" = "1"
-			register "generic.disable_gpio_export_in_crs" = "1"
 			register "hid_desc_reg_offset" = "0x01"
 			device i2c 5d on end
 		end

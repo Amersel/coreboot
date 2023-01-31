@@ -13,7 +13,6 @@
 #include <cpu/amd/mtrr.h>
 #include <cpu/x86/lapic_def.h>
 #include <cpu/x86/msr.h>
-#include <cpu/amd/msr.h>
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
@@ -110,7 +109,7 @@ static void set_resource(struct device *dev, struct resource *res, u32 nodeid)
 	link_num = IOINDEX_LINK(res->index);
 
 	if (res->flags & IORESOURCE_IO)
-		set_io_addr_reg(dev, nodeid, link_num, reg, rbase>>8, rend>>8);
+		set_io_addr_reg(dev, nodeid, link_num, reg, rbase >> 8, rend >> 8);
 	else if (res->flags & IORESOURCE_MEM)
 		set_mmio_addr_reg(nodeid, link_num, reg,
 				(res->index >> 24), rbase >> 8, rend >> 8);
@@ -164,7 +163,7 @@ static void set_resources(struct device *dev)
 
 static void northbridge_init(struct device *dev)
 {
-	setup_ioapic((u8 *)IO_APIC2_ADDR, GNB_IOAPIC_ID);
+	register_new_ioapic((u8 *)IO_APIC2_ADDR);
 }
 
 static unsigned long acpi_fill_hest(acpi_hest_t *hest)
@@ -235,13 +234,13 @@ static unsigned long agesa_write_acpi_tables(const struct device *device,
 	acpi_hest_t *hest;
 
 	/* HEST */
-	current = ALIGN(current, 8);
+	current = acpi_align_current(current);
 	hest = (acpi_hest_t *)current;
 	acpi_write_hest(hest, acpi_fill_hest);
 	acpi_add_table(rsdp, (void *)current);
 	current += hest->header.length;
 
-	current = ALIGN(current, 8);
+	current = acpi_align_current(current);
 	printk(BIOS_DEBUG, "ACPI:    * IVRS at %lx\n", current);
 	ivrs = agesawrapper_getlateinitptr(PICK_IVRS);
 	if (ivrs != NULL) {
@@ -254,7 +253,7 @@ static unsigned long agesa_write_acpi_tables(const struct device *device,
 	}
 
 	/* SRAT */
-	current = ALIGN(current, 8);
+	current = acpi_align_current(current);
 	printk(BIOS_DEBUG, "ACPI:    * SRAT at %lx\n", current);
 	srat = (acpi_srat_t *)agesawrapper_getlateinitptr(PICK_SRAT);
 	if (srat != NULL) {
@@ -267,7 +266,7 @@ static unsigned long agesa_write_acpi_tables(const struct device *device,
 	}
 
 	/* SLIT */
-	current = ALIGN(current, 8);
+	current = acpi_align_current(current);
 	printk(BIOS_DEBUG, "ACPI:   * SLIT at %lx\n", current);
 	slit = (acpi_slit_t *)agesawrapper_getlateinitptr(PICK_SLIT);
 	if (slit != NULL) {
@@ -280,7 +279,7 @@ static unsigned long agesa_write_acpi_tables(const struct device *device,
 	}
 
 	/* ALIB */
-	current = ALIGN(current, 16);
+	current = acpi_align_current(current);
 	printk(BIOS_DEBUG, "ACPI:  * AGESA ALIB SSDT at %lx\n", current);
 	alib = (acpi_header_t *)agesawrapper_getlateinitptr(PICK_ALIB);
 	if (alib != NULL) {
@@ -293,7 +292,7 @@ static unsigned long agesa_write_acpi_tables(const struct device *device,
 							" Skipping.\n");
 	}
 
-	current   = ALIGN(current, 16);
+	current = acpi_align_current(current);
 	printk(BIOS_DEBUG, "ACPI:    * SSDT at %lx\n", current);
 	ssdt = (acpi_header_t *)agesawrapper_getlateinitptr(PICK_PSTATE);
 	if (ssdt != NULL) {
@@ -310,24 +309,13 @@ static unsigned long agesa_write_acpi_tables(const struct device *device,
 	return current;
 }
 
-static struct device_operations northbridge_operations = {
+struct device_operations stoneyridge_northbridge_operations = {
 	.read_resources	  = read_resources,
 	.set_resources	  = set_resources,
 	.enable_resources = pci_dev_enable_resources,
 	.init		  = northbridge_init,
 	.acpi_fill_ssdt   = northbridge_fill_ssdt_generator,
 	.write_acpi_tables = agesa_write_acpi_tables,
-};
-
-static const unsigned short pci_device_ids[] = {
-	PCI_DID_AMD_15H_MODEL_606F_NB_HT,
-	PCI_DID_AMD_15H_MODEL_707F_NB_HT,
-	0 };
-
-static const struct pci_driver family15_northbridge __pci_driver = {
-	.ops	= &northbridge_operations,
-	.vendor = PCI_VID_AMD,
-	.devices = pci_device_ids,
 };
 
 /*

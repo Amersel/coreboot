@@ -166,9 +166,7 @@ chip soc/intel/skylake
 		[PchSerialIoIndexUart2] = PchSerialIoDisabled, \
 	}"
 
-	device cpu_cluster 0 on
-		device lapic 0 on end
-	end
+	device cpu_cluster 0 on end
 	device domain 0 on
 		device pci 00.0 on  end # Host Bridge
 		device pci 02.0 on  end # Integrated Graphics Device
@@ -184,7 +182,7 @@ chip soc/intel/skylake
 				register "generic.hid" = ""PNP0C50""
 				register "generic.desc" = ""Synaptics Touchpad""
 				register "generic.irq" = "ACPI_IRQ_WAKE_LEVEL_LOW(GPP_E7_IRQ)"
-				register "generic.probed" = "1"
+				register "generic.detect" = "1"
 				register "hid_desc_reg_offset" = "0x20"
 				device i2c 0x2c on end
 			end

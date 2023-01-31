@@ -7,6 +7,7 @@ config SOC_INTEL_ALDERLAKE
 
 config SOC_INTEL_RAPTORLAKE
 	bool
+	select X86_INIT_NEED_1_SIPI
 	help
 	 Intel Raptorlake support. Mainboards using RPL should select
 	 SOC_INTEL_RAPTORLAKE and SOC_INTEL_ALDERLAKE_PCH_* together.
@@ -53,8 +54,10 @@ config CPU_SPECIFIC_OPTIONS
 	select CPU_INTEL_FIRMWARE_INTERFACE_TABLE
 	select CPU_SUPPORTS_INTEL_TME
 	select CPU_SUPPORTS_PM_TIMER_EMULATION
+	select DEFAULT_SOFTWARE_CONNECTION_MANAGER if MAINBOARD_HAS_CHROMEOS
 	select DISPLAY_FSP_VERSION_INFO
 	select DRIVERS_USB_ACPI
+	select EDK2_CPU_TIMER_LIB if PAYLOAD_EDK2
 	select FSP_COMPRESS_FSP_S_LZ4
 	select FAST_SPI_SUPPORTS_EXT_BIOS_WINDOW
 	select FSP_M_XIP
@@ -71,18 +74,20 @@ config CPU_SPECIFIC_OPTIONS
 	select INTEL_GMA_ACPI
 	select INTEL_GMA_ADD_VBT if RUN_FSP_GOP
 	select INTEL_GMA_OPREGION_2_1
-	select INTEL_TME
+	select INTEL_TXT_LIB
 	select MRC_SETTINGS_PROTECT
 	select PARALLEL_MP_AP_WORK
 	select PLATFORM_USES_FSP2_2
 	select PMC_GLOBAL_RESET_ENABLE_LOCK
 	select SOC_INTEL_COMMON
+	select CPU_INTEL_COMMON_VOLTAGE
 	select SOC_INTEL_COMMON_ACPI_WAKE_SOURCE
 	select SOC_INTEL_COMMON_BLOCK
 	select SOC_INTEL_COMMON_BLOCK_ACPI
 	select SOC_INTEL_COMMON_BLOCK_ACPI_CPPC
 	select SOC_INTEL_COMMON_BLOCK_ACPI_CPU_HYBRID
 	select SOC_INTEL_COMMON_BLOCK_ACPI_GPIO
+	select SOC_INTEL_COMMON_BLOCK_ACPI_LPIT
 	select SOC_INTEL_COMMON_BLOCK_ACPI_PEP
 	select SOC_INTEL_COMMON_BLOCK_ACPI_PEP_LPM_REQ
 	select SOC_INTEL_COMMON_BLOCK_CAR
@@ -112,17 +117,18 @@ config CPU_SPECIFIC_OPTIONS
 	select SOC_INTEL_COMMON_BLOCK_XHCI_ELOG
 	select SOC_INTEL_COMMON_BASECODE
 	select SOC_INTEL_COMMON_FSP_RESET
-	select SOC_INTEL_COMMON_PCH_BASE
+	select SOC_INTEL_COMMON_PCH_CLIENT
 	select SOC_INTEL_COMMON_RESET
-	select SOC_INTEL_CSE_SEND_EOP_EARLY
+	select SOC_INTEL_CSE_SEND_EOP_LATE
 	select SOC_INTEL_CSE_SET_EOP
-	select SOC_INTEL_CSE_PRE_CPU_RESET_TELEMETRY if SOC_INTEL_CSE_LITE_SKU
 	select SOC_INTEL_MEM_MAPPED_PM_CONFIGURATION
+	select HAVE_INTEL_COMPLIANCE_TEST_MODE
 	select SSE2
 	select SUPPORT_CPU_UCODE_IN_CBFS
 	select TSC_MONOTONIC_TIMER
 	select UDELAY_TSC
 	select UDK_202005_BINDING
+	select VBOOT_LIB
 
 config SOC_INTEL_ALDERLAKE_TCSS_USB4_SUPPORT
 	bool
@@ -201,6 +207,9 @@ config HEAP_SIZE
 	hex
 	default 0x10000
 
+config GFX_GMA_DEFAULT_MMIO
+	default 0xfa000000 if MAINBOARD_HAS_EARLY_LIBGFXINIT
+
 # Intel recommends reserving the following resources per PCIe TBT root port,
 # from ADL BIOS Spec (doc #627270) Revision 0.6.0 Section 7.2.5.1.5
 # - 42 buses
@@ -249,8 +258,8 @@ config MAX_PCIE_CLOCK_SRC
 	int
 	default 6 if SOC_INTEL_ALDERLAKE_PCH_M
 	default 5 if SOC_INTEL_ALDERLAKE_PCH_N
-	default 18 if SOC_INTEL_ALDERLAKE_PCH_S
 	default 10 if SOC_INTEL_ALDERLAKE_PCH_P
+	default 18 if SOC_INTEL_ALDERLAKE_PCH_S
 	help
 	  With external clock buffer, Alderlake-P can support up to three additional source clocks.
 	  This is done by setting the corresponding GPIO pin(s) to native function to use as
@@ -286,12 +295,24 @@ config CPU_BCLK_MHZ
 	int
 	default 100
 
+config SOC_INTEL_PERFORMANCE_CORE_SCALE_FACTOR
+	int
+	default 127
+
+config SOC_INTEL_EFFICIENT_CORE_SCALE_FACTOR
+	int
+	default 100
+
 config SOC_INTEL_COMMON_BLOCK_GSPI_CLOCK_MHZ
 	int
 	default 120
 
 config CPU_XTAL_HZ
 	default 38400000
+
+config SOC_INTEL_UFS_CLK_FREQ_HZ
+	int
+	default 19200000
 
 config DRIVERS_I2C_DESIGNWARE_CLOCK_MHZ
 	int
@@ -311,6 +332,12 @@ config SOC_INTEL_ALDERLAKE_S3
 	help
 	  Select if using S3 instead of S0ix to disable D3Cold.
 
+config ENABLE_SATA_TEST_MODE
+	bool "Enable test mode for SATA margining"
+	default n
+	help
+	  Enable SATA test mode in FSP-S.
+
 config SOC_INTEL_UART_DEV_MAX
 	int
 	default 7
@@ -326,7 +353,7 @@ config VBT_DATA_SIZE_KB
 
 # Clock divider parameters for 115200 baud rate
 # Baudrate = (UART source clock * M) /(N *16)
-# ADL UART source clock: 120MHz
+# ADL UART source clock: 100MHz
 config SOC_INTEL_COMMON_LPSS_UART_CLK_M_VAL
 	hex
 	default 0x25a
@@ -354,12 +381,26 @@ config CBFS_SIZE
 
 config PRERAM_CBMEM_CONSOLE_SIZE
 	hex
-	default 0x2000
+	default 0x16000 if CONSOLE_SERIAL
+	default 0x4000
+
+config CONSOLE_CBMEM_BUFFER_SIZE
+	hex
+	default 0x100000 if CONSOLE_SERIAL
+	default 0x40000
+
+config FSP_TYPE_IOT
+	bool
+	default n
+	help
+	  This option allows to select FSP IOT type from 3rdparty/fsp repo
 
 config FSP_HEADER_PATH
 	string "Location of FSP headers"
 	default "src/vendorcode/intel/fsp/fsp2_0/alderlake_n/" if SOC_INTEL_ALDERLAKE_PCH_N
 	default "src/vendorcode/intel/fsp/fsp2_0/raptorlake/" if SOC_INTEL_RAPTORLAKE
+	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeP/Include/" if SOC_INTEL_ALDERLAKE_PCH_P && FSP_TYPE_IOT
+	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeS/Include/" if SOC_INTEL_ALDERLAKE_PCH_S && FSP_TYPE_IOT
 	default "3rdparty/fsp/AlderLakeFspBinPkg/Client/AlderLakeP/Include/" if SOC_INTEL_ALDERLAKE_PCH_P
 	default "3rdparty/fsp/AlderLakeFspBinPkg/Client/AlderLakeS/Include/" if SOC_INTEL_ALDERLAKE_PCH_S
 	default "src/vendorcode/intel/fsp/fsp2_0/alderlake/"
@@ -367,6 +408,8 @@ config FSP_HEADER_PATH
 config FSP_FD_PATH
 	string
 	depends on FSP_USE_REPO
+	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeP/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_P && FSP_TYPE_IOT
+	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeS/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_S && FSP_TYPE_IOT
 	default "3rdparty/fsp/AlderLakeFspBinPkg/Client/AlderLakeP/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_P
 	default "3rdparty/fsp/AlderLakeFspBinPkg/Client/AlderLakeS/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_S
 
@@ -402,6 +445,36 @@ config ACPI_ADL_IPU_ES_SUPPORT
 	help
 	  Enables ACPI entry to provide silicon type information to IPU kernel driver.
 
+config ALDERLAKE_ENABLE_SOC_WORKAROUND
+	bool
+	default y
+	select SOC_INTEL_UFS_LTR_DISQUALIFY
+	select SOC_INTEL_UFS_OCP_TIMER_DISABLE
+	help
+	  Selects the workarounds applicable for Alder Lake SoC.
+
+config USE_UNIFIED_AP_FIRMWARE_FOR_UFS_AND_NON_UFS
+	bool
+	help
+	  Alder Lake SoC based OEM board design with UFS and non-UFS planned to use an
+	  unified AP firmware which demanded to have a unified descriptor. It means UFS
+	  controller needs to default fuse enabled to let UFS SKU to boot.
+
+	  On such design with non-UFS SKU is exhibiting S0ix failure due to UFS remain
+	  enabled in the strap although FSP-S is making the UFS controller function
+	  disabled. The potential root cause of this behaviour is although the UFS
+	  controller is function disabled but MPHY clock is still in active state.
+
+	  A possible solution to this problem is to issue a warm reboot (if boot path is
+	  S5->S0 or G3->S0) after disabling the UFS and let PMC to read the function
+	  disable state of the UFS for disabling the MPHY clock.
+
+	  Mainboard users with such board design where OEM would like to use an unified AP
+	  firmware to support both UFS and non-UFS sku booting might need to choose this
+	  config to allow disabling UFS while booting on the non-UFS SKU.
+	  Note: selection of this config would introduce an additional warm reset in
+	  cold-reset scenarios due to function disabling of the UFS controller.
+
 choice
 	prompt "Multiprocessor (MP) Initialization configuration to use"
 	default USE_FSP_MP_INIT
@@ -414,6 +487,13 @@ config USE_FSP_MP_INIT
 
 config USE_COREBOOT_MP_INIT
 	bool "Use coreboot MP init"
+	# FSP assumes ownership of the APs (Application Processors)
+	# upon passing `NULL` pointer to the CpuMpPpi FSP-S UPD.
+	# Hence, select `MP_SERVICES_PPI_V2_NOOP` config to pass a valid
+	# pointer to the CpuMpPpi UPD with FSP_UNSUPPORTED type APIs.
+	# This will protect APs from getting hijacked by FSP while coreboot
+	# decides to set SkipMpInit UPD.
+	select MP_SERVICES_PPI_V2_NOOP
 	select RELOAD_MICROCODE_PATCH
 	help
 	  Upon selection, coreboot performs MP Init.
@@ -444,5 +524,17 @@ config BUILDING_WITH_DEBUG_FSP
 	default n
 	help
 	  Set this option if debug build of FSP is used.
+
+config INTEL_GMA_BCLV_OFFSET
+	default 0xc8258
+
+config INTEL_GMA_BCLV_WIDTH
+	default 32
+
+config INTEL_GMA_BCLM_OFFSET
+	default 0xc8254
+
+config INTEL_GMA_BCLM_WIDTH
+	default 32
 
 endif

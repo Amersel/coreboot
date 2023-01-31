@@ -9,7 +9,6 @@ subdirs-$(CONFIG_VBOOT_STARTS_BEFORE_BOOTBLOCK) += ../common/psp_verstage
 all-y += config.c
 all-y += aoac.c
 
-bootblock-y += bootblock.c
 bootblock-y += early_fch.c
 bootblock-y += gpio.c
 bootblock-y += i2c.c
@@ -32,7 +31,6 @@ ramstage-$(CONFIG_HAVE_ACPI_TABLES) += acpi.c
 ramstage-$(CONFIG_HAVE_ACPI_TABLES) += agesa_acpi.c
 ramstage-y += chip.c
 ramstage-y += cpu.c
-ramstage-y += data_fabric.c
 ramstage-y += fch.c
 ramstage-y += fsp_s_params.c
 ramstage-y += gpio.c
@@ -52,14 +50,11 @@ ifeq ($(CONFIG_DEBUG_SMI),y)
 smm-y += uart.c
 endif
 smm-y += gpio.c
-smm-y += smu.c
 
 CPPFLAGS_common += -I$(src)/soc/amd/picasso/include
 CPPFLAGS_common += -I$(src)/soc/amd/picasso/acpi
 CPPFLAGS_common += -I$(src)/vendorcode/amd/fsp/picasso
 CPPFLAGS_common += -I$(src)/vendorcode/amd/fsp/picasso/include
-
-MAINBOARD_BLOBS_DIR:=$(top)/3rdparty/blobs/mainboard/$(MAINBOARDDIR)
 
 # ROMSIG Normally At ROMBASE + 0x20000
 # Overridden by CONFIG_AMD_FWM_POSITION_INDEX
@@ -97,8 +92,6 @@ PICASSO_FW_B_POSITION=$(call int-add, \
 # Design Guide for AMD Family 17h Processors" (PID #55758, NDA only).
 #
 
-FIRMWARE_LOCATION=$(shell grep -e FIRMWARE_LOCATION $(CONFIG_AMDFW_CONFIG_FILE) | awk '{print $$2}')
-
 ifeq ($(CONFIG_PSP_UNLOCK_SECURE_DEBUG),y)
 # Enable secure debug unlock
 PSP_SOFTFUSE_BITS += 0
@@ -127,6 +120,17 @@ endif
 # BIOS Directory Table items - proper ordering is managed by amdfwtool
 #
 
+# type = 0x4
+# The flashmap section used for this is expected to be named PSP_NVRAM
+PSP_NVRAM_BASE=$(shell awk '$$2 == "FMAP_SECTION_PSP_NVRAM_START" {print $$3}' $(obj)/fmap_config.h)
+PSP_NVRAM_SIZE=$(shell awk '$$2 == "FMAP_SECTION_PSP_NVRAM_SIZE" {print $$3}' $(obj)/fmap_config.h)
+
+# type = 0x7
+# RSA 2048 signature
+#ifeq ($(CONFIG_PSP_PLATFORM_SECURE_BOOT),y)
+PSP_BIOS_SIG_SIZE=0x100
+#endif
+
 # type = 0x60
 PSP_APCB_FILES=$(APCB_SOURCES)
 
@@ -136,8 +140,8 @@ PSP_APOB_BASE=$(CONFIG_PSP_APOB_DRAM_ADDRESS)
 # type = 0x62
 PSP_BIOSBIN_FILE=$(obj)/amd_biospsp.img
 PSP_ELF_FILE=$(objcbfs)/bootblock.elf
-PSP_BIOSBIN_SIZE=$(shell $(READELF_bootblock) -l $(PSP_ELF_FILE) | grep LOAD | awk '{print $$5}')
-PSP_BIOSBIN_DEST=$(shell $(READELF_bootblock) -l $(PSP_ELF_FILE) | grep LOAD | awk '{print $$3}')
+PSP_BIOSBIN_SIZE=$(shell $(READELF_bootblock) -Wl $(PSP_ELF_FILE) | grep LOAD | awk '{print $$5}')
+PSP_BIOSBIN_DEST=$(shell $(READELF_bootblock) -Wl $(PSP_ELF_FILE) | grep LOAD | awk '{print $$3}')
 # type = 0x63 - construct APOB NV base/size from flash map
 # The flashmap section used for this is expected to be named RW_MRC_CACHE
 APOB_NV_SIZE=$(shell awk '$$2 == "FMAP_SECTION_RW_MRC_CACHE_SIZE" {print $$3}' $(obj)/fmap_config.h)
@@ -169,6 +173,9 @@ PSP_SOFTFUSE=$(shell A=$(call int-add, \
 
 add_opt_prefix=$(if $(call strip_quotes, $(1)), $(2) $(call strip_quotes, $(1)), )
 
+OPT_PSP_NVRAM_BASE=$(call add_opt_prefix, $(PSP_NVRAM_BASE), --nvram-base)
+OPT_PSP_NVRAM_SIZE=$(call add_opt_prefix, $(PSP_NVRAM_SIZE), --nvram-size)
+
 OPT_VERSTAGE_FILE=$(call add_opt_prefix, $(PSP_VERSTAGE_FILE), --verstage)
 OPT_VERSTAGE_SIG_FILE=$(call add_opt_prefix, $(PSP_VERSTAGE_SIG_FILE), --verstage_sig)
 
@@ -184,6 +191,7 @@ OPT_PSP_BIOSBIN_FILE=$(call add_opt_prefix, $(PSP_BIOSBIN_FILE), --bios-bin)
 OPT_PSP_BIOSBIN_DEST=$(call add_opt_prefix, $(PSP_BIOSBIN_DEST), --bios-bin-dest)
 OPT_PSP_BIOSBIN_SIZE=$(call add_opt_prefix, $(PSP_BIOSBIN_SIZE), --bios-uncomp-size)
 
+OPT_PSP_BIOS_SIG_SIZE=$(call add_opt_prefix, $(PSP_BIOS_SIG_SIZE), --bios-sig-size)
 OPT_PSP_SHAREDMEM_BASE=$(call add_opt_prefix, $(PSP_SHAREDMEM_BASE), --sharedmem)
 OPT_PSP_SHAREDMEM_SIZE=$(call add_opt_prefix, $(PSP_SHAREDMEM_SIZE), --sharedmem-size)
 OPT_APOB_NV_SIZE=$(call add_opt_prefix, $(APOB_NV_SIZE), --apob-nv-size)
@@ -201,16 +209,15 @@ endif
 
 OPT_WHITELIST_FILE=$(call add_opt_prefix, $(PSP_WHITELIST_FILE), --whitelist)
 
-# Add all the files listed in the config file
-POUND_SIGN=$(call strip_quotes, "\#")
-DEP_FILES= $(patsubst %,$(FIRMWARE_LOCATION)/%, $(shell sed -e /^$(POUND_SIGN)/d -e /^FIRMWARE_LOCATION/d $(CONFIG_AMDFW_CONFIG_FILE) | awk '{print $$2}' ))
-
 AMDFW_COMMON_ARGS=$(OPT_PSP_APCB_FILES) \
+		$(OPT_PSP_NVRAM_BASE) \
+		$(OPT_PSP_NVRAM_SIZE) \
 		$(OPT_PSP_APCB_FILES_BK) \
 		$(OPT_APOB_ADDR) \
 		$(OPT_PSP_BIOSBIN_FILE) \
 		$(OPT_PSP_BIOSBIN_DEST) \
 		$(OPT_PSP_BIOSBIN_SIZE) \
+		$(OPT_PSP_BIOS_SIG_SIZE) \
 		$(OPT_PSP_SOFTFUSE) \
 		--use-pspsecureos \
 		$(OPT_PSP_LOAD_MP2_FW) \
@@ -275,23 +282,18 @@ $(obj)/amdfw_b.rom: $(obj)/amdfw.rom
 		--anywhere \
 		--output $@
 
-cbfs-files-y += apu/amdfw
-apu/amdfw-file := $(obj)/amdfw.rom
-apu/amdfw-position := $(PICASSO_FWM_POSITION)
-apu/amdfw-type := raw
-
-ifeq ($(CONFIG_VBOOT_SLOTS_RW_AB)$(CONFIG_VBOOT_STARTS_BEFORE_BOOTBLOCK),yy)
+ifeq ($(CONFIG_VBOOT_SLOTS_RW_A)$(CONFIG_VBOOT_STARTS_BEFORE_BOOTBLOCK),yy)
 cbfs-files-y += apu/amdfw_a
 apu/amdfw_a-file := $(obj)/amdfw_a.rom
 apu/amdfw_a-position := $(AMD_FW_AB_POSITION)
 apu/amdfw_a-type := raw
+endif
 
+ifeq ($(CONFIG_VBOOT_SLOTS_RW_AB)$(CONFIG_VBOOT_STARTS_BEFORE_BOOTBLOCK),yy)
 cbfs-files-y += apu/amdfw_b
 apu/amdfw_b-file := $(obj)/amdfw_b.rom
 apu/amdfw_b-position := $(AMD_FW_AB_POSITION)
 apu/amdfw_b-type := raw
 endif
-
-amd_microcode_bins := $(wildcard ${FIRMWARE_LOCATION}/UcodePatch_*.bin)
 
 endif # ($(CONFIG_SOC_AMD_PICASSO),y)

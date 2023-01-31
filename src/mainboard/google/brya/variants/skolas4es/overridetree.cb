@@ -28,7 +28,11 @@ fw_config
 		option UFC_USB			0
 		option UFC_MIPI_IMX208		1
 	end
-	# Bits 15 and 16 were intended for WFC but never declared here
+	field WFC 15 16
+		option WFC_ABSENT		0
+		option WFC_MIPI_OVTI5675	1
+		option WFC_MIPI_OVTI8856	2
+	end
 	field HPS 17 17
 		option HPS_ABSENT               0
 		option HPS_PRESENT              1
@@ -36,6 +40,10 @@ fw_config
 end
 
 chip soc/intel/alderlake
+	register "domain_vr_config[VR_DOMAIN_IA]" = "{
+		.enable_fast_vmode = 1,
+	}"
+
 	register "sagv" = "SaGv_Enabled"
 
 	register "platform_pmax" = "145"
@@ -350,6 +358,7 @@ chip soc/intel/alderlake
 				register "link_freq[0]" = "360 * MHz" # 360 MHz
 				register "link_freq[1]" = "180 * MHz" # 180 MHz
 				register "remote_name" = ""IPU0""
+				register "max_dstate_for_probe" = "ACPI_DEVICE_SLEEP_D3_COLD"
 
 				register "has_power_resource" = "1"
 				#Controls
@@ -382,9 +391,22 @@ chip soc/intel/alderlake
 				register "acpi_name" = ""VCM0""
 				register "chip_name" = ""DW9768 VCM""
 				register "device_type" = "INTEL_ACPI_CAMERA_VCM"
-
-				register "pr0" = ""\\_SB.PCI0.I2C0.CAM0.PRIC""
 				register "vcm_compat" = ""dongwoon,dw9768""
+
+				register "max_dstate_for_probe" = "ACPI_DEVICE_SLEEP_D0"
+
+				register "has_power_resource" = "1"
+
+				#Controls
+				register "gpio_panel.gpio[0].gpio_num" = "GPP_D16" #EN_WCAM_PWR
+
+				#_ON
+				register "on_seq.ops_cnt" = "1"
+				register "on_seq.ops[0]" = "SEQ_OPS_GPIO_ENABLE(0, 0)"
+
+				#_OFF
+				register "off_seq.ops_cnt" = "1"
+				register "off_seq.ops[0]" = "SEQ_OPS_GPIO_DISABLE(0, 0)"
 
 				device i2c 0C on end
 			end
@@ -394,13 +416,27 @@ chip soc/intel/alderlake
 				register "chip_name" = ""AT24 EEPROM""
 				register "device_type" = "INTEL_ACPI_CAMERA_NVM"
 
-				register "pr0" = ""\\_SB.PCI0.I2C0.CAM0.PRIC""
 				register "nvm_compat" = ""atmel,24c1024""
 
 				register "nvm_size" = "0x2800"
 				register "nvm_pagesize" = "0x01"
 				register "nvm_readonly" = "0x01"
 				register "nvm_width" = "0x10"
+
+				register "max_dstate_for_probe" = "ACPI_DEVICE_SLEEP_D0"
+
+				register "has_power_resource" = "1"
+
+				#Controls
+				register "gpio_panel.gpio[0].gpio_num" = "GPP_D16" #EN_WCAM_PWR
+
+				#_ON
+				register "on_seq.ops_cnt" = "1"
+				register "on_seq.ops[0]" = "SEQ_OPS_GPIO_ENABLE(0, 0)"
+
+				#_OFF
+				register "off_seq.ops_cnt" = "1"
+				register "off_seq.ops[0]" = "SEQ_OPS_GPIO_DISABLE(0, 0)"
 
 				device i2c 58 on end
 			end
@@ -645,7 +681,7 @@ chip soc/intel/alderlake
 				register "desc" = ""ELAN Touchpad""
 				register "irq" = "ACPI_IRQ_WAKE_LEVEL_LOW(GPP_F14_IRQ)"
 				register "wake" = "GPE0_DW2_14"
-				register "probed" = "1"
+				register "detect" = "1"
 				device i2c 15 on end
 			end
 		end #I2C5
@@ -699,6 +735,10 @@ chip soc/intel/alderlake
 				register "compat_string" = ""google,cros-ec-spi""
 				register "irq" = "ACPI_IRQ_WAKE_LEVEL_LOW(GPP_F15_IRQ)"
 				register "wake" = "GPE0_DW2_15"
+				register "has_power_resource" = "1"
+				register "reset_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPP_D1)"
+				register "enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPP_D2)"
+				register "enable_delay_ms" = "3"
 				device spi 0 on end
 			end # FPMCU
 		end
@@ -738,7 +778,7 @@ chip soc/intel/alderlake
 						register "desc" = ""USB3 Type-C Port C0 (MLB)""
 						register "type" = "UPC_TYPE_C_USB2_SS_SWITCH"
 						register "use_custom_pld" = "true"
-						register "custom_pld" = "ACPI_PLD_TYPE_C(LEFT, LEFT, ACPI_PLD_GROUP(1, 1))"
+						register "custom_pld" = "ACPI_PLD_TYPE_C(LEFT, RIGHT, ACPI_PLD_GROUP(1, 1))"
 						device ref tcss_usb3_port1 on end
 					end
 					chip drivers/usb/acpi
@@ -752,7 +792,7 @@ chip soc/intel/alderlake
 						register "desc" = ""USB3 Type-C Port C2 (MLB)""
 						register "type" = "UPC_TYPE_C_USB2_SS_SWITCH"
 						register "use_custom_pld" = "true"
-						register "custom_pld" = "ACPI_PLD_TYPE_C(LEFT, RIGHT, ACPI_PLD_GROUP(3, 1))"
+						register "custom_pld" = "ACPI_PLD_TYPE_C(LEFT, LEFT, ACPI_PLD_GROUP(3, 1))"
 						device ref tcss_usb3_port3 on end
 					end
 				end
@@ -765,7 +805,7 @@ chip soc/intel/alderlake
 						register "desc" = ""USB2 Type-C Port C0 (MLB)""
 						register "type" = "UPC_TYPE_C_USB2_SS_SWITCH"
 						register "use_custom_pld" = "true"
-						register "custom_pld" = "ACPI_PLD_TYPE_C(LEFT, LEFT, ACPI_PLD_GROUP(1, 1))"
+						register "custom_pld" = "ACPI_PLD_TYPE_C(LEFT, RIGHT, ACPI_PLD_GROUP(1, 1))"
 						device ref usb2_port1 on end
 					end
 					chip drivers/usb/acpi
@@ -779,7 +819,7 @@ chip soc/intel/alderlake
 						register "desc" = ""USB2 Type-C Port C2 (MLB)""
 						register "type" = "UPC_TYPE_C_USB2_SS_SWITCH"
 						register "use_custom_pld" = "true"
-						register "custom_pld" = "ACPI_PLD_TYPE_C(LEFT, RIGHT, ACPI_PLD_GROUP(3, 1))"
+						register "custom_pld" = "ACPI_PLD_TYPE_C(LEFT, LEFT, ACPI_PLD_GROUP(3, 1))"
 						device ref usb2_port3 on end
 					end
 					chip drivers/usb/acpi

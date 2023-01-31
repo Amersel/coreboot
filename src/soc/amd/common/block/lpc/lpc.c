@@ -5,7 +5,6 @@
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pnp.h>
-#include <device/pci_ids.h>
 #include <device/pci_ops.h>
 #include <device/pci_def.h>
 #include <pc80/mc146818rtc.h>
@@ -16,6 +15,7 @@
 #include <amdblocks/acpimmio.h>
 #include <amdblocks/espi.h>
 #include <amdblocks/ioapic.h>
+#include <amdblocks/iomap.h>
 #include <amdblocks/lpc.h>
 #include <soc/iomap.h>
 #include <soc/lpc.h>
@@ -38,7 +38,7 @@ static void setup_serirq(void)
 static void fch_ioapic_init(void)
 {
 	fch_enable_ioapic_decode();
-	setup_ioapic(VIO_APIC_VADDR, FCH_IOAPIC_ID);
+	register_new_ioapic_gsi0(VIO_APIC_VADDR);
 }
 
 static void lpc_init(struct device *dev)
@@ -109,9 +109,10 @@ static void lpc_read_resources(struct device *dev)
 	res->flags = IORESOURCE_IO | IORESOURCE_SUBTRACTIVE |
 		     IORESOURCE_ASSIGNED | IORESOURCE_FIXED;
 
+	/* Only up to 16 MByte of the SPI flash can be mapped right below 4 GB */
 	res = new_resource(dev, IOINDEX_SUBTRACTIVE(1, 0));
-	res->base = FLASH_BASE_ADDR;
-	res->size = CONFIG_ROM_SIZE;
+	res->base = FLASH_BELOW_4GB_MAPPING_REGION_BASE;
+	res->size = FLASH_BELOW_4GB_MAPPING_REGION_SIZE;
 	res->flags = IORESOURCE_MEM | IORESOURCE_SUBTRACTIVE |
 		     IORESOURCE_ASSIGNED | IORESOURCE_FIXED;
 
@@ -317,7 +318,7 @@ static const char *lpc_acpi_name(const struct device *dev)
 }
 #endif
 
-static struct device_operations lpc_ops = {
+struct device_operations amd_lpc_ops = {
 	.read_resources = lpc_read_resources,
 	.set_resources = lpc_set_resources,
 	.enable_resources = lpc_enable_resources,
@@ -328,17 +329,4 @@ static struct device_operations lpc_ops = {
 	.init = lpc_init,
 	.scan_bus = scan_static_bus,
 	.ops_pci = &pci_dev_ops_pci,
-};
-
-static const unsigned short pci_device_ids[] = {
-	/* PCI device ID is used on all discrete FCHs and Family 16h Models 00h-3Fh */
-	PCI_DID_AMD_SB900_LPC,
-	/* PCI device ID is used on all integrated FCHs except Family 16h Models 00h-3Fh */
-	PCI_DID_AMD_CZ_LPC,
-	0
-};
-static const struct pci_driver lpc_driver __pci_driver = {
-	.ops = &lpc_ops,
-	.vendor = PCI_VID_AMD,
-	.devices = pci_device_ids,
 };

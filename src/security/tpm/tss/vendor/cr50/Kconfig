@@ -30,16 +30,6 @@ config CR50_USE_LONG_INTERRUPT_PULSES
 	  Whether to request longer interrupt pulses using Cr50 BOARD_CFG register.
 	  If the Cr50 firmware is too old, it will not be able to honor the request.
 
-config TI50_FIRMWARE_VERSION_NOT_SUPPORTED
-	bool
-	default n
-	help
-	  Ti50 FW versions below 0.15 don't support the firmware_version register,
-	  and trying to access it causes I2C errors. This config will skip accesses
-	  to the register, and should be selected for boards using Ti50 chips with
-	  FW < 0.0.15. The config will be removed once all Ti50 stocks are updated to
-	  0.0.15 or higher.
-
 config GOOGLE_TPM_IRQ_TIMEOUT_MS
 	int
 	default 100 if TPM_GOOGLE_CR50 && I2C_TPM
@@ -49,5 +39,12 @@ config GOOGLE_TPM_IRQ_TIMEOUT_MS
 	  Timeout in milliseconds for waiting for TPM IRQ. Default to 100ms/10ms on platforms
 	  using Cr50 in order to support legacy pre-ready-IRQ cr50 factory images. Default to
 	  750ms otherwise.
+
+config CR50_RESET_CLEAR_EC_AP_IDLE_FLAG
+	def_bool n
+	help
+	  Select this if the variant is a Chromebox/base. This allows AP to direct EC
+	  to clear AP_IDLE flag after AP shutdown before triggering CR50 reset and
+	  shutting down AP so that AP can boot up after CR50 reset.
 
 endif

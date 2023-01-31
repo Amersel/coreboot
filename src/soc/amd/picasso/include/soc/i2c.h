@@ -3,12 +3,12 @@
 #ifndef AMD_PICASSO_I2C_H
 #define AMD_PICASSO_I2C_H
 
+#include <gpio.h>
 #include <types.h>
-#include <soc/gpio.h>
 
 #define GPIO_I2C2_SCL		BIT(2)
 #define GPIO_I2C3_SCL		BIT(3)
-#define GPIO_I2C_MASK		(BIT(2) | BIT(3))
+#define GPIO_I2C_MASK		(GPIO_I2C2_SCL | GPIO_I2C3_SCL)
 
 #define I2C2_SCL_PIN			GPIO_113
 #define I2C3_SCL_PIN			GPIO_19
@@ -25,5 +25,6 @@
 
 /* Sets the base address for the specific I2C bus. */
 void i2c_set_bar(unsigned int bus, uintptr_t bar);
+void reset_i2c_peripherals(void);
 
 #endif /* AMD_PICASSO_I2C_H */

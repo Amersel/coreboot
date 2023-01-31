@@ -113,6 +113,7 @@
 #define GPIO_DEB_REMOVE_GLITCH		(DEB_GLITCH_REMOVE << DEB_GLITCH_SHIFT)
 
 #define GPIO_TIMEBASE_61uS		0
+/* The next value is only 183uS on Picasso. It is 244uS on Cezanne and later SoCs */
 #define GPIO_TIMEBASE_183uS		(1 << 4)
 #define GPIO_TIMEBASE_15560uS		(1 << 7)
 #define GPIO_TIMEBASE_62440uS		(GPIO_TIMEBASE_183uS | GPIO_TIMEBASE_15560uS)
@@ -159,7 +160,7 @@
  *	pin		the pin to be programmed
  *	pull		pull up, pull down or no pull
  *	trigger		LEVEL_LOW, LEVEL_HIGH, EDGE_LOW, EDGE_HIGH, BOTH_EDGES
- *	action		STATUS, DELIVER, STATUS_DELIVER
+ *	action		STATUS, DELIVERY, STATUS_DELIVERY
  * PAD_SCI		The pin is a SCI source
  *	pin		the pin to be programmed
  *	pull		pull up, pull down or no pull
@@ -167,7 +168,7 @@
  * PAD_SMI		The pin is a SMI source
  *	pin		the pin to be programmed
  *	pull		pull up, pull down or no pull
- *      event trigger	LEVEL_LOW, LEVEL_HIGH
+ *	event trigger	LEVEL_LOW, LEVEL_HIGH
  * PAD_NF_SCI		Define native alternate function and confiure SCI source
  *	pin		the pin to be programmed
  *	function	the native function

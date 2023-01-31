@@ -28,6 +28,12 @@
 #define POST_CODES_H
 
 /**
+ * \brief Not an actual post-code - used to clear port80h
+ *
+ */
+#define POST_CODE_CLEAR				0x00
+
+/**
  * \brief  Entry into 'crt0.s'. reset code jumps to here
  *
  * First instruction that gets executed after the reset vector jumps.
@@ -64,6 +70,20 @@
  * c_start.S is the first code executing in ramstage.
  */
 #define POST_ENTRY_C_START			0x13
+
+/**
+ * \brief Entry into pci_scan_bus
+ *
+ * Entered pci_scan_bus()
+ */
+#define POST_ENTER_PCI_SCAN_BUS			0x24
+
+/**
+ * \brief Entry into pci_scan_bus
+ *
+ * Entered pci_scan_bus()
+ */
+#define POST_EXIT_PCI_SCAN_BUS			0x25
 
 /**
  * \brief Pre-memory init preparation start
@@ -285,6 +305,27 @@
  * FSP binary returned from SiliconInit phase
  */
 #define POST_FSP_SILICON_EXIT			0x99
+
+/**
+ * \brief Entry to write_pirq_table
+ *
+ * coreboot entered write_pirq_table
+ */
+#define POST_X86_WRITE_PIRQ_TABLE		0x9a
+
+/**
+ * \brief Entry to write_mptable
+ *
+ * coreboot entered write_mptable
+ */
+#define POST_X86_WRITE_MPTABLE			0x9b
+
+/**
+ * \brief Entry to write_acpi_table
+ *
+ * coreboot entered write_acpi_table
+ */
+#define POST_X86_WRITE_ACPITABLE		0x9c
 
 /**
  * \brief Before calling FSP Multiphase SiliconInit

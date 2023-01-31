@@ -2,14 +2,13 @@
 
 /* Microcode update for Intel PIII and later CPUs */
 
-#include <stdint.h>
-#include <stddef.h>
 #include <cbfs.h>
-#include <arch/cpu.h>
 #include <console/console.h>
-#include <cpu/x86/msr.h>
+#include <cpu/cpu.h>
 #include <cpu/intel/microcode.h>
+#include <cpu/x86/msr.h>
 #include <smp/spinlock.h>
+#include <types.h>
 
 DECLARE_SPIN_LOCK(microcode_lock)
 
@@ -217,7 +216,6 @@ static const void *find_cbfs_microcode(void)
 			struct ext_sig_entry *entry = (struct ext_sig_entry *)(ext_tbl + 1);
 
 			for (i = 0; i < ext_tbl->ext_sig_cnt; i++, entry++) {
-
 				if ((sig == entry->sig) && (pf & entry->pf)) {
 					return ucode_updates;
 				}

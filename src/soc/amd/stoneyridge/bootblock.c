@@ -4,7 +4,6 @@
 #include <assert.h>
 #include <console/console.h>
 #include <cpu/x86/msr.h>
-#include <cpu/amd/msr.h>
 #include <cpu/x86/mtrr.h>
 #include <smp/node.h>
 #include <bootblock_common.h>
@@ -12,14 +11,13 @@
 #include <amdblocks/agesawrapper_call.h>
 #include <amdblocks/amd_pci_mmconf.h>
 #include <amdblocks/biosram.h>
-#include <amdblocks/i2c.h>
+#include <amdblocks/iomap.h>
+#include <amdblocks/post_codes.h>
 #include <soc/pci_devs.h>
 #include <soc/cpu.h>
 #include <soc/southbridge.h>
 #include <timestamp.h>
 #include <halt.h>
-
-#include "chip.h"
 
 #if CONFIG_PI_AGESA_TEMP_RAM_BASE < 0x100000
 #error "Error: CONFIG_PI_AGESA_TEMP_RAM_BASE must be >= 1MB"
@@ -27,14 +25,6 @@
 #if CONFIG_PI_AGESA_CAR_HEAP_BASE < 0x100000
 #error "Error: CONFIG_PI_AGESA_CAR_HEAP_BASE must be >= 1MB"
 #endif
-
-/* Table to switch SCL pins to outputs to initially reset the I2C peripherals */
-static const struct soc_i2c_scl_pin i2c_scl_pins[] = {
-	I2C_RESET_SCL_PIN(I2C0_SCL_PIN, GPIO_I2C0_SCL),
-	I2C_RESET_SCL_PIN(I2C1_SCL_PIN, GPIO_I2C1_SCL),
-	I2C_RESET_SCL_PIN(I2C2_SCL_PIN, GPIO_I2C2_SCL),
-	I2C_RESET_SCL_PIN(I2C3_SCL_PIN, GPIO_I2C3_SCL),
-};
 
 /* Set the MMIO Configuration Base Address, Bus Range, and misc MTRRs. */
 static void amd_initmmio(void)
@@ -53,7 +43,8 @@ static void amd_initmmio(void)
 	 *       duplicate copies.
 	 */
 	mtrr = (mtrr_cap.lo & MTRR_CAP_VCNT) - SOC_EARLY_VMTRR_FLASH;
-	set_var_mtrr(mtrr, FLASH_BASE_ADDR, CONFIG_ROM_SIZE, MTRR_TYPE_WRPROT);
+	set_var_mtrr(mtrr, FLASH_BELOW_4GB_MAPPING_REGION_BASE,
+		     FLASH_BELOW_4GB_MAPPING_REGION_SIZE, MTRR_TYPE_WRPROT);
 
 	mtrr = (mtrr_cap.lo & MTRR_CAP_VCNT) - SOC_EARLY_VMTRR_CAR_HEAP;
 	set_var_mtrr(mtrr, CONFIG_PI_AGESA_CAR_HEAP_BASE,
@@ -62,17 +53,6 @@ static void amd_initmmio(void)
 	mtrr = (mtrr_cap.lo & MTRR_CAP_VCNT) - SOC_EARLY_VMTRR_TEMPRAM;
 	set_var_mtrr(mtrr, CONFIG_PI_AGESA_TEMP_RAM_BASE,
 			CONFIG_PI_AGESA_HEAP_SIZE, MTRR_TYPE_UNCACHEABLE);
-}
-
-static void reset_i2c_peripherals(void)
-{
-	const struct soc_amd_stoneyridge_config *cfg = config_of_soc();
-	struct soc_i2c_peripheral_reset_info reset_info;
-
-	reset_info.i2c_scl_reset_mask = cfg->i2c_scl_reset & GPIO_I2C_MASK;
-	reset_info.i2c_scl = i2c_scl_pins;
-	reset_info.num_pins = ARRAY_SIZE(i2c_scl_pins);
-	sb_reset_i2c_peripherals(&reset_info);
 }
 
 asmlinkage void bootblock_c_entry(uint64_t base_timestamp)
@@ -96,17 +76,8 @@ asmlinkage void bootblock_c_entry(uint64_t base_timestamp)
 
 void bootblock_soc_early_init(void)
 {
-	/*
-	 * This call (sb_reset_i2c_peripherals) was originally early at
-	 * bootblock_c_entry, but had to be moved here. There was an
-	 * unexplained delay in the middle of the i2c transaction when
-	 * we had it in bootblock_c_entry.  Moving it to this point
-	 * (or adding delays) fixes the issue.  It seems like the processor
-	 * just pauses but we don't know why.
-	 */
-	reset_i2c_peripherals();
 	bootblock_fch_early_init();
-	post_code(0x90);
+	post_code(POST_BOOTBLOCK_SOC_EARLY_INIT);
 }
 
 void bootblock_soc_init(void)
@@ -119,7 +90,4 @@ void bootblock_soc_init(void)
 	printk(BIOS_DEBUG, "Family_Model: %08x\n", val);
 
 	bootblock_fch_init();
-
-	/* Initialize any early i2c buses. */
-	i2c_soc_early_init();
 }

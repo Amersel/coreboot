@@ -1,3 +1,4 @@
+## SPDX-License-Identifier: GPL-2.0-only
 ifeq ($(CONFIG_SOC_INTEL_BRASWELL),y)
 
 subdirs-y += romstage
@@ -62,8 +63,6 @@ verstage-y += tsc_freq.c
 CPPFLAGS_common += -I$(src)/soc/intel/braswell/
 CPPFLAGS_common += -I$(src)/soc/intel/braswell/include
 CPPFLAGS_common += -I$(call strip_quotes,$(CONFIG_FSP_HEADER_PATH))
-
-CPPFLAGS_common += -I3rdparty/blobs/mainboard/$(MAINBOARDDIR)
 
 cpu_microcode_bins += $(wildcard 3rdparty/intel-microcode/intel-ucode/06-4c-*)
 

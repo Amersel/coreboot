@@ -618,6 +618,7 @@ our $signature_tags = qr{(?xi:
 	Reviewed-by:|
 	Reported-by:|
 	Suggested-by:|
+	Co-authored-by:|
 	To:|
 	Cc:
 )};
@@ -945,7 +946,8 @@ our $FuncArg = qr{$Typecast{0,1}($LvalOrFunc|$Constant|$String)};
 our $declaration_macros = qr{(?x:
 	(?:$Storage\s+)?(?:[A-Z_][A-Z0-9]*_){0,2}(?:DEFINE|DECLARE)(?:_[A-Z0-9]+){1,6}\s*\(|
 	(?:$Storage\s+)?[HLP]?LIST_HEAD\s*\(|
-	(?:SKCIPHER_REQUEST|SHASH_DESC|AHASH_REQUEST)_ON_STACK\s*\(
+	(?:SKCIPHER_REQUEST|SHASH_DESC|AHASH_REQUEST)_ON_STACK\s*\(|
+	(?:$Storage\s+)?(?:XA_STATE|XA_STATE_ORDER)\s*\(
 )};
 
 our %allow_repeated_words = (
@@ -2446,10 +2448,15 @@ sub process {
 
 	our $clean = 1;
 	my $signoff = 0;
+	my $author = '';
+	my $authorsignoff = 0;
+	my $author_sob = '';
 	my $is_patch = 0;
 	my $in_header_lines = $file ? 0 : 1;
 	my $in_commit_log = 0;		#Scanning lines before patch
+	my $has_patch_separator = 0;	#Found a --- line
 	my $has_commit_log = 0;		#Encountered lines before patch
+	my $commit_log_lines = 0;	#Number of commit log lines
 	my $commit_log_possible_stack_dump = 0;
 	my $commit_log_long_line = 0;
 	my $commit_log_has_diff = 0;
@@ -2719,6 +2726,18 @@ sub process {
 
 		$cnt_lines++ if ($realcnt != 0);
 
+# Verify the existence of a commit log if appropriate
+# 2 is used because a $signature is counted in $commit_log_lines
+		if ($in_commit_log) {
+			if ($line !~ /^\s*$/) {
+				$commit_log_lines++;	#could be a $signature
+			}
+		} elsif ($has_commit_log && $commit_log_lines < 2) {
+			WARN("COMMIT_MESSAGE",
+			     "Missing commit description - Add an appropriate one\n");
+			$commit_log_lines = 2;	#warn only once
+		}
+
 # Check if the commit log has what seems like a diff which can confuse patch
 		if ($in_commit_log && !$commit_log_has_diff &&
 		    (($line =~ m@^\s+diff\b.*a/([\w/]+)@ &&
@@ -2741,8 +2760,47 @@ sub process {
 		}
 
 # Check the patch for a signoff:
-		if ($line =~ /^\s*signed-off-by:/i) {
+		if ($line =~ /^\s*signed-off-by:\s*(.*)/i) {
 			$signoff++;
+			$in_commit_log = 0;
+			if ($author ne ''  && $authorsignoff != 1) {
+				if (same_email_addresses($1, $author)) {
+					$authorsignoff = 1;
+				} else {
+					my $ctx = $1;
+					my ($email_name, $email_comment, $email_address, $comment1) = parse_email($ctx);
+					my ($author_name, $author_comment, $author_address, $comment2) = parse_email($author);
+
+					if (lc $email_address eq lc $author_address && $email_name eq $author_name) {
+						$author_sob = $ctx;
+						$authorsignoff = 2;
+					} elsif (lc $email_address eq lc $author_address) {
+						$author_sob = $ctx;
+						$authorsignoff = 3;
+					} elsif ($email_name eq $author_name) {
+						$author_sob = $ctx;
+						$authorsignoff = 4;
+
+						my $address1 = $email_address;
+						my $address2 = $author_address;
+
+						if ($address1 =~ /(\S+)\+\S+(\@.*)/) {
+							$address1 = "$1$2";
+						}
+						if ($address2 =~ /(\S+)\+\S+(\@.*)/) {
+							$address2 = "$1$2";
+						}
+						if ($address1 eq $address2) {
+							$authorsignoff = 5;
+						}
+					}
+				}
+			}
+		}
+
+# Check for patch separator
+		if ($line =~ /^---$/) {
+			$has_patch_separator = 1;
 			$in_commit_log = 0;
 		}
 
@@ -2829,10 +2887,13 @@ sub process {
 			     "A patch subject line should describe the change not the tool that found it\n" . $herecurr);
 		}
 
-# Check for unwanted Gerrit info
-		if ($in_commit_log && $line =~ /^\s*change-id:/i) {
-			ERROR("GERRIT_CHANGE_ID",
-			      "Remove Gerrit Change-Id's before submitting upstream.\n" . $herecurr);
+# Check for Gerrit Change-Ids not in any patch context
+		if ($realfile eq '' && !$has_patch_separator && $line =~ /^\s*change-id:/i) {
+			if (ERROR("GERRIT_CHANGE_ID",
+			          "Remove Gerrit Change-Id's before submitting upstream\n" . $herecurr) &&
+			    $fix) {
+				fix_delete_line($fixlinenr, $rawline);
+			}
 		}
 
 # Check if the commit log is in a possible stack dump
@@ -3279,6 +3340,7 @@ sub process {
 # if LONG_LINE is ignored, the other 2 types are also ignored
 #
 
+		$max_line_length += 1;	# consider leading + in patches
 		if ($line =~ /^\+/ && $length > $max_line_length) {
 			my $msg_type = "LONG_LINE";
 
@@ -3329,8 +3391,11 @@ sub process {
 
 # check for adding lines without a newline.
 		if ($line =~ /^\+/ && defined $lines[$linenr] && $lines[$linenr] =~ /^\\ No newline at end of file/) {
-			WARN("MISSING_EOF_NEWLINE",
-			     "adding a line without newline at end of file\n" . $herecurr);
+			if (WARN("MISSING_EOF_NEWLINE",
+			         "adding a line without newline at end of file\n" . $herecurr) &&
+			    $fix) {
+				fix_delete_line($fixlinenr+1, "No newline at end of file");
+			}
 		}
 
 # check we are in a valid source file C or perl if not then ignore this hunk
@@ -3364,14 +3429,28 @@ sub process {
 
 # check for assignments on the start of a line
 		if ($sline =~ /^\+\s+($Assignment)[^=]/) {
-			CHK("ASSIGNMENT_CONTINUATIONS",
-			    "Assignment operator '$1' should be on the previous line\n" . $hereprev);
+			my $operator = $1;
+			if (CHK("ASSIGNMENT_CONTINUATIONS",
+				"Assignment operator '$1' should be on the previous line\n" . $hereprev) &&
+			    $fix && $prevrawline =~ /^\+/) {
+				# add assignment operator to the previous line, remove from current line
+				$fixed[$fixlinenr - 1] .= " $operator";
+				$fixed[$fixlinenr] =~ s/\Q$operator\E\s*//;
+			}
 		}
 
 # check for && or || at the start of a line
 		if ($rawline =~ /^\+\s*(&&|\|\|)/) {
-			CHK("LOGICAL_CONTINUATIONS",
-			    "Logical continuations should be on the previous line\n" . $hereprev);
+			my $operator = $1;
+			if (CHK("LOGICAL_CONTINUATIONS",
+				"Logical continuations should be on the previous line\n" . $hereprev) &&
+			    $fix && $prevrawline =~ /^\+/) {
+				# insert logical operator at last non-comment, non-whitepsace char on previous line
+				$prevline =~ /[\s$;]*$/;
+				my $line_end = substr($prevrawline, $-[0]);
+				$fixed[$fixlinenr - 1] =~ s/\Q$line_end\E$/ $operator$line_end/;
+				$fixed[$fixlinenr] =~ s/\Q$operator\E\s*//;
+			}
 		}
 
 # check indentation starts on a tab stop
@@ -3619,9 +3698,12 @@ sub process {
 # and is indented the same # of tabs
 		if ($sline =~ /^\+([\t]+)break\s*;\s*$/) {
 			my $tabs = $1;
-			if ($prevline =~ /^\+$tabs(?:goto|return|break)\b/) {
-				WARN("UNNECESSARY_BREAK",
-				     "break is not useful after a $1\n" . $hereprev);
+			if ($prevline =~ /^\+$tabs(goto|return|break)\b/) {
+				if (WARN("UNNECESSARY_BREAK",
+					 "break is not useful after a $1\n" . $hereprev) &&
+				    $fix) {
+					fix_delete_line($fixlinenr, $rawline);
+				}
 			}
 		}
 
@@ -3947,6 +4029,17 @@ sub process {
 
 #ignore lines not being added
 		next if ($line =~ /^[^\+]/);
+
+# check for self assignments used to avoid compiler warnings
+# e.g.:	int foo = foo, *bar = NULL;
+#	struct foo bar = *(&(bar));
+		if ($line =~ /^\+\s*(?:$Declare)?([A-Za-z_][A-Za-z\d_]*)\s*=/) {
+			my $var = $1;
+			if ($line =~ /^\+\s*(?:$Declare)?$var\s*=\s*(?:$var|\*\s*\(?\s*&\s*\(?\s*$var\s*\)?\s*\)?)\s*[;,]/) {
+				WARN("SELF_ASSIGNMENT",
+				     "Do not use self-assignments to avoid compiler warnings\n" . $herecurr);
+			}
+		}
 
 # check for dereferences that span multiple lines
 		if ($prevline =~ /^\+.*$Lval\s*(?:\.|->)\s*$/ &&
@@ -4965,6 +5058,17 @@ sub process {
 			}
 		}
 
+# check if a statement with a comma should be two statements like:
+#	foo = bar(),	/* comma should be semicolon */
+#	bar = baz();
+		if (defined($stat) &&
+		    $stat =~ /^\+\s*(?:$Lval\s*$Assignment\s*)?$FuncArg\s*,\s*(?:$Lval\s*$Assignment\s*)?$FuncArg\s*;\s*$/) {
+			my $cnt = statement_rawlines($stat);
+			my $herectx = get_stat_here($linenr, $cnt, $here);
+			WARN("SUSPECT_COMMA_SEMICOLON",
+			     "Possible comma where semicolon could be used\n" . $herectx);
+		}
+
 # return is not a function
 		if (defined($stat) && $stat =~ /^.\s*return(\s*)\(/s) {
 			my $spacing = $1;
@@ -5225,7 +5329,7 @@ sub process {
 			    $var !~ /^(?:[a-z0-9_]*|[A-Z0-9_]*)?_?[a-z][A-Z](?:_[a-z0-9_]+|_[A-Z0-9_]+)?$/ &&
 #Ignore some three character SI units explicitly, like MiB and KHz
 			    $var !~ /^(?:[a-z_]*?)_?(?:[KMGT]iB|[KMGT]?Hz)(?:_[a-z_]+)?$/) {
-				while ($var =~ m{($Ident)}g) {
+				while ($var =~ m{\b($Ident)}g) {
 					my $word = $1;
 					next if ($word !~ /[A-Z][a-z]|[a-z][A-Z]/);
 					if ($check) {
@@ -5686,15 +5790,29 @@ sub process {
 		}
 
 # concatenated string without spaces between elements
-		if ($line =~ /$String[A-Z_]/ || $line =~ /[A-Za-z0-9_]$String/) {
-			CHK("CONCATENATED_STRING",
-			    "Concatenated strings should use spaces between elements\n" . $herecurr);
+		if ($line =~ /$String[A-Z_]/ ||
+		    ($line =~ /([A-Za-z0-9_]+)$String/ && $1 !~ /^[Lu]$/)) {
+			if (CHK("CONCATENATED_STRING",
+				"Concatenated strings should use spaces between elements\n" . $herecurr) &&
+			    $fix) {
+				while ($line =~ /($String)/g) {
+					my $extracted_string = substr($rawline, $-[0], $+[0] - $-[0]);
+					$fixed[$fixlinenr] =~ s/\Q$extracted_string\E([A-Za-z0-9_])/$extracted_string $1/;
+					$fixed[$fixlinenr] =~ s/([A-Za-z0-9_])\Q$extracted_string\E/$1 $extracted_string/;
+				}
+			}
 		}
 
 # uncoalesced string fragments
-		if ($line =~ /$String\s*"/) {
-			WARN("STRING_FRAGMENTS",
-			     "Consecutive strings are generally better as a single string\n" . $herecurr);
+		if ($line =~ /$String\s*[Lu]?"/) {
+			if (WARN("STRING_FRAGMENTS",
+				 "Consecutive strings are generally better as a single string\n" . $herecurr) &&
+			    $fix) {
+				while ($line =~ /($String)(?=\s*")/g) {
+					my $extracted_string = substr($rawline, $-[0], $+[0] - $-[0]);
+					$fixed[$fixlinenr] =~ s/\Q$extracted_string\E\s*"/substr($extracted_string, 0, -1)/e;
+				}
+			}
 		}
 
 # check for non-standard and hex prefixed decimal printf formats
@@ -6890,9 +7008,38 @@ sub process {
 		ERROR("NOT_UNIFIED_DIFF",
 		      "Does not appear to be a unified-diff format patch\n");
 	}
-	if ($is_patch && $has_commit_log && $chk_signoff && $signoff == 0) {
-		ERROR("MISSING_SIGN_OFF",
-		      "Missing Signed-off-by: line(s)\n");
+	if ($is_patch && $has_commit_log && $chk_signoff) {
+		if ($signoff == 0) {
+			ERROR("MISSING_SIGN_OFF",
+			      "Missing Signed-off-by: line(s)\n");
+		} elsif ($authorsignoff != 1) {
+			# authorsignoff values:
+			# 0 -> missing sign off
+			# 1 -> sign off identical
+			# 2 -> names and addresses match, comments mismatch
+			# 3 -> addresses match, names different
+			# 4 -> names match, addresses different
+			# 5 -> names match, addresses excluding subaddress details (refer RFC 5233) match
+
+			my $sob_msg = "'From: $author' != 'Signed-off-by: $author_sob'";
+
+			if ($authorsignoff == 0) {
+				ERROR("NO_AUTHOR_SIGN_OFF",
+				      "Missing Signed-off-by: line by nominal patch author '$author'\n");
+			} elsif ($authorsignoff == 2) {
+				CHK("FROM_SIGN_OFF_MISMATCH",
+				    "From:/Signed-off-by: email comments mismatch: $sob_msg\n");
+			} elsif ($authorsignoff == 3) {
+				WARN("FROM_SIGN_OFF_MISMATCH",
+				     "From:/Signed-off-by: email name mismatch: $sob_msg\n");
+			} elsif ($authorsignoff == 4) {
+				WARN("FROM_SIGN_OFF_MISMATCH",
+				     "From:/Signed-off-by: email address mismatch: $sob_msg\n");
+			} elsif ($authorsignoff == 5) {
+				WARN("FROM_SIGN_OFF_MISMATCH",
+				     "From:/Signed-off-by: email subaddress mismatch: $sob_msg\n");
+			}
+		}
 	}
 
 	print report_dump();

@@ -1,8 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
-#include <console/uart.h>
-#include <drivers/ipmi/ipmi_kcs.h>
+#include <drivers/ipmi/ipmi_if.h>
 #include <drivers/ipmi/ocp/ipmi_ocp.h>
 #include <drivers/vpd/vpd.h>
 #include <fsp/api.h>
@@ -60,10 +59,7 @@ static void mainboard_config_upd(FSPM_UPD *mupd)
 			"SerialIoUartDebugEnable to %d\n", FSP_LOG, FSP_LOG_DEFAULT);
 		mupd->FspmConfig.SerialIoUartDebugEnable = FSP_LOG_DEFAULT;
 	}
-
-	/* Select UART IO of FSP */
-	static const unsigned int bases[] = { 0x3f8, 0x2f8, 0x3e8, 0x2e8 };
-	mupd->FspmConfig.SerialIoUartDebugIoBase = bases[get_uart_for_console()];
+	mupd->FspmConfig.SerialIoUartDebugIoBase = 0x2f8;
 
 	if (mupd->FspmConfig.SerialIoUartDebugEnable) {
 		/* FSP debug log level */
@@ -109,7 +105,7 @@ static void mainboard_config_upd(FSPM_UPD *mupd)
 	}
 
 	/* Select DDR Frequency Limit */
-	if (vpd_get_int(FSP_DIMM_FREQ, VPD_RW_THEN_RO, (int *const) &val_int)) {
+	if (vpd_get_int(FSP_DIMM_FREQ, VPD_RW_THEN_RO, (int *const)&val_int)) {
 		printk(BIOS_INFO, "Setting DdrFreqLimit %d from VPD\n", val_int);
 		mupd->FspmConfig.DdrFreqLimit = ddr_freq_limit(val_int);
 	} else {
@@ -188,7 +184,7 @@ void mainboard_memory_init_params(FSPM_UPD *mupd)
 
 	/* Since it's the first IPMI command, it's better to run get BMC
 	   selftest result first */
-	if (ipmi_kcs_premem_init(CONFIG_BMC_KCS_BASE, 0) == CB_SUCCESS) {
+	if (ipmi_premem_init(CONFIG_BMC_KCS_BASE, 0) == CB_SUCCESS) {
 		ipmi_set_post_start(CONFIG_BMC_KCS_BASE);
 		init_frb2_wdt();
 	}

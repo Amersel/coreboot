@@ -25,11 +25,21 @@ config BOARD_STARLABS_LITE_GLK
 
 config BOARD_STARLABS_LITE_GLKR
 	select BOARD_STARLABS_LITE_SERIES
+	select EC_STARLABS_FAST_CHARGE
 	select EC_STARLABS_NUVOTON
 	select EC_STARLABS_KBL_LEVELS
 	select SOC_INTEL_GEMINILAKE
 
 if BOARD_STARLABS_LITE_SERIES
+
+config CMOS_DEFAULT_FILE
+	default "src/mainboard/\$(CONFIG_MAINBOARD_DIR)/variants/\$(CONFIG_VARIANT_DIR)/cmos.default" if BOARD_STARLABS_LITE_GLKR
+
+config CMOS_LAYOUT_FILE
+	default "src/mainboard/\$(CONFIG_MAINBOARD_DIR)/variants/\$(CONFIG_VARIANT_DIR)/cmos.layout" if BOARD_STARLABS_LITE_GLKR
+
+config CONSOLE_SERIAL
+	default n if !EDK2_DEBUG
 
 config DEVICETREE
 	default "variants/\$(CONFIG_VARIANT_DIR)/devicetree.cb"
@@ -42,6 +52,7 @@ config EC_VARIANT_DIR
 	default "glkr" if BOARD_STARLABS_LITE_GLKR
 
 config FMDFILE
+	default "src/mainboard/starlabs/lite/vboot.fmd" if VBOOT
 	default "src/mainboard/starlabs/lite/board.fmd"
 
 config MAINBOARD_DIR
@@ -65,7 +76,7 @@ config TRACKPAD_INTERRUPT
 	default 0x1 if BOARD_STARLABS_LITE_GLK
 	default 0x0 if BOARD_STARLABS_LITE_GLKR
 
-config TIANOCORE_BOOTSPLASH_FILE
+config EDK2_BOOTSPLASH_FILE
 	string
 	default "3rdparty/blobs/mainboard/starlabs/Logo.bmp"
 
@@ -75,6 +86,9 @@ config UART_FOR_CONSOLE
 config VARIANT_DIR
 	default "glk"  if BOARD_STARLABS_LITE_GLK
 	default "glkr" if BOARD_STARLABS_LITE_GLKR
+
+config VBOOT
+	select VBOOT_VBNV_FLASH
 
 config WEBCAM_USB_PORT
 	int

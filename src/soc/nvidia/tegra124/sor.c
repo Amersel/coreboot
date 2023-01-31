@@ -42,7 +42,7 @@
 
 static inline u32 tegra_sor_readl(struct tegra_dc_sor_data *sor, u32 reg)
 {
-	void *addr = sor->base + (u32) (reg << 2);
+	void *addr = sor->base + (u32)(reg << 2);
 	u32 reg_val = READL(addr);
 	return reg_val;
 }
@@ -50,7 +50,7 @@ static inline u32 tegra_sor_readl(struct tegra_dc_sor_data *sor, u32 reg)
 static inline void tegra_sor_writel(struct tegra_dc_sor_data *sor,
 	u32 reg, u32 val)
 {
-	void *addr = sor->base + (u32) (reg << 2);
+	void *addr = sor->base + (u32)(reg << 2);
 	WRITEL(val, addr);
 }
 
@@ -516,7 +516,7 @@ static void tegra_dc_sor_power_up(struct tegra_dc_sor_data *sor,
 static void dump_sor_reg(struct tegra_dc_sor_data *sor)
 {
 #define DUMP_REG(a) printk(BIOS_INFO, "%-32s  %03x  %08x\n",		\
-		#a, a, tegra_sor_readl(sor, a));
+		#a, a, tegra_sor_readl(sor, a))
 
 	DUMP_REG(NV_SOR_SUPER_STATE0);
 	DUMP_REG(NV_SOR_SUPER_STATE1);

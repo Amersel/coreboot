@@ -25,6 +25,8 @@ type LP5MemAttributes struct {
 	 * All the following parameters are optional and required only if the part requires
 	 * special parameters as per the datasheet.
 	 */
+	LP5X bool
+
 	/* Timing parameters */
 	TRFCABNs   int
 	TRFCPBNs   int
@@ -45,13 +47,13 @@ type LP5DensityParams struct {
 
 type LP5SpeedParams struct {
 	defaultTCKMinPs int
-	MaxCASLatency int
+	MaxCASLatency   int
 }
 
 type LP5BankArchParams struct {
-	NumBanks		int
-	BankGroups		int
-	BurstAddressBits	int
+	NumBanks         int
+	BankGroups       int
+	BurstAddressBits int
 }
 
 type LP5SPDAttribFunc func(*LP5MemAttributes) byte
@@ -64,12 +66,12 @@ type LP5SPDAttribTableEntry struct {
 type LP5SetFunc func(*LP5MemAttributes) int
 
 type LP5Set struct {
-	SPDRevision    byte
-	getBankArch  LP5SetFunc
-	optionalFeatures  byte
-	otherOptionalFeatures  byte
-	busWidthEncoding  byte
-	speedToTCKMinPs map[int]int
+	SPDRevision           byte
+	getBankArch           LP5SetFunc
+	optionalFeatures      byte
+	otherOptionalFeatures byte
+	busWidthEncoding      byte
+	speedToTCKMinPs       map[int]int
 }
 
 /* ------------------------------------------------------------------------------------------ */
@@ -122,14 +124,16 @@ const (
 	 */
 	LP5SPDValueRevision1_0 = 0x10
 	/*
-	 * Revision 1.1. Expected by Sabrina
+	 * Revision 1.1. Expected by Mendocino
 	 */
 	LP5SPDValueRevision1_1 = 0x11
 
 	/*
 	 * As per advisory #616599, ADL MRC expects LPDDR5 memory type = 0x13.
+	 * From JEDEC spec, LPDDR5X memory type = 0x15.
 	 */
-	LP5SPDValueMemoryType = 0x13
+	LP5SPDValueMemoryType  = 0x13
+	LP5XSPDValueMemoryType = 0x15
 
 	/*
 	 * From JEDEC spec:
@@ -172,8 +176,8 @@ const (
 /* ------------------------------------------------------------------------------------------ */
 
 var LP5PlatformSetMap = map[int][]int{
-	0: {PlatformADL},
-	1: {PlatformSBR},
+	0: {PlatformMTL, PlatformADL},
+	1: {PlatformMDN},
 }
 
 var LP5SetInfo = map[int]LP5Set{
@@ -194,7 +198,7 @@ var LP5SetInfo = map[int]LP5Set{
 		 * 2:0 (Bus width) = 001 (x16 always)
 		 * Set to 0x01.
 		 */
-		 busWidthEncoding: 0x01,
+		busWidthEncoding: 0x01,
 		/*
 		 * TCKMinPs:
 		 * LPDDR5 has two clocks: the command/address clock (CK) and the data clock (WCK). They are
@@ -204,35 +208,36 @@ var LP5SetInfo = map[int]LP5Set{
 		 *            = 1 / (WCK rate / WCK:CK)
 		 *            = 1 / (speed grade / 2 / WCK:CK)      // "double data rate"
 		 */
-		 speedToTCKMinPs: map[int]int{
-			 6400 : 1250, /* 1 / (6400 / 2 / 4) */
-			 5500 : 1455, /* 1 / (5500 / 2 / 4) */
-		 },
+		speedToTCKMinPs: map[int]int{
+			7500: 1066, /* 1 / (7500 / 2 / 4) */
+			6400: 1250, /* 1 / (6400 / 2 / 4) */
+			5500: 1455, /* 1 / (5500 / 2 / 4) */
+		},
 	},
 	1: {
 		SPDRevision: LP5SPDValueRevision1_1,
 		getBankArch: LP5GetBankArchSet1,
 		/*
-		 * For Sabrina (as per advisory b/211510456):
+		 * For Mendocino (as per advisory b/211510456):
 		 * 5:4 (Maximum Activate Window) = 01 (4096 * tREFI)
 		 * 3:0 (Maximum Activate Count) = 1000 (Unlimited MAC)
 		 * Set to 0x18.
 		 */
-		 optionalFeatures: 0x18,
+		optionalFeatures: 0x18,
 		/*
-		 * For Sabrina (as per advisory b/211510456):
+		 * For Mendocino (as per advisory b/211510456):
 		 * 7:6 (PPR) = 1 (Post Package Repair is supported)
 		 * Set to 0x40.
 		 */
-		 otherOptionalFeatures: 0x40,
+		otherOptionalFeatures: 0x40,
 		/*
-		 * For Sabrina (as per advisory b/211510456):
+		 * For Mendocino (as per advisory b/211510456):
 		 * 7:5 (Number of system channels) = 000 (1 channel always)
 		 * 4:3 (Bus width extension) = 00 (no ECC)
 		 * 2:0 (Bus width) = 010 (x32 always)
 		 * Set to 0x02.
 		 */
-		 busWidthEncoding: 0x02,
+		busWidthEncoding: 0x02,
 	},
 }
 
@@ -305,8 +310,8 @@ var LP5DensityGbToSPDEncoding = map[int]LP5DensityParams{
  * Maps the number of banks to the SPD encoding as per JESD 21-C.
  */
 var LP5NumBanksEncoding = map[int]byte{
-	4: 0x0,
-	8: 0x1,
+	4:  0x0,
+	8:  0x1,
 	16: 0x2,
 }
 
@@ -334,7 +339,7 @@ var LP5RowAddressBitsEncoding = map[int]byte{
  * Maps the number of column address bits to the SPD encoding as per JESD 21-C.
  */
 var LP5ColAddressBitsEncoding = map[int]byte{
-	9: 0x0,
+	9:  0x0,
 	10: 0x1,
 	11: 0x2,
 	12: 0x3,
@@ -342,18 +347,18 @@ var LP5ColAddressBitsEncoding = map[int]byte{
 
 var LP5BankArchToSPDEncoding = map[int]LP5BankArchParams{
 	LP5BGBankArch: {
-		NumBanks: 4,
-		BankGroups: 4,
+		NumBanks:         4,
+		BankGroups:       4,
 		BurstAddressBits: 4,
 	},
 	LP58BBankArch: {
-		NumBanks: 8,
-		BankGroups: 1,
+		NumBanks:         8,
+		BankGroups:       1,
 		BurstAddressBits: 5,
 	},
 	LP516BBankArch: {
-		NumBanks: 16,
-		BankGroups: 1,
+		NumBanks:         16,
+		BankGroups:       1,
 		BurstAddressBits: 4,
 	},
 }
@@ -368,20 +373,24 @@ var LP5BankArchToSPDEncoding = map[int]LP5BankArchParams{
  * From Table 220 of JESD209-5B, using a 4:1 WCK:CK ratio and Set 0.
  */
 var LP5SpeedMbpsToSPDEncoding = map[int]LP5SpeedParams{
+	7500: {
+		defaultTCKMinPs: 266, /* 1 / (7500 / 2) */
+		MaxCASLatency:   20,
+	},
 	6400: {
-		defaultTCKMinPs : 312, /* 1 / (6400 / 2) */
-		MaxCASLatency: 17,
+		defaultTCKMinPs: 312, /* 1 / (6400 / 2) */
+		MaxCASLatency:   17,
 	},
 	5500: {
-		defaultTCKMinPs : 363, /* 1 / (5500 / 2) */
-		MaxCASLatency: 15,
+		defaultTCKMinPs: 363, /* 1 / (5500 / 2) */
+		MaxCASLatency:   15,
 	},
 }
 
 var LP5SPDAttribTable = map[int]LP5SPDAttribTableEntry{
 	LP5SPDIndexSize:                  {constVal: LP5SPDValueSize},
 	LP5SPDIndexRevision:              {getVal: LP5EncodeSPDRevision},
-	LP5SPDIndexMemoryType:            {constVal: LP5SPDValueMemoryType},
+	LP5SPDIndexMemoryType:            {getVal: LP5EncodeMemoryType},
 	LP5SPDIndexModuleType:            {constVal: LP5SPDValueModuleType},
 	LP5SPDIndexDensityBanks:          {getVal: LP5EncodeDensityBanks},
 	LP5SPDIndexAddressing:            {getVal: LP5EncodeSdramAddressing},
@@ -427,10 +436,10 @@ func LP5GetBankArchSet0(memAttribs *LP5MemAttributes) int {
 
 func LP5GetBankArchSet1(memAttribs *LP5MemAttributes) int {
 	/*
-	 * Sabrina does not support 8B. It uses 16B Bank Architecture for speed <= 3200 Mbps.
+	 * Mendocino does not support 8B. It uses 16B Bank Architecture for speed <= 3200 Mbps.
 	 * It uses BG Bank Architecture for speed > 3200 Mbps.
 	 */
-	 if memAttribs.SpeedMbps <= 3200 {
+	if memAttribs.SpeedMbps <= 3200 {
 		return LP516BBankArch
 	}
 	return LP5BGBankArch
@@ -452,6 +461,19 @@ func LP5GetNumBanks(memAttribs *LP5MemAttributes) int {
 
 func LP5GetBankGroups(memAttribs *LP5MemAttributes) int {
 	return LP5BankArchToSPDEncoding[LP5GetBankArch(memAttribs)].BankGroups
+}
+
+func LP5EncodeMemoryType(memAttribs *LP5MemAttributes) byte {
+	var b byte
+
+	// Mendocino supports LP5x, but doesn't support 0x15 as a memory type currently.
+	// Temporary workaround until it's supported with ABL changes
+	if memAttribs.LP5X && LP5CurrSet != 1 {
+		b = LP5XSPDValueMemoryType
+	} else {
+		b = LP5SPDValueMemoryType
+	}
+	return b
 }
 
 func LP5EncodeDensityBanks(memAttribs *LP5MemAttributes) byte {
@@ -476,7 +498,7 @@ func LP5EncodeSdramAddressing(memAttribs *LP5MemAttributes) byte {
 	var b byte
 
 	// 2:0 Column address bits.
-	b = LP5ColAddressBitsEncoding[LP5ColAddressBits + LP5GetBurstAddressBits(memAttribs)]
+	b = LP5ColAddressBitsEncoding[LP5ColAddressBits+LP5GetBurstAddressBits(memAttribs)]
 
 	// 5:3 Row address bits.
 	density := memAttribs.DensityPerDieGb

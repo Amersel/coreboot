@@ -1,23 +1,18 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <amdblocks/acpimmio.h>
+#include <amdblocks/aoac.h>
+#include <amdblocks/i2c.h>
 #include <amdblocks/lpc.h>
 #include <amdblocks/pmlib.h>
 #include <amdblocks/reset.h>
 #include <amdblocks/smbus.h>
 #include <amdblocks/spi.h>
+#include <amdblocks/uart.h>
 #include <soc/southbridge.h>
 #include <types.h>
 
-static void sb_enable_lpc(void)
-{
-	u8 byte;
-
-	/* Enable LPC controller */
-	byte = pm_io_read8(PM_LPC_GATING);
-	byte |= PM_LPC_ENABLE;
-	pm_io_write8(PM_LPC_GATING, byte);
-}
+#include "chip.h"
 
 static void sb_lpc_decode(void)
 {
@@ -119,11 +114,9 @@ void bootblock_fch_early_init(void)
 	   the GPIO registers. */
 	enable_acpimmio_decode_pm04();
 	lpc_enable_rom();
-	sb_enable_lpc();
+	lpc_early_init();
 	lpc_enable_port80();
 	sb_lpc_decode();
-	/* Make sure the base address is predictable */
-	lpc_set_spibase(SPI_BASE_ADDRESS);
 	fch_spi_early_init();
 	fch_smbus_init();
 	fch_enable_cf9_io();
@@ -136,6 +129,9 @@ void bootblock_fch_early_init(void)
 	fch_enable_legacy_io();
 	enable_aoac_devices();
 
+	if (CONFIG(AMD_SOC_CONSOLE_UART))
+		set_uart_config(CONFIG_UART_FOR_CONSOLE);
+
 	/* disable the keyboard reset function before mainboard GPIO setup */
 	if (CONFIG(DISABLE_KEYBOARD_RESET_PIN))
 		fch_disable_kb_rst();
@@ -144,8 +140,19 @@ void bootblock_fch_early_init(void)
 /* After console init */
 void bootblock_fch_init(void)
 {
+	/*
+	 * This call (sb_reset_i2c_peripherals) was originally early at
+	 * bootblock_c_entry, but had to be moved here. There was an
+	 * unexplained delay in the middle of the i2c transaction when
+	 * we had it in bootblock_c_entry.  Moving it to this point
+	 * (or adding delays) fixes the issue.  It seems like the processor
+	 * just pauses but we don't know why.
+	 */
+	reset_i2c_peripherals();
 	pm_set_power_failure_state();
 	fch_print_pmxc0_status();
+	/* Initialize any early i2c buses. */
+	i2c_soc_early_init();
 	show_spi_speeds_and_modes();
 }
 

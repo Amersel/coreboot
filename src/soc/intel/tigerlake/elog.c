@@ -1,8 +1,12 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <acpi/acpi.h>
 #include <bootstate.h>
+#include <commonlib/bsd/helpers.h>
 #include <console/console.h>
+#include <device/pci_def.h>
 #include <device/pci_ops.h>
+#include <device/pci_type.h>
 #include <elog.h>
 #include <intelblocks/pmclib.h>
 #include <intelblocks/xhci.h>
@@ -174,7 +178,7 @@ static void pch_log_power_and_resets(const struct chipset_power_state *ps)
 
 	/* TCO Timeout */
 	if (ps->prev_sleep_state != ACPI_S3 &&
-	    ps->tco2_sts & TCO_STS_SECOND_TO)
+	    ps->tco2_sts & TCO2_STS_SECOND_TO)
 		elog_add_event(ELOG_TYPE_TCO_RESET);
 
 	/* Power Button Override */

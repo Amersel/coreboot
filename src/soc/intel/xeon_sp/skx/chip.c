@@ -3,11 +3,12 @@
 #include <cbfs.h>
 #include <console/console.h>
 #include <device/pci.h>
+#include <gpio.h>
 #include <intelblocks/acpi.h>
-#include <intelblocks/gpio.h>
 #include <soc/acpi.h>
 #include <soc/chip_common.h>
 #include <soc/pch.h>
+#include <soc/soc_pch.h>
 #include <soc/ramstage.h>
 #include <soc/soc_util.h>
 #include <soc/util.h>
@@ -27,9 +28,7 @@ static struct device_operations pci_domain_ops = {
 	.scan_bus = &xeonsp_pci_domain_scan_bus,
 #if CONFIG(HAVE_ACPI_TABLES)
 	.write_acpi_tables  = &northbridge_write_acpi_tables,
-	#if CONFIG(HAVE_ACPI_TABLES)
 	.acpi_name        = soc_acpi_name
-#endif
 #endif
 };
 
@@ -78,7 +77,7 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *silupd)
 
 	microcode_file = cbfs_map("cpu_microcode_blob.bin", &microcode_len);
 
-	if ((microcode_file != NULL) && (microcode_len != 0)) {
+	if ((microcode_file) && (microcode_len != 0)) {
 		/* Update CPU Microcode patch base address/size */
 		silupd->FspsConfig.PcdCpuMicrocodePatchBase =
 		       (uint32_t)microcode_file;

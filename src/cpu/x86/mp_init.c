@@ -26,8 +26,6 @@
 
 #include <security/intel/stm/SmmStm.h>
 
-#define MAX_APIC_IDS 256
-
 struct mp_callback {
 	void (*func)(void *);
 	void *arg;
@@ -109,7 +107,7 @@ struct saved_msr {
 /* The sipi vector rmodule is included in the ramstage using 'objdump -B'. */
 extern char _binary_sipi_vector_start[];
 
-/* The SIPI vector is loaded at the SMM_DEFAULT_BASE. The reason is at the
+/* The SIPI vector is loaded at the SMM_DEFAULT_BASE. The reason is that the
  * memory range is already reserved so the OS cannot use it. That region is
  * free to use for AP bringup before SMM is initialized. */
 static const uintptr_t sipi_vector_location = SMM_DEFAULT_BASE;
@@ -122,9 +120,6 @@ struct mp_flight_plan {
 
 static int global_num_aps;
 static struct mp_flight_plan mp_info;
-
-/* Keep track of device structure for each CPU. */
-static struct device *cpus_dev[CONFIG_MAX_CPUS];
 
 static inline void barrier_wait(atomic_t *b)
 {
@@ -153,6 +148,7 @@ static enum cb_err wait_for_aps(atomic_t *val, int target, int total_delay,
 	}
 
 	/* APs ready before timeout */
+	printk(BIOS_SPEW, "APs are ready after %dus\n", delayed);
 	return CB_SUCCESS;
 }
 
@@ -176,18 +172,30 @@ static void park_this_cpu(void *unused)
 	stop_this_cpu();
 }
 
+static struct bus *g_cpu_bus;
+
 /* By the time APs call ap_init() caching has been setup, and microcode has
  * been loaded. */
-static void asmlinkage ap_init(void)
+static asmlinkage void ap_init(unsigned int index)
 {
-	struct cpu_info *info = cpu_info();
-
 	/* Ensure the local APIC is enabled */
 	enable_lapic();
 	setup_lapic_interrupts();
 
-	info->cpu = cpus_dev[info->index];
+	struct device *dev;
+	int i = 0;
+	for (dev = g_cpu_bus->children; dev; dev = dev->sibling)
+		if (i++ == index)
+			break;
 
+	if (!dev) {
+		printk(BIOS_ERR, "Could not find allocated device for index %u\n", index);
+		return;
+	}
+
+	set_cpu_info(index, dev);
+
+	struct cpu_info *info = cpu_info();
 	cpu_add_map_entry(info->index);
 
 	/* Fix up APIC id with reality. */
@@ -207,6 +215,8 @@ static void asmlinkage ap_init(void)
 	park_this_cpu(NULL);
 }
 
+static __aligned(16) uint8_t ap_stack[CONFIG_AP_STACK_SIZE * CONFIG_MAX_CPUS];
+
 static void setup_default_sipi_vector_params(struct sipi_params *sp)
 {
 	sp->gdt = (uintptr_t)&gdt;
@@ -214,11 +224,10 @@ static void setup_default_sipi_vector_params(struct sipi_params *sp)
 	sp->idt_ptr = (uintptr_t)&idtarg;
 	sp->per_cpu_segment_descriptors = (uintptr_t)&per_cpu_segment_descriptors;
 	sp->per_cpu_segment_selector = per_cpu_segment_selector;
-	sp->stack_size = CONFIG_STACK_SIZE;
-	sp->stack_top = ALIGN_DOWN((uintptr_t)&_estack, CONFIG_STACK_SIZE);
+	sp->stack_size = CONFIG_AP_STACK_SIZE;
+	sp->stack_top = (uintptr_t)ap_stack + ARRAY_SIZE(ap_stack);
 }
 
-#define NUM_FIXED_MTRRS 11
 static const unsigned int fixed_mtrrs[NUM_FIXED_MTRRS] = {
 	MTRR_FIX_64K_00000, MTRR_FIX_16K_80000, MTRR_FIX_16K_A0000,
 	MTRR_FIX_4K_C0000, MTRR_FIX_4K_C8000, MTRR_FIX_4K_D0000,
@@ -368,25 +377,15 @@ static int allocate_cpu_devices(struct bus *cpu_bus, struct mp_params *p)
 
 	info = cpu_info();
 	for (i = 1; i < max_cpus; i++) {
-		struct device_path cpu_path;
-		struct device *new;
-
-		/* Build the CPU device path */
-		cpu_path.type = DEVICE_PATH_APIC;
-
 		/* Assuming linear APIC space allocation. AP will set its own
 		   APIC id in the ap_init() path above. */
-		cpu_path.apic.apic_id = info->cpu->path.apic.apic_id + i;
-
-		/* Allocate the new CPU device structure */
-		new = alloc_find_dev(cpu_bus, &cpu_path);
+		struct device *new = add_cpu_device(cpu_bus, info->cpu->path.apic.apic_id + i, 1);
 		if (new == NULL) {
 			printk(BIOS_CRIT, "Could not allocate CPU device\n");
 			max_cpus--;
 			continue;
 		}
 		new->name = processor_name;
-		cpus_dev[i] = new;
 	}
 
 	return max_cpus;
@@ -471,7 +470,7 @@ static enum cb_err start_aps(struct bus *cpu_bus, int ap_count, atomic_t *num_ap
 		if (send_sipi_to_aps(ap_count, num_aps, sipi_vector) != CB_SUCCESS)
 			return CB_ERR;
 
-		/* Wait for CPUs to check in up to 200 us. */
+		/* Wait for CPUs to check in. */
 		wait_for_aps(num_aps, ap_count, 200 /* us */, 15 /* us */);
 	}
 
@@ -480,7 +479,7 @@ static enum cb_err start_aps(struct bus *cpu_bus, int ap_count, atomic_t *num_ap
 		return CB_ERR;
 
 	/* Wait for CPUs to check in. */
-	if (wait_for_aps(num_aps, ap_count, 100000 /* 100 ms */, 50 /* us */) != CB_SUCCESS) {
+	if (wait_for_aps(num_aps, ap_count, 400000 /* 400 ms */, 50 /* us */) != CB_SUCCESS) {
 		printk(BIOS_ERR, "Not all APs checked in: %d/%d.\n",
 		       atomic_read(num_aps), ap_count);
 		return CB_ERR;
@@ -525,14 +524,13 @@ static enum cb_err bsp_do_flight_plan(struct mp_params *mp_params)
 		release_barrier(&rec->barrier);
 	}
 
-	printk(BIOS_INFO, "%s done after %ld msecs.\n", __func__,
+	printk(BIOS_INFO, "%s done after %lld msecs.\n", __func__,
 	       stopwatch_duration_msecs(&sw));
 	return ret;
 }
 
-static void init_bsp(struct bus *cpu_bus)
+static enum cb_err init_bsp(struct bus *cpu_bus)
 {
-	struct device_path cpu_path;
 	struct cpu_info *info;
 
 	/* Print processor name */
@@ -543,20 +541,26 @@ static void init_bsp(struct bus *cpu_bus)
 	enable_lapic();
 	setup_lapic_interrupts();
 
-	/* Set the device path of the boot CPU. */
-	cpu_path.type = DEVICE_PATH_APIC;
-	cpu_path.apic.apic_id = lapicid();
+	struct device *bsp = add_cpu_device(cpu_bus, lapicid(), 1);
+	if (bsp == NULL) {
+		printk(BIOS_CRIT, "Failed to find or allocate BSP struct device\n");
+		return CB_ERR;
+	}
 
 	/* Find the device structure for the boot CPU. */
+	set_cpu_info(0, bsp);
 	info = cpu_info();
-	info->cpu = alloc_find_dev(cpu_bus, &cpu_path);
+	info->cpu = bsp;
 	info->cpu->name = processor_name;
 
-	if (info->index != 0)
+	if (info->index != 0) {
 		printk(BIOS_CRIT, "BSP index(%zd) != 0!\n", info->index);
+		return CB_ERR;
+	}
 
 	/* Track BSP in cpu_map structures. */
 	cpu_add_map_entry(info->index);
+	return CB_SUCCESS;
 }
 
 /*
@@ -581,7 +585,12 @@ static enum cb_err mp_init(struct bus *cpu_bus, struct mp_params *p)
 	int num_cpus;
 	atomic_t *ap_count;
 
-	init_bsp(cpu_bus);
+	g_cpu_bus = cpu_bus;
+
+	if (init_bsp(cpu_bus) != CB_SUCCESS) {
+		printk(BIOS_CRIT, "Setting up BSP failed\n");
+		return CB_ERR;
+	}
 
 	if (p == NULL || p->flight_plan == NULL || p->num_records < 1) {
 		printk(BIOS_CRIT, "Invalid MP parameters\n");
@@ -628,14 +637,6 @@ static enum cb_err mp_init(struct bus *cpu_bus, struct mp_params *p)
 	return bsp_do_flight_plan(p);
 }
 
-/* Calls cpu_initialize(info->index) which calls the coreboot CPU drivers. */
-static void mp_initialize_cpu(void)
-{
-	/* Call back into driver infrastructure for the AP initialization.   */
-	struct cpu_info *info = cpu_info();
-	cpu_initialize(info->index);
-}
-
 void smm_initiate_relocation_parallel(void)
 {
 	if (lapic_busy()) {
@@ -675,23 +676,23 @@ struct mp_state {
 	size_t perm_smsize;
 	size_t smm_save_state_size;
 	uintptr_t reloc_start32_offset;
-	int do_smm;
+	bool do_smm;
 } mp_state;
 
-static int is_smm_enabled(void)
+static bool is_smm_enabled(void)
 {
 	return CONFIG(HAVE_SMI_HANDLER) && mp_state.do_smm;
 }
 
 static void smm_disable(void)
 {
-	mp_state.do_smm = 0;
+	mp_state.do_smm = false;
 }
 
 static void smm_enable(void)
 {
 	if (CONFIG(HAVE_SMI_HANDLER))
-		mp_state.do_smm = 1;
+		mp_state.do_smm = true;
 }
 
 /*
@@ -755,6 +756,9 @@ static void adjust_smm_apic_id_map(struct smm_loader_params *smm_params)
 
 static enum cb_err install_relocation_handler(int num_cpus, size_t save_state_size)
 {
+	if (CONFIG(X86_SMM_SKIP_RELOCATION_HANDLER))
+		return CB_SUCCESS;
+
 	struct smm_loader_params smm_params = {
 		.num_cpus = num_cpus,
 		.cpu_save_state_size = save_state_size,
@@ -1075,7 +1079,7 @@ static struct mp_flight_record mp_steps[] = {
 	/* Perform SMM relocation. */
 	MP_FR_NOBLOCK_APS(trigger_smm_relocation, trigger_smm_relocation),
 	/* Initialize each CPU through the driver framework. */
-	MP_FR_BLOCK_APS(mp_initialize_cpu, mp_initialize_cpu),
+	MP_FR_BLOCK_APS(cpu_initialize, cpu_initialize),
 	/* Wait for APs to finish then optionally start looking for work. */
 	MP_FR_BLOCK_APS(ap_wait_for_instruction, NULL),
 };
@@ -1136,9 +1140,13 @@ static enum cb_err do_mp_init_with_smm(struct bus *cpu_bus, const struct mp_ops 
 	}
 
 	/* Sanity check SMM state. */
-	if (mp_state.perm_smsize != 0 && mp_state.smm_save_state_size != 0 &&
-		mp_state.ops.relocation_handler != NULL)
-		smm_enable();
+	smm_enable();
+	if (mp_state.perm_smsize == 0)
+		smm_disable();
+	if (mp_state.smm_save_state_size == 0)
+		smm_disable();
+	if (!CONFIG(X86_SMM_SKIP_RELOCATION_HANDLER) && mp_state.ops.relocation_handler == NULL)
+		smm_disable();
 
 	if (is_smm_enabled())
 		printk(BIOS_INFO, "Will perform SMM setup.\n");
@@ -1151,12 +1159,14 @@ static enum cb_err do_mp_init_with_smm(struct bus *cpu_bus, const struct mp_ops 
 	mp_params.flight_plan = &mp_steps[0];
 	mp_params.num_records = ARRAY_SIZE(mp_steps);
 
-	/* Perform backup of default SMM area. */
-	default_smm_area = backup_default_smm_area();
+	/* Perform backup of default SMM area when using SMM relocation handler. */
+	if (!CONFIG(X86_SMM_SKIP_RELOCATION_HANDLER))
+		default_smm_area = backup_default_smm_area();
 
 	ret = mp_init(cpu_bus, &mp_params);
 
-	restore_default_smm_area(default_smm_area);
+	if (!CONFIG(X86_SMM_SKIP_RELOCATION_HANDLER))
+		restore_default_smm_area(default_smm_area);
 
 	/* Signal callback on success if it's provided. */
 	if (ret == CB_SUCCESS && mp_state.ops.post_mp_init != NULL)

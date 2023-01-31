@@ -13,6 +13,7 @@
 #include <cpu/x86/smm.h>
 #include <device/device.h>
 #include <device/pci.h>
+#include <gpio.h>
 #include <amdblocks/acpimmio.h>
 #include <amdblocks/acpi.h>
 #include <amdblocks/ioapic.h>
@@ -20,20 +21,17 @@
 #include <soc/pci_devs.h>
 #include <soc/southbridge.h>
 #include <soc/northbridge.h>
-#include <soc/gpio.h>
 #include <version.h>
 
 unsigned long acpi_fill_madt(unsigned long current)
 {
 	/* create all subtables for processors */
-	current = acpi_create_madt_lapics(current);
+	current = acpi_create_madt_lapics_with_nmis(current);
 
 	/* Write Kern IOAPIC, only one */
-	current += acpi_create_madt_ioapic((acpi_madt_ioapic_t *)current,
-			FCH_IOAPIC_ID, IO_APIC_ADDR, 0);
+	current += acpi_create_madt_ioapic_from_hw((acpi_madt_ioapic_t *)current, IO_APIC_ADDR);
 
-	current += acpi_create_madt_ioapic((acpi_madt_ioapic_t *)current,
-			GNB_IOAPIC_ID, IO_APIC2_ADDR, 24);
+	current += acpi_create_madt_ioapic_from_hw((acpi_madt_ioapic_t *)current, IO_APIC2_ADDR);
 
 	/* PIT is connected to legacy IRQ 0, but IOAPIC GSI 2 */
 	current += acpi_create_madt_irqoverride((acpi_madt_irqoverride_t *)current,
@@ -43,12 +41,6 @@ unsigned long acpi_fill_madt(unsigned long current)
 	current += acpi_create_madt_irqoverride((acpi_madt_irqoverride_t *)current,
 			MP_BUS_ISA, 9, 9,
 			MP_IRQ_TRIGGER_LEVEL | MP_IRQ_POLARITY_LOW);
-
-	/* create all subtables for processors */
-	current += acpi_create_madt_lapic_nmi((acpi_madt_lapic_nmi_t *)current,
-			ACPI_MADT_LAPIC_NMI_ALL_PROCESSORS,
-			MP_IRQ_TRIGGER_EDGE | MP_IRQ_POLARITY_HIGH,
-			1 /* 1: LINT1 connect to NMI */);
 
 	return current;
 }
@@ -79,6 +71,8 @@ void acpi_fill_fadt(acpi_fadt_t *fadt)
 	fadt->pm_tmr_len = 4;	/* 32 bits */
 	fadt->gpe0_blk_len = 8;	/* 64 bits */
 
+	fill_fadt_extended_pm_regs(fadt);
+
 	fadt->p_lvl2_lat = ACPI_FADT_C2_NOT_SUPPORTED;
 	fadt->p_lvl3_lat = ACPI_FADT_C3_NOT_SUPPORTED;
 	fadt->duty_offset = 1;	/* CLK_VAL bits 3:1 */
@@ -101,34 +95,6 @@ void acpi_fill_fadt(acpi_fadt_t *fadt)
 
 	fadt->x_firmware_ctl_l = 0;	/* set to 0 if firmware_ctrl is used */
 	fadt->x_firmware_ctl_h = 0;
-
-	fadt->x_pm1a_evt_blk.space_id = ACPI_ADDRESS_SPACE_IO;
-	fadt->x_pm1a_evt_blk.bit_width = 32;
-	fadt->x_pm1a_evt_blk.bit_offset = 0;
-	fadt->x_pm1a_evt_blk.access_size = ACPI_ACCESS_SIZE_WORD_ACCESS;
-	fadt->x_pm1a_evt_blk.addrl = ACPI_PM_EVT_BLK;
-	fadt->x_pm1a_evt_blk.addrh = 0x0;
-
-	fadt->x_pm1a_cnt_blk.space_id = ACPI_ADDRESS_SPACE_IO;
-	fadt->x_pm1a_cnt_blk.bit_width = 16;
-	fadt->x_pm1a_cnt_blk.bit_offset = 0;
-	fadt->x_pm1a_cnt_blk.access_size = ACPI_ACCESS_SIZE_WORD_ACCESS;
-	fadt->x_pm1a_cnt_blk.addrl = ACPI_PM1_CNT_BLK;
-	fadt->x_pm1a_cnt_blk.addrh = 0x0;
-
-	fadt->x_pm_tmr_blk.space_id = ACPI_ADDRESS_SPACE_IO;
-	fadt->x_pm_tmr_blk.bit_width = 32;
-	fadt->x_pm_tmr_blk.bit_offset = 0;
-	fadt->x_pm_tmr_blk.access_size = ACPI_ACCESS_SIZE_DWORD_ACCESS;
-	fadt->x_pm_tmr_blk.addrl = ACPI_PM_TMR_BLK;
-	fadt->x_pm_tmr_blk.addrh = 0x0;
-
-	fadt->x_gpe0_blk.space_id = ACPI_ADDRESS_SPACE_IO;
-	fadt->x_gpe0_blk.bit_width = 64; /* EventStatus + Event Enable */
-	fadt->x_gpe0_blk.bit_offset = 0;
-	fadt->x_gpe0_blk.access_size = ACPI_ACCESS_SIZE_BYTE_ACCESS;
-	fadt->x_gpe0_blk.addrl = ACPI_GPE0_BLK;
-	fadt->x_gpe0_blk.addrh = 0x0;
 }
 
 void generate_cpu_entries(const struct device *device)

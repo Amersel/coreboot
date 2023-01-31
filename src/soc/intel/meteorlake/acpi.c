@@ -3,6 +3,7 @@
 #include <acpi/acpi.h>
 #include <acpi/acpi_gnvs.h>
 #include <acpi/acpigen.h>
+#include <arch/ioapic.h>
 #include <device/mmio.h>
 #include <arch/smp/mpspec.h>
 #include <console/console.h>
@@ -159,28 +160,86 @@ void soc_fill_fadt(acpi_fadt_t *fadt)
 	fadt->x_pm_tmr_blk.bit_width = fadt->pm_tmr_len * 8;
 	fadt->x_pm_tmr_blk.bit_offset = 0;
 	fadt->x_pm_tmr_blk.access_size = ACPI_ACCESS_SIZE_DWORD_ACCESS;
-	fadt->x_pm_tmr_blk.addrl = pmbase + PM1_TMR;
+	fadt->x_pm_tmr_blk.addrl = fadt->pm_tmr_blk;
 	fadt->x_pm_tmr_blk.addrh = 0x0;
 
 	if (config->s0ix_enable)
 		fadt->flags |= ACPI_FADT_LOW_PWR_IDLE_S0;
 }
 
+static struct min_sleep_state min_pci_sleep_states[] = {
+	{ SA_DEVFN_ROOT,	ACPI_DEVICE_SLEEP_D3 },
+	{ SA_DEVFN_IGD,		ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_DPTF,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_IPU,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_TBT0,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_TBT1,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_TBT2,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_TBT3,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_GNA,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_TCSS_XHCI,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_TCSS_XDCI,	ACPI_DEVICE_SLEEP_D3 },
+	{ SA_DEVFN_TCSS_DMA0,	ACPI_DEVICE_SLEEP_D3 },
+	{ SA_DEVFN_TCSS_DMA1,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_VMD,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_THC0,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_THC1,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_XHCI,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_USBOTG,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_SRAM,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_CNVI_WIFI,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_I2C0,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_I2C1,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_I2C2,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_I2C3,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_CSE,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCI_DEVFN_SATA,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_I2C4,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_I2C5,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_UART2,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_PCIE1,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCI_DEVFN_PCIE2,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCI_DEVFN_PCIE3,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCI_DEVFN_PCIE4,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCI_DEVFN_PCIE5,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCI_DEVFN_PCIE6,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCI_DEVFN_PCIE7,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCI_DEVFN_PCIE8,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCI_DEVFN_PCIE9,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCI_DEVFN_PCIE10,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCI_DEVFN_PCIE11,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCI_DEVFN_PCIE12,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCI_DEVFN_UART0,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_UART1,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_GSPI0,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_GSPI1,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_ESPI,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PMC,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCI_DEVFN_HDA,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCI_DEVFN_SPI,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCI_DEVFN_GBE,	ACPI_DEVICE_SLEEP_D3 },
+};
+
+struct min_sleep_state *soc_get_min_sleep_state_array(size_t *size)
+{
+	*size = ARRAY_SIZE(min_pci_sleep_states);
+	return min_pci_sleep_states;
+}
+
 uint32_t soc_read_sci_irq_select(void)
 {
-	return read32((void *)soc_read_pmc_base() + IRQ_REG);
+	return read32p(soc_read_pmc_base() + IRQ_REG);
 }
 
 static unsigned long soc_fill_dmar(unsigned long current)
 {
 	unsigned long tmp;
-	const struct device *const igfx_dev = pcidev_path_on_root(PCI_DEVFN_IGD);
 	const uint64_t gfxvtbar = MCHBAR64(GFXVTBAR) & VTBAR_MASK;
 	const bool gfxvten = MCHBAR32(GFXVTBAR) & VTBAR_ENABLED;
 
 	printk(BIOS_DEBUG, "%s - gfxvtbar:0x%llx  0x%x\n",
 		__func__, gfxvtbar, MCHBAR32(GFXVTBAR));
-	if (is_dev_enabled(igfx_dev) && gfxvtbar && gfxvten) {
+	if (is_devfn_enabled(PCI_DEVFN_IGD) && gfxvtbar && gfxvten) {
 		tmp = current;
 		current += acpi_create_dmar_drhd(current, 0, 0, gfxvtbar);
 		current += acpi_create_dmar_ds_pci(current, 0, PCI_DEV_SLOT_IGD, 0);
@@ -191,8 +250,8 @@ static unsigned long soc_fill_dmar(unsigned long current)
 	tmp = current;
 	current += acpi_create_dmar_drhd(current,
 			DRHD_INCLUDE_PCI_ALL, 0, VTVC0_BASE_ADDRESS);
-	current += acpi_create_dmar_ds_ioapic(current,
-			2, V_P2SB_CFG_IBDF_BUS, V_P2SB_CFG_IBDF_DEV,
+	current += acpi_create_dmar_ds_ioapic_from_hw(current,
+			IO_APIC_ADDR, V_P2SB_CFG_IBDF_BUS, V_P2SB_CFG_IBDF_DEV,
 			V_P2SB_CFG_IBDF_FUNC);
 	current += acpi_create_dmar_ds_msi_hpet(current,
 			0, V_P2SB_CFG_HBDF_BUS, V_P2SB_CFG_HBDF_DEV,
@@ -200,7 +259,7 @@ static unsigned long soc_fill_dmar(unsigned long current)
 	acpi_dmar_drhd_fixup(tmp, current);
 
 	/* Add RMRR entry */
-	if (is_dev_enabled(igfx_dev) && gfxvtbar && gfxvten) {
+	if (is_devfn_enabled(PCI_DEVFN_IGD) && gfxvtbar && gfxvten) {
 		tmp = current;
 		current += acpi_create_dmar_rmrr(current, 0,
 				sa_get_gsm_base(), sa_get_tolud_base() - 1);

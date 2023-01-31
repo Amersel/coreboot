@@ -3,6 +3,7 @@
 #include <acpi/acpi_device.h>
 #include <console/console.h>
 #include <device/device.h>
+#include <device/mmio.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
 #include <drivers/usb/acpi/chip.h>
@@ -27,7 +28,7 @@ static uint8_t *xhci_mem_base(void)
 	if (mem_base == 0 || mem_base == 0xffffffff)
 		return 0;
 
-	return (uint8_t *)(mem_base & ~PCI_BASE_ADDRESS_MEM_ATTR_MASK);
+	return (uint8_t *)(uintptr_t)(mem_base & ~PCI_BASE_ADDRESS_MEM_ATTR_MASK);
 }
 
 void xhci_host_reset(void)
@@ -68,7 +69,7 @@ static bool is_usb_port_connected(const struct xhci_usb_info *info,
 	else
 		port_sts_reg = (uintptr_t)res->base +
 				info->usb3_port_status_reg + port_id * 0x10;
-	port_status = read32((void *)port_sts_reg);
+	port_status = read32p(port_sts_reg);
 
 	/* Ensure that the status is not all 1s */
 	if (port_status == 0xffffffff)
@@ -117,7 +118,7 @@ void usb_xhci_disable_unused(bool (*ext_usb_xhci_en_cb)(unsigned int port_type,
 
 __weak void soc_xhci_init(struct device *dev) { /* no-op */ }
 
-static struct device_operations usb_xhci_ops = {
+struct device_operations usb_xhci_ops = {
 	.read_resources		= pci_dev_read_resources,
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
@@ -134,11 +135,8 @@ static const unsigned short pci_device_ids[] = {
 	PCI_DID_INTEL_APL_XHCI,
 	PCI_DID_INTEL_CNL_LP_XHCI,
 	PCI_DID_INTEL_GLK_XHCI,
-	PCI_DID_INTEL_SPT_LP_XHCI,
-	PCI_DID_INTEL_SPT_H_XHCI,
 	PCI_DID_INTEL_LWB_XHCI,
 	PCI_DID_INTEL_LWB_XHCI_SUPER,
-	PCI_DID_INTEL_UPT_H_XHCI,
 	PCI_DID_INTEL_CNP_H_XHCI,
 	PCI_DID_INTEL_ICP_LP_XHCI,
 	PCI_DID_INTEL_CMP_LP_XHCI,

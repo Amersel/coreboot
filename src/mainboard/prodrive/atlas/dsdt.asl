@@ -8,15 +8,12 @@ DefinitionBlock(
 	ACPI_DSDT_REV_2,
 	OEM_ID,
 	ACPI_TABLE_CREATOR,
-	0x20110725	/* OEM revision */
+	0x20110725
 )
 {
 	#include <acpi/dsdt_top.asl>
 	#include <soc/intel/common/block/acpi/acpi/platform.asl>
-
-	/* global NVS and variables */
 	#include <soc/intel/common/block/acpi/acpi/globalnvs.asl>
-
 	#include <cpu/intel/common/acpi/cpu.asl>
 
 	Device (\_SB.PCI0) {

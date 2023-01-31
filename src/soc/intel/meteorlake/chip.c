@@ -4,20 +4,25 @@
 #include <device/pci.h>
 #include <fsp/api.h>
 #include <fsp/util.h>
+#include <gpio.h>
 #include <intelblocks/acpi.h>
 #include <intelblocks/cfg.h>
-#include <intelblocks/gpio.h>
+#include <intelblocks/irq.h>
 #include <intelblocks/itss.h>
+#include <intelblocks/p2sb.h>
 #include <intelblocks/pcie_rp.h>
 #include <intelblocks/systemagent.h>
+#include <intelblocks/tcss.h>
 #include <intelblocks/xdci.h>
 #include <soc/intel/common/vbt.h>
+#include <soc/iomap.h>
 #include <soc/itss.h>
 #include <soc/p2sb.h>
 #include <soc/pci_devs.h>
 #include <soc/pcie.h>
 #include <soc/ramstage.h>
 #include <soc/soc_chip.h>
+#include <soc/tcss.h>
 
 #if CONFIG(HAVE_ACPI_TABLES)
 const char *soc_acpi_name(const struct device *dev)
@@ -101,6 +106,7 @@ const char *soc_acpi_name(const struct device *dev)
 	case PCI_DEVFN_UART2:	return "UAR2";
 	case PCI_DEVFN_GSPI0:	return "SPI0";
 	case PCI_DEVFN_GSPI1:	return "SPI1";
+	case PCI_DEVFN_GSPI2:	return "SPI2";
 	/* Keeping ACPI device name coherent with ec.asl */
 	case PCI_DEVFN_ESPI:	return "LPCB";
 	case PCI_DEVFN_HDA:	return "HDAS";
@@ -128,6 +134,12 @@ static void soc_fill_gpio_pm_configuration(void)
 
 void soc_init_pre_device(void *chip_info)
 {
+	config_t *config = config_of_soc();
+
+	/* Validate TBT image authentication */
+	config->tbt_authentication = ioe_p2sb_sbi_read(PID_IOM,
+					IOM_CSME_IMR_TBT_STATUS) & TBT_VALID_AUTHENTICATION;
+
 	/* Perform silicon specific init. */
 	fsp_silicon_init();
 
@@ -138,6 +150,19 @@ void soc_init_pre_device(void *chip_info)
 
 	/* Swap enabled PCI ports in device tree if needed. */
 	pcie_rp_update_devicetree(get_pcie_rp_table());
+}
+
+static void cpu_fill_ssdt(const struct device *dev)
+{
+	if (!generate_pin_irq_map())
+		printk(BIOS_ERR, "Failed to generate ACPI _PRT table!\n");
+
+	generate_cpu_entries(dev);
+}
+
+static void cpu_set_north_irqs(struct device *dev)
+{
+	irq_program_non_pch();
 }
 
 static struct device_operations pci_domain_ops = {
@@ -153,8 +178,9 @@ static struct device_operations pci_domain_ops = {
 static struct device_operations cpu_bus_ops = {
 	.read_resources   = noop_read_resources,
 	.set_resources    = noop_set_resources,
+	.enable_resources = cpu_set_north_irqs,
 #if CONFIG(HAVE_ACPI_TABLES)
-	.acpi_fill_ssdt = generate_cpu_entries,
+	.acpi_fill_ssdt = cpu_fill_ssdt,
 #endif
 };
 
@@ -171,6 +197,9 @@ static void soc_enable(struct device *dev)
 	else if (dev->path.type == DEVICE_PATH_PCI &&
 		 dev->path.pci.devfn == PCI_DEVFN_PMC)
 		dev->ops = &pmc_ops;
+	else if (dev->path.type == DEVICE_PATH_PCI &&
+		 dev->path.pci.devfn == PCI_DEVFN_P2SB)
+		dev->ops = &soc_p2sb_ops;
 	else if (dev->path.type == DEVICE_PATH_PCI &&
 		 dev->path.pci.devfn == PCI_DEVFN_IOE_P2SB)
 		dev->ops = &ioe_p2sb_ops;

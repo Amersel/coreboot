@@ -34,6 +34,7 @@ config SOUTH_BRIDGE_OPTIONS
 	select HAVE_POWER_STATE_PREVIOUS_AFTER_FAILURE
 	select SOUTHBRIDGE_INTEL_COMMON_WATCHDOG
 	select SOUTHBRIDGE_INTEL_COMMON_USB_DEBUG
+	select TCO_SPACE_NOT_YET_SPLIT
 
 config INTEL_LYNXPOINT_LP
 	bool
@@ -82,5 +83,13 @@ config SERIALIO_UART_CONSOLE
 
 config CONSOLE_UART_BASE_ADDRESS
 	default 0xd6000000 if SERIALIO_UART_CONSOLE
+
+config DISABLE_ME_PCI
+	bool "Disable Intel ME PCI interface (MEI1)"
+	default y
+	help
+	  Disable and hide the ME PCI interface during finalize stage of boot.
+	  This will prevent the OS (and userspace apps) from interacting with
+	  the ME via the PCI interface after boot.
 
 endif

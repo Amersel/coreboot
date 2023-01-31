@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+
 /*
  *	PCI defines and function prototypes
  *	Copyright 1994, Drew Eckhardt
@@ -17,14 +19,15 @@
 
 #if CONFIG(PCI)
 
-#include <stdint.h>
-#include <stddef.h>
-#include <device/pci_def.h>
-#include <device/resource.h>
+/* When <device/pci.h> is needed, it supposed to provide <device/pci_{def,type}.h> */
 #include <device/device.h>
+#include <device/pci_def.h> /* IWYU pragma: export */
 #include <device/pci_ops.h>
 #include <device/pci_rom.h>
-#include <device/pci_type.h>
+#include <device/pci_type.h> /* IWYU pragma: export */
+#include <device/resource.h>
+#include <stddef.h>
+#include <stdint.h>
 
 /* Common pci operations without a standard interface */
 struct pci_operations {
@@ -95,6 +98,7 @@ void pci_dev_set_subsystem(struct device *dev, unsigned int vendor,
 	unsigned int device);
 void pci_dev_init(struct device *dev);
 unsigned int pci_match_simple_dev(struct device *dev, pci_devfn_t sdev);
+uint16_t pci_find_cap_recursive(const struct device *dev, uint16_t cap);
 
 const char *pin_to_str(int pin);
 int get_pci_irq_pins(struct device *dev, struct device **parent_bdg);

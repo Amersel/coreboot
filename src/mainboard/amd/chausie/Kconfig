@@ -6,7 +6,7 @@ config BOARD_SPECIFIC_OPTIONS
 	def_bool y
 	select BOARD_ROMSIZE_KB_16384
 	select EC_ACPI
-	select SOC_AMD_SABRINA
+	select SOC_AMD_MENDOCINO
 	select SOC_AMD_COMMON_BLOCK_USE_ESPI
 	select AMD_SOC_CONSOLE_UART
 	select MAINBOARD_HAS_CHROMEOS
@@ -14,6 +14,7 @@ config BOARD_SPECIFIC_OPTIONS
 	select PCIEXP_CLK_PM
 	select PCIEXP_COMMON_CLOCK
 	select PCIEXP_L1_SUB_STATE
+	select SOC_AMD_COMMON_BLOCK_ESPI_RETAIN_PORT80_EN
 
 config FMDFILE
 	default "src/mainboard/amd/chausie/chromeos.fmd" if CHROMEOS
@@ -28,6 +29,7 @@ config MAINBOARD_PART_NUMBER
 config AMD_FWM_POSITION_INDEX
 	int
 	default 3 if CHROMEOS
+	default 4
 	help
 	  TODO: might need to be adapted for better placement of files in cbfs
 
@@ -36,7 +38,7 @@ config CHAUSIE_HAVE_MCHP_FW
 	default n
 
 config CHAUSIE_MCHP_SIG_FILE
-	string
+	string "Microchip EC signature file"
 	depends on CHAUSIE_HAVE_MCHP_FW
 	default "3rdparty/blobs/mainboard/amd/chausie/EC_chausie_sig.bin"
 	help
@@ -45,7 +47,7 @@ config CHAUSIE_MCHP_SIG_FILE
 	  is located
 
 config CHAUSIE_MCHP_FW_FILE
-	string
+	string "Microchip EC firmware file"
 	depends on CHAUSIE_HAVE_MCHP_FW
 	default "3rdparty/blobs/mainboard/amd/chausie/EC_chausie.bin"
 	help
@@ -74,8 +76,8 @@ config RO_REGION_ONLY
 	string
 	depends on VBOOT_SLOTS_RW_AB || VBOOT_SLOTS_RW_A
 	# Add the EFS and EC to the RO region only
-	# This is a chausie-specific override of soc/amd/sabrina/Kconfig
-	default "apu/amdfw apu/ecfw"
+	# This is a chausie-specific override of soc/amd/mendocino/Kconfig
+	default "apu/amdfw ec/ecfw"
 
 config CHROMEOS
 	# Use default libpayload config

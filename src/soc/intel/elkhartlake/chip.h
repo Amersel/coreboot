@@ -4,20 +4,18 @@
 #define _SOC_CHIP_H_
 
 #include <drivers/i2c/designware/dw_i2c.h>
+#include <gpio.h>
 #include <intelblocks/cfg.h>
-#include <intelblocks/gpio.h>
 #include <intelblocks/gspi.h>
 #include <intelblocks/pcie_rp.h>
 #include <intelblocks/power_limit.h>
 #include <soc/gpe.h>
-#include <soc/gpio.h>
-#include <soc/gpio_defs.h>
 #include <soc/pch.h>
 #include <soc/pci_devs.h>
 #include <soc/pmc.h>
 #include <soc/serialio.h>
 #include <soc/usb.h>
-#include <stdint.h>
+#include <types.h>
 
 #define MAX_HD_AUDIO_SDI_LINKS	2
 #define MAX_HD_AUDIO_DMIC_LINKS	2
@@ -103,6 +101,13 @@ enum fivr_supported_voltage {
 					  FIVR_VOLTAGE_MIN_RETENTION,
 };
 
+/* SATA speed limit */
+enum sata_speed_limit {
+	SATA_DEFAULT = 0,
+	SATA_GEN1,
+	SATA_GEN2
+};
+
 struct soc_intel_elkhartlake_config {
 
 	/* Common struct containing soc config data required by common code */
@@ -181,6 +186,7 @@ struct soc_intel_elkhartlake_config {
 	uint8_t SataSalpSupport;
 	uint8_t SataPortsEnable[CONFIG_MAX_SATA_PORTS];
 	uint8_t SataPortsDevSlp[CONFIG_MAX_SATA_PORTS];
+	enum sata_speed_limit SataSpeed;
 	/*
 	 * Enable(0)/Disable(1) SATA Power Optimizer on PCH side.
 	 * Default 0. Setting this to 1 disables the SATA Power Optimizer.
@@ -444,6 +450,22 @@ struct soc_intel_elkhartlake_config {
 	bool PsePwmPinEn[16];
 	/* PSE Console Shell */
 	bool PseShellEn;
+
+	/*
+	 * DDR Frequency Limit
+	 *
+	 * Maximum Memory Frequency Selections in Mhz.
+	 * Values: 1067, 1200, 1333, 1400, 1600, 1800, 1867, 2000, 2133,
+	 *         2200, 2400, 2600, 2667, 2800, 2933, 3000, 3200, 3467,
+	 *         3600, 3733, 4000, 4200, 4267 and 0 for Auto.
+	 */
+	uint16_t max_dram_speed_mts;
+
+	/* Disable L1 prefetcher */
+	bool L1_prefetcher_disable;
+
+	/* Activate real time tuning according to the Real-Time Tuning Guide (doc #640979) */
+	bool realtime_tuning_enable;
 };
 
 typedef struct soc_intel_elkhartlake_config config_t;

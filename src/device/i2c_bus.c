@@ -1,15 +1,17 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <stdint.h>
+#include <commonlib/bsd/helpers.h>
 #include <console/console.h>
+#include <device/device.h>
 #include <device/smbus.h>
 #include <device/i2c_bus.h>
 #include <commonlib/endian.h>
+#include <types.h>
 
 bool i2c_dev_detect(struct device *dev, unsigned int addr)
 {
 	struct i2c_msg seg = { .flags = 0, .slave = addr, .buf = NULL, .len = 0 };
-	return dev->ops->ops_i2c_bus->transfer(dev, &seg, 0) == 0;
+	return dev->ops->ops_i2c_bus->transfer(dev, &seg, 1) == 0;
 }
 
 struct bus *i2c_link(const struct device *const dev)
@@ -172,6 +174,76 @@ int i2c_dev_read_at16(struct device *const dev, uint8_t *const buf, const size_t
 		};
 
 		write_be16(&off, off);
+		const int ret = busdev->ops->ops_i2c_bus->transfer(busdev, msg,
+								   ARRAY_SIZE(msg));
+		if (ret)
+			return ret;
+		else
+			return len;
+	} else {
+		printk(BIOS_ERR, "%s Missing ops_i2c_bus->transfer", dev_path(busdev));
+		return -1;
+	}
+}
+
+int i2c_dev_read_at(struct device *const dev, uint8_t *const buf, const size_t len,
+		      uint8_t off)
+{
+	struct device *const busdev = i2c_busdev(dev);
+	if (!busdev)
+		return -1;
+
+	if (busdev->ops->ops_i2c_bus) {
+		const struct i2c_msg msg[] = {
+			{
+				.flags	= 0,
+				.slave	= dev->path.i2c.device,
+				.buf	= &off,
+				.len	= sizeof(off),
+			},
+			{
+				.flags	= I2C_M_RD,
+				.slave	= dev->path.i2c.device,
+				.buf	= buf,
+				.len	= len,
+			},
+		};
+
+		const int ret = busdev->ops->ops_i2c_bus->transfer(busdev, msg,
+								   ARRAY_SIZE(msg));
+		if (ret)
+			return ret;
+		else
+			return len;
+	} else {
+		printk(BIOS_ERR, "%s Missing ops_i2c_bus->transfer", dev_path(busdev));
+		return -1;
+	}
+}
+
+int i2c_dev_write_at(struct device *const dev, uint8_t *const buf, const size_t len,
+		       uint8_t off)
+{
+	struct device *const busdev = i2c_busdev(dev);
+	if (!busdev)
+		return -1;
+
+	if (busdev->ops->ops_i2c_bus) {
+		const struct i2c_msg msg[] = {
+			{
+				.flags	= 0,
+				.slave	= dev->path.i2c.device,
+				.buf	= &off,
+				.len	= sizeof(off),
+			},
+			{
+				.flags	= I2C_M_NOSTART,
+				.slave	= dev->path.i2c.device,
+				.buf	= buf,
+				.len	= len,
+			},
+		};
+
 		const int ret = busdev->ops->ops_i2c_bus->transfer(busdev, msg,
 								   ARRAY_SIZE(msg));
 		if (ret)

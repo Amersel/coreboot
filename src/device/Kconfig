@@ -4,7 +4,7 @@ menu "Devices"
 
 config HAVE_VGA_TEXT_FRAMEBUFFER
 	bool
-	depends on !NO_GFX_INIT
+	depends on !(NO_GFX_INIT && NO_EARLY_GFX_INIT)
 	help
 	  Selected by graphics drivers that support legacy VGA text mode.
 
@@ -57,6 +57,13 @@ config MAINBOARD_HAS_LIBGFXINIT
 	help
 	  Selected by mainboards that implement support for `libgfxinit`.
 	  Usually this requires a list of ports to be probed for displays.
+
+config MAINBOARD_HAS_EARLY_LIBGFXINIT
+	def_bool n
+	help
+	  Selected by mainboards that implement early (cache-as-ram
+	  stage) support of `libgfxinit`. Usually this requires a list
+	  of ports to be probed for displays.
 
 choice
 	prompt "Graphics initialization"
@@ -114,6 +121,28 @@ config NO_GFX_INIT
 	  Select this to not perform any graphics initialization in
 	  coreboot. This is useful if the payload (e.g. SeaBIOS) can
 	  initialize graphics or if pre-boot graphics are not required.
+
+endchoice
+
+choice
+	prompt "Early (romstage) graphics initialization"
+	default MAINBOARD_USE_EARLY_LIBGFXINIT if MAINBOARD_HAS_EARLY_LIBGFXINIT
+	default NO_EARLY_GFX_INIT
+
+config NO_EARLY_GFX_INIT
+	bool "None"
+	help
+	  Select this to not perform any graphics initialization at
+	  romstage.
+
+config MAINBOARD_USE_EARLY_LIBGFXINIT
+	bool "Use libgfxinit"
+	depends on MAINBOARD_HAS_EARLY_LIBGFXINIT
+	select ROMSTAGE_VGA
+	help
+	  Use the SPARK library `libgfxinit` for the romstage native
+	  graphics initialization. This requires an Ada
+	  toolchain. Graphics at romstage is limited to VGA text mode.
 
 endchoice
 
@@ -197,7 +226,7 @@ choice
 config PCI_OPTION_ROM_RUN_REALMODE
 	prompt "Native mode"
 	bool
-	depends on ARCH_X86
+	depends on ARCH_X86 && !ARCH_RAMSTAGE_X86_64
 	help
 	  If you select this option, PCI Option ROMs will be executed
 	  natively on the CPU in real mode. No CPU emulation is involved,
@@ -420,7 +449,7 @@ endif # FRAMEBUFFER_SET_VESA_MODE
 config WANT_LINEAR_FRAMEBUFFER
 	bool
 	default y if CHROMEOS
-	default y if PAYLOAD_TIANOCORE
+	default y if PAYLOAD_EDK2
 	default y if COREDOOM_SECONDARY_PAYLOAD
 
 choice
@@ -479,7 +508,8 @@ config BOOTSPLASH
 config LINEAR_FRAMEBUFFER_MAX_WIDTH
 	int "Maximum width in pixels"
 	depends on LINEAR_FRAMEBUFFER && MAINBOARD_USE_LIBGFXINIT
-	default 2560
+	default 2560 if SYSTEM_TYPE_LAPTOP
+	default 3840
 	help
 	  Set the maximum width of the framebuffer. This may help with
 	  default fonts too tiny for high-resolution displays.
@@ -487,7 +517,8 @@ config LINEAR_FRAMEBUFFER_MAX_WIDTH
 config LINEAR_FRAMEBUFFER_MAX_HEIGHT
 	int "Maximum height in pixels"
 	depends on LINEAR_FRAMEBUFFER && MAINBOARD_USE_LIBGFXINIT
-	default 1600
+	default 1600 if SYSTEM_TYPE_LAPTOP
+	default 2160
 	help
 	  Set the maximum height of the framebuffer. This may help with
 	  default fonts too tiny for high-resolution displays.
@@ -654,6 +685,13 @@ config PCIEXP_DEFAULT_MAX_RESIZABLE_BAR_BITS
 
 endif # PCIEXP_SUPPORT_RESIZABLE_BARS
 
+config PCIEXP_LANE_ERR_STAT_CLEAR
+	prompt "Enable Clear PCIe Lane Error Status"
+	bool
+	default n
+	help
+	  Clear the PCIe Lane Error Status at the end of link training.
+
 config PCIEXP_HOTPLUG
 	prompt "Enable PCIe Hotplug Support"
 	bool
@@ -692,7 +730,6 @@ config PCIEXP_HOTPLUG_PREFETCH_MEM
 
 config PCIEXP_HOTPLUG_PREFETCH_MEM_ABOVE_4G
 	bool
-	depends on RESOURCE_ALLOCATOR_V4
 	default y if !PCIEXP_HOTPLUG_PREFETCH_MEM_BELOW_4G
 	default n
 	help
@@ -717,6 +754,36 @@ config PCIEXP_HOTPLUG_IO
 endif # PCIEXP_HOTPLUG
 
 endif # PCIEXP_PLUGIN_SUPPORT
+
+config DEFAULT_SOFTWARE_CONNECTION_MANAGER
+	bool
+	help
+	  select to default to using the Software Connection Manager
+
+choice
+	prompt "Connection Manager"
+	default SOFTWARE_CONNECTION_MANAGER if DEFAULT_SOFTWARE_CONNECTION_MANAGER
+	default FIRMWARE_CONNECTION_MANAGER
+	help
+	  Software Connection Manager doesn't work with Linux 5.13 or later,
+	  resulting in TBT ports timing out. Firmware Connection Manager works
+	  correctly.
+
+	  Linux patch:
+	    torvalds/linux@c6da62a
+	    c6da62a219d028de10f2e22e93a34c7ee2b88d03
+
+config FIRMWARE_CONNECTION_MANAGER
+	bool "Firmware Connection Manager"
+	help
+	  Disable SCM so that FCM can be used
+
+config SOFTWARE_CONNECTION_MANAGER
+	bool "Software Connection Manager"
+	help
+	  Enable SCM so it's used instead of FCM.
+
+endchoice
 
 config EARLY_PCI_BRIDGE
 	bool "Early PCI bridge"
@@ -915,27 +982,18 @@ config I2C_TRANSFER_TIMEOUT_US
 	  maximum time a device could stretch clock bits before the transfer
 	  is aborted and an error returned.
 
-config RESOURCE_ALLOCATOR_V3
-	bool
+config RESOURCE_ALLOCATION_TOP_DOWN
+	bool "Allocate resources from top down"
 	default n
 	help
-	  This config option enables resource allocator v3 which performs
-	  top down allocation of resources in a single MMIO window. This is the
-	  old resource allocator meant to be used only until the broken AMD
-	  chipsets are fixed. DO NOT USE THIS FOR ANY NEW CHIPSETS!
-
-config RESOURCE_ALLOCATOR_V4
-	bool
-	default n if RESOURCE_ALLOCATOR_V3
-	default y if !RESOURCE_ALLOCATOR_V3
-	help
-	  This config option enables resource allocator v4 which uses multiple
-	  ranges for allocating resources. This allows allocation of resources
-	  above 4G boundary as well.
+	  Should be the default, but many platforms don't report resources
+	  correctly. Hence, the allocator might cause conflicts.
 
 config XHCI_UTILS
 	def_bool n
 	help
 	  Provides xHCI utility functions.
+
+source "src/device/dram/Kconfig"
 
 endmenu

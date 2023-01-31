@@ -56,7 +56,7 @@ void vboot_sync_ec(void)
 
 	case VB2_REQUEST_REBOOT_EC_TO_RO:
 		printk(BIOS_INFO, "EC Reboot requested. Doing cold reboot\n");
-		if (google_chromeec_reboot(0, EC_REBOOT_COLD, 0))
+		if (google_chromeec_reboot(EC_REBOOT_COLD, 0))
 			printk(BIOS_EMERG, "Failed to get EC to cold reboot\n");
 
 		halt();
@@ -65,7 +65,7 @@ void vboot_sync_ec(void)
 	/* Only for EC-EFS */
 	case VB2_REQUEST_REBOOT_EC_SWITCH_RW:
 		printk(BIOS_INFO, "Switch EC slot requested. Doing cold reboot\n");
-		if (google_chromeec_reboot(0, EC_REBOOT_COLD,
+		if (google_chromeec_reboot(EC_REBOOT_COLD,
 						EC_REBOOT_FLAG_SWITCH_RW_SLOT))
 			printk(BIOS_EMERG, "Failed to get EC to cold reboot\n");
 
@@ -174,7 +174,7 @@ static vb2_error_t ec_hash_image(enum vb2_firmware_selection select,
 		return VB2_ERROR_UNKNOWN;
 	}
 
-	printk(BIOS_INFO, "EC took %luus to calculate image hash\n",
+	printk(BIOS_INFO, "EC took %lldus to calculate image hash\n",
 		stopwatch_duration_usecs(&sw));
 
 	*hash = resp.hash_digest;
@@ -383,7 +383,7 @@ static vb2_error_t ec_get_expected_hash(enum vb2_firmware_selection select,
 	/* vboot has no API to return this memory, so must permanently leak a mapping here. */
 	const uint8_t *file = cbfs_map(filename, &size);
 
-	if (file == NULL)
+	if (!file)
 		return VB2_ERROR_UNKNOWN;
 
 	*hash = file;
@@ -460,7 +460,7 @@ vb2_error_t vb2ex_ec_vboot_done(struct vb2_context *ctx)
 		       "EC requests limited power usage. Request shutdown.\n");
 		return VB2_REQUEST_SHUTDOWN;
 	} else {
-		printk(BIOS_INFO, "Waited %luus to clear limit power flag.\n",
+		printk(BIOS_INFO, "Waited %lldus to clear limit power flag.\n",
 			stopwatch_duration_usecs(&sw));
 	}
 
@@ -510,7 +510,7 @@ vb2_error_t vb2ex_ec_get_expected_image_hash(enum vb2_firmware_selection select,
  */
 vb2_error_t vb2ex_ec_disable_jump(void)
 {
-	if (google_chromeec_reboot(0, EC_REBOOT_DISABLE_JUMP, 0))
+	if (google_chromeec_reboot(EC_REBOOT_DISABLE_JUMP, 0))
 		return VB2_ERROR_UNKNOWN;
 
 	return VB2_SUCCESS;
@@ -531,7 +531,7 @@ vb2_error_t vb2ex_ec_jump_to_rw(void)
 {
 	struct stopwatch sw;
 
-	if (google_chromeec_reboot(0, EC_REBOOT_JUMP_RW, 0))
+	if (google_chromeec_reboot(EC_REBOOT_JUMP_RW, 0))
 		return VB2_ERROR_UNKNOWN;
 
 	/* Give the EC 3 seconds to sysjump */
@@ -541,7 +541,7 @@ vb2_error_t vb2ex_ec_jump_to_rw(void)
 	mdelay(50);
 	while (google_chromeec_hello()) {
 		if (stopwatch_expired(&sw)) {
-			printk(BIOS_ERR, "EC did not return from reboot after %luus\n",
+			printk(BIOS_ERR, "EC did not return from reboot after %lldus\n",
 			       stopwatch_duration_usecs(&sw));
 			return VB2_ERROR_UNKNOWN;
 		}
@@ -549,7 +549,7 @@ vb2_error_t vb2ex_ec_jump_to_rw(void)
 		mdelay(5);
 	}
 
-	printk(BIOS_INFO, "\nEC returned from reboot after %luus\n",
+	printk(BIOS_INFO, "\nEC returned from reboot after %lldus\n",
 	       stopwatch_duration_usecs(&sw));
 
 	return VB2_SUCCESS;

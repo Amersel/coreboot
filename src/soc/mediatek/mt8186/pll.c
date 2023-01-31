@@ -468,14 +468,17 @@ void mt_pll_init(void)
 			INFRACFG_AO_PERI_BUS_REG0_2, 1);
 
 	for (i = 0; i < ARRAY_SIZE(mux_sels); i++)
-		mux_set_sel(&muxes[mux_sels[i].id], mux_sels[i].sel);
+		pll_mux_set_sel(&muxes[mux_sels[i].id], mux_sels[i].sel);
 
 	/* [4] SCP_CORE_CK_CG, [5] SEJ_CG */
 	write32(&mt8186_infracfg_ao->module_sw_cg_0_clr, 0x00000030);
 	/* [7] DVFSRC_CG, [20] DEVICE_APC_CG */
 	write32(&mt8186_infracfg_ao->module_sw_cg_1_clr, 0x00100080);
-	/* [15] SEJ_F13M_CK_CG, [16] AES_TOP0_BCLK_CK_CG */
-	write32(&mt8186_infracfg_ao->module_sw_cg_3_clr, 0x00018000);
+	/*
+	 * [15] SEJ_F13M_CK_CG, [16] AES_TOP0_BCLK_CK_CG,
+	 * [22] FADSP_26M_CG, [23] FADSP_32K_CG, [27] FADSP_CK_CG
+	 */
+	write32(&mt8186_infracfg_ao->module_sw_cg_3_clr, 0x08C18000);
 }
 
 void mt_pll_raise_little_cpu_freq(u32 freq)
@@ -514,6 +517,18 @@ void mt_pll_raise_cci_freq(u32 freq)
 
 	/* switch clock source back to ccipll */
 	clrsetbits32(&mtk_mcucfg->bus_plldiv_cfg, MCU_MUX_MASK, MCU_MUX_SRC_PLL);
+}
+
+void mt_pll_set_usb_clock(void)
+{
+	/* enable usb macro control */
+	SET32_BITFIELDS(&mtk_topckgen->usb_top_cfg, USB_TOP_CFG_MACRO_CTRL, 3);
+}
+
+void mt_pll_spmi_mux_select(void)
+{
+	/* 4: ulposc1_d10 */
+	pll_mux_set_sel(&muxes[TOP_SPMI_MST_SEL], 4);
 }
 
 u32 mt_fmeter_get_freq_khz(enum fmeter_type type, u32 id)

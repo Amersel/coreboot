@@ -4,10 +4,10 @@
 #include <console/console.h>
 #include <device/device.h>
 #include <device/path.h>
-#include <device/pci.h>
 #include <device/pci_def.h>
-#include <device/resource.h>
+#include <device/pci_type.h>
 #include <fw_config.h>
+#include <types.h>
 
 /** Linked list of ALL devices */
 DEVTREE_CONST struct device *DEVTREE_CONST all_devices = &dev_root;
@@ -147,6 +147,10 @@ static int path_eq(const struct device_path *path1,
 	case DEVICE_PATH_GPIO:
 		equal = (path1->gpio.id == path2->gpio.id);
 		break;
+	case DEVICE_PATH_MDIO:
+		equal = (path1->mdio.addr == path2->mdio.addr);
+		break;
+
 	default:
 		printk(BIOS_ERR, "Unknown device type: %d\n", path1->type);
 		break;

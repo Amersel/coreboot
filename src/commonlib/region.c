@@ -2,6 +2,7 @@
 
 #include <commonlib/helpers.h>
 #include <commonlib/region.h>
+#include <stdint.h>
 #include <string.h>
 
 int region_is_subregion(const struct region *p, const struct region *c)
@@ -222,7 +223,7 @@ void xlate_window_init(struct xlate_window *window, const struct region_device *
 }
 
 static void *mdev_mmap(const struct region_device *rd, size_t offset,
-			size_t size __unused)
+			size_t size __always_unused)
 {
 	const struct mem_region_device *mdev;
 
@@ -231,8 +232,8 @@ static void *mdev_mmap(const struct region_device *rd, size_t offset,
 	return &mdev->base[offset];
 }
 
-static int mdev_munmap(const struct region_device *rd __unused,
-			void *mapping __unused)
+static int mdev_munmap(const struct region_device *rd __always_unused,
+			void *mapping __always_unused)
 {
 	return 0;
 }
@@ -368,7 +369,8 @@ static void *xlate_mmap(const struct region_device *rd, size_t offset,
 	return rdev_mmap(xlwindow->access_dev, offset, size);
 }
 
-static int xlate_munmap(const struct region_device *rd __unused, void *mapping __unused)
+static int xlate_munmap(const struct region_device *rd __always_unused,
+			void *mapping __always_unused)
 {
 	/*
 	 * xlate_region_device does not keep track of the access device that was used to service

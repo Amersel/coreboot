@@ -113,7 +113,7 @@ static struct param {
 	.arch = CBFS_ARCHITECTURE_UNKNOWN,
 	.compression = CBFS_COMPRESS_NONE,
 	.hash = VB2_HASH_INVALID,
-	.headeroffset = ~0,
+	.headeroffset = HEADER_OFFSET_UNKNOWN,
 	.region_name = SECTION_NAME_PRIMARY_CBFS,
 	.u64val = -1,
 };
@@ -148,7 +148,7 @@ static struct mh_cache *get_mh_cache(void)
 	if (!fmap)
 		goto no_metadata_hash;
 
-	/* Find the bootblock. If there is a "BOOTBLOCK" FMAP section, it's
+	/* Find the metadata_hash container. If there is a "BOOTBLOCK" FMAP section, it's
 	   there. If not, it's a normal file in the primary CBFS section. */
 	size_t offset, size;
 	struct buffer buffer;
@@ -161,22 +161,27 @@ static struct mh_cache *get_mh_cache(void)
 		size = buffer.size;
 	} else {
 		struct cbfs_image cbfs;
-		struct cbfs_file *bootblock;
+		struct cbfs_file *mh_container;
 		if (!partitioned_file_read_region(&buffer, param.image_file,
 						  SECTION_NAME_PRIMARY_CBFS))
 			goto no_metadata_hash;
 		mhc.region = SECTION_NAME_PRIMARY_CBFS;
 		if (cbfs_image_from_buffer(&cbfs, &buffer, param.headeroffset))
 			goto no_metadata_hash;
-		bootblock = cbfs_get_entry(&cbfs, "bootblock");
-		if (!bootblock || be32toh(bootblock->type) != CBFS_TYPE_BOOTBLOCK)
-			goto no_metadata_hash;
-		offset = (void *)bootblock + be32toh(bootblock->offset) -
+		mh_container = cbfs_get_entry(&cbfs, "bootblock");
+		if (!mh_container || be32toh(mh_container->type) != CBFS_TYPE_BOOTBLOCK) {
+			/* Check for apu/amdfw file */
+			mh_container = cbfs_get_entry(&cbfs, "apu/amdfw");
+			if (!mh_container || be32toh(mh_container->type) != CBFS_TYPE_AMDFW)
+				goto no_metadata_hash;
+		}
+
+		offset = (void *)mh_container + be32toh(mh_container->offset) -
 			 buffer_get(&cbfs.buffer);
-		size = be32toh(bootblock->len);
+		size = be32toh(mh_container->len);
 	}
 
-	/* Find and validate the metadata hash anchor inside the bootblock and
+	/* Find and validate the metadata hash anchor inside the containing file and
 	   record its exact byte offset from the start of the FMAP region. */
 	struct metadata_hash_anchor *anchor = memmem(buffer_get(&buffer) + offset,
 			size, METADATA_HASH_ANCHOR_MAGIC, sizeof(anchor->magic));
@@ -264,19 +269,20 @@ static int maybe_update_fmap_hash(void)
 {
 	if (strcmp(param.region_name, SECTION_NAME_BOOTBLOCK) &&
 	    strcmp(param.region_name, SECTION_NAME_FMAP) &&
-	    param.type != CBFS_TYPE_BOOTBLOCK)
+	    param.type != CBFS_TYPE_BOOTBLOCK &&
+	    param.type != CBFS_TYPE_AMDFW)
 		return 0;	/* FMAP and bootblock didn't change. */
 
 	struct mh_cache *mhc = get_mh_cache();
 	if (mhc->cbfs_hash.algo == VB2_HASH_INVALID)
 		return 0;
 
-	uint8_t fmap_hash[VB2_MAX_DIGEST_SIZE];
+	struct vb2_hash fmap_hash;
 	const struct fmap *fmap = partitioned_file_get_fmap(param.image_file);
-	if (!fmap || vb2_digest_buffer((const void *)fmap, fmap_size(fmap),
-			mhc->cbfs_hash.algo, fmap_hash, sizeof(fmap_hash)))
+	if (!fmap || vb2_hash_calculate(false, fmap, fmap_size(fmap),
+					mhc->cbfs_hash.algo, &fmap_hash))
 		return -1;
-	return update_anchor(mhc, fmap_hash);
+	return update_anchor(mhc, fmap_hash.raw);
 }
 
 static bool verification_exclude(enum cbfs_type type)
@@ -285,6 +291,7 @@ static bool verification_exclude(enum cbfs_type type)
 	case CBFS_TYPE_BOOTBLOCK:
 	case CBFS_TYPE_CBFSHEADER:
 	case CBFS_TYPE_INTEL_FIT:
+	case CBFS_TYPE_AMDFW:
 		return true;
 	default:
 		return false;
@@ -310,28 +317,68 @@ struct mmap_window {
 	struct region host_space;
 };
 
-enum mmap_window_type {
-	X86_DEFAULT_DECODE_WINDOW, /* Decode window just below 4G boundary */
-	X86_EXTENDED_DECODE_WINDOW, /* Extended decode window for mapping greater than 16MiB
-				       flash */
-	MMAP_MAX_WINDOWS,
-};
+/* Should be enough for now */
+#define MMAP_MAX_WINDOWS 3
 
 /* Table of all the decode windows supported by the platform. */
+static int mmap_window_table_size;
 static struct mmap_window mmap_window_table[MMAP_MAX_WINDOWS];
 
-static void add_mmap_window(enum mmap_window_type idx, size_t flash_offset, size_t host_offset,
+static void add_mmap_window(size_t flash_offset, size_t host_offset,
 			    size_t window_size)
 {
-	if (idx >= MMAP_MAX_WINDOWS) {
-		ERROR("Incorrect mmap window index(%d)\n", idx);
+	if (mmap_window_table_size >= MMAP_MAX_WINDOWS) {
+		ERROR("Too many memory map windows\n");
 		return;
 	}
 
-	mmap_window_table[idx].flash_space.offset = flash_offset;
-	mmap_window_table[idx].host_space.offset = host_offset;
-	mmap_window_table[idx].flash_space.size = window_size;
-	mmap_window_table[idx].host_space.size = window_size;
+	mmap_window_table[mmap_window_table_size].flash_space.offset = flash_offset;
+	mmap_window_table[mmap_window_table_size].host_space.offset = host_offset;
+	mmap_window_table[mmap_window_table_size].flash_space.size = window_size;
+	mmap_window_table[mmap_window_table_size].host_space.size = window_size;
+	mmap_window_table_size++;
+}
+
+
+static int decode_mmap_arg(char *arg)
+{
+	if (arg == NULL)
+		return 1;
+
+	union {
+		unsigned long int array[3];
+		struct {
+			unsigned long int flash_base;
+			unsigned long int mmap_base;
+			unsigned long int mmap_size;
+		};
+	} mmap_args;
+	char *suffix = NULL;
+	char *substring = strtok(arg, ":");
+	for (size_t i = 0; i < ARRAY_SIZE(mmap_args.array); i++) {
+		if (!substring) {
+			ERROR("Invalid mmap arguments '%s'.\n",
+			      arg);
+			return 1;
+		}
+		mmap_args.array[i] = strtol(substring, &suffix, 0);
+		if (suffix && *suffix) {
+			ERROR("Invalid mmap arguments '%s'.\n",
+			      arg);
+			return 1;
+		}
+		substring = strtok(NULL, ":");
+	}
+
+	if (substring != NULL) {
+		ERROR("Invalid argument, too many substrings '%s'.\n",
+		      arg);
+
+		return 1;
+	}
+
+	add_mmap_window(mmap_args.flash_base, mmap_args.mmap_base, mmap_args.mmap_size);
+	return 0;
 }
 
 #define DEFAULT_DECODE_WINDOW_TOP	(4ULL * GiB)
@@ -344,57 +391,45 @@ static bool create_mmap_windows(void)
 	if (done)
 		return done;
 
-	const size_t image_size = partitioned_file_total_size(param.image_file);
-	const size_t std_window_size = MIN(DEFAULT_DECODE_WINDOW_MAX_SIZE, image_size);
-	const size_t std_window_flash_offset = image_size - std_window_size;
+	// No memory map provided, use a default one
+	if (mmap_window_table_size == 0) {
+		const size_t image_size = partitioned_file_total_size(param.image_file);
+		printf("Image SIZE %zu\n", image_size);
+		const size_t std_window_size = MIN(DEFAULT_DECODE_WINDOW_MAX_SIZE, image_size);
+		const size_t std_window_flash_offset = image_size - std_window_size;
 
-	/*
-	 * Default decode window lives just below 4G boundary in host space and maps up to a
-	 * maximum of 16MiB. If the window is smaller than 16MiB, the SPI flash window is mapped
-	 * at the top of the host window just below 4G.
-	 */
-	add_mmap_window(X86_DEFAULT_DECODE_WINDOW, std_window_flash_offset,
-			DEFAULT_DECODE_WINDOW_TOP - std_window_size, std_window_size);
-
-	if (param.ext_win_size && (image_size > DEFAULT_DECODE_WINDOW_MAX_SIZE)) {
 		/*
-		 * If the platform supports extended window and the SPI flash size is greater
-		 * than 16MiB, then create a mapping for the extended window as well.
-		 * The assumptions here are:
-		 * 1. Top 16MiB is still decoded in the fixed decode window just below 4G
-		 * boundary.
-		 * 2. Rest of the SPI flash below the top 16MiB is mapped at the top of extended
-		 * window. Even though the platform might support a larger extended window, the
-		 * SPI flash part used by the mainboard might not be large enough to be mapped
-		 * in the entire window. In such cases, the mapping is assumed to be in the top
-		 * part of the extended window with the bottom part remaining unused.
-		 *
-		 * Example:
-		 * ext_win_base = 0xF8000000
-		 * ext_win_size = 32 * MiB
-		 * ext_win_limit = ext_win_base + ext_win_size - 1 = 0xF9FFFFFF
-		 *
-		 * If SPI flash is 32MiB, then top 16MiB is mapped from 0xFF000000 - 0xFFFFFFFF
-		 * whereas the bottom 16MiB is mapped from 0xF9000000 - 0xF9FFFFFF. The extended
-		 * window 0xF8000000 - 0xF8FFFFFF remains unused.
+		 * Default decode window lives just below 4G boundary in host space and maps up to a
+		 * maximum of 16MiB. If the window is smaller than 16MiB, the SPI flash window is mapped
+		 * at the top of the host window just below 4G.
 		 */
-		const size_t ext_window_mapped_size = MIN(param.ext_win_size,
-							  image_size - std_window_size);
-		const size_t ext_window_top = param.ext_win_base + param.ext_win_size;
-		add_mmap_window(X86_EXTENDED_DECODE_WINDOW,
-				std_window_flash_offset - ext_window_mapped_size,
-				ext_window_top - ext_window_mapped_size,
-				ext_window_mapped_size);
+		add_mmap_window(std_window_flash_offset, DEFAULT_DECODE_WINDOW_TOP - std_window_size, std_window_size);
+	} else {
+		/*
+		 * Check provided memory map
+		 */
+		for (int i = 0; i < mmap_window_table_size; i++) {
+			for (int j = i + 1; j < mmap_window_table_size; j++) {
+				if (region_overlap(&mmap_window_table[i].flash_space,
+						   &mmap_window_table[j].flash_space)) {
+					ERROR("Flash space windows (base=0x%zx, limit=0x%zx) and (base=0x%zx, limit=0x%zx) overlap!\n",
+					      region_offset(&mmap_window_table[i].flash_space),
+					      region_end(&mmap_window_table[i].flash_space),
+					      region_offset(&mmap_window_table[j].flash_space),
+					      region_end(&mmap_window_table[j].flash_space));
+					return false;
+				}
 
-		if (region_overlap(&mmap_window_table[X86_EXTENDED_DECODE_WINDOW].host_space,
-				   &mmap_window_table[X86_DEFAULT_DECODE_WINDOW].host_space)) {
-			const struct region *ext_region;
-
-			ext_region = &mmap_window_table[X86_EXTENDED_DECODE_WINDOW].host_space;
-			ERROR("Extended window(base=0x%zx, limit=0x%zx) overlaps with default window!\n",
-			      region_offset(ext_region), region_end(ext_region));
-
-			return false;
+				if (region_overlap(&mmap_window_table[i].host_space,
+						   &mmap_window_table[j].host_space)) {
+					ERROR("Host space windows (base=0x%zx, limit=0x%zx) and (base=0x%zx, limit=0x%zx) overlap!\n",
+					      region_offset(&mmap_window_table[i].flash_space),
+					      region_end(&mmap_window_table[i].flash_space),
+					      region_offset(&mmap_window_table[j].flash_space),
+					      region_end(&mmap_window_table[j].flash_space));
+					return false;
+				}
+			}
 		}
 	}
 
@@ -763,8 +798,8 @@ static int cbfs_add_master_header(void)
 	 */
 	if (param.topswap_size) {
 		if (update_master_header_loc_topswap(&image, h_loc,
-							header_offset))
-			return 1;
+						     header_offset))
+			goto done;
 	}
 
 	ret = maybe_update_metadata_hash(&image);
@@ -1499,7 +1534,7 @@ static int cbfs_layout(void)
 	return 0;
 }
 
-static enum cb_err verify_walker(__unused cbfs_dev_t dev, size_t offset,
+static enum cb_err verify_walker(__always_unused cbfs_dev_t dev, size_t offset,
 				 const union cbfs_mdata *mdata, size_t already_read, void *arg)
 {
 	uint32_t type = be32toh(mdata->h.type);
@@ -1511,7 +1546,7 @@ static enum cb_err verify_walker(__unused cbfs_dev_t dev, size_t offset,
 	if (!hash)
 		return CB_ERR;
 	void *file_data = arg + offset + data_offset;
-	if (vb2_hash_verify(file_data, be32toh(mdata->h.len), hash) != VB2_SUCCESS)
+	if (vb2_hash_verify(false, file_data, be32toh(mdata->h.len), hash) != VB2_SUCCESS)
 		return CB_CBFS_HASH_MISMATCH;
 	return CB_CBFS_NOT_FOUND;
 }
@@ -1738,7 +1773,8 @@ static int cbfs_truncate(void)
 
 	uint32_t size;
 	int result = cbfs_truncate_space(param.image_region, &size);
-	printf("0x%x\n", size);
+	if (!result)
+		printf("0x%x\n", size);
 	return result;
 }
 
@@ -1769,8 +1805,7 @@ enum {
 	/* begin after ASCII characters */
 	LONGOPT_START = 256,
 	LONGOPT_IBB = LONGOPT_START,
-	LONGOPT_EXT_WIN_BASE,
-	LONGOPT_EXT_WIN_SIZE,
+	LONGOPT_MMAP,
 	LONGOPT_END,
 };
 
@@ -1812,8 +1847,7 @@ static struct option long_options[] = {
 	{"mach-parseable",no_argument,       0, 'k' },
 	{"unprocessed",   no_argument,       0, 'U' },
 	{"ibb",           no_argument,       0, LONGOPT_IBB },
-	{"ext-win-base",  required_argument, 0, LONGOPT_EXT_WIN_BASE },
-	{"ext-win-size",  required_argument, 0, LONGOPT_EXT_WIN_SIZE },
+	{"mmap",          required_argument, 0, LONGOPT_MMAP },
 	{NULL,            0,                 0,  0  }
 };
 
@@ -2254,19 +2288,9 @@ int main(int argc, char **argv)
 			case LONGOPT_IBB:
 				param.ibb = true;
 				break;
-			case LONGOPT_EXT_WIN_BASE:
-				param.ext_win_base = strtoul(optarg, &suffix, 0);
-				if (!*optarg || (suffix && *suffix)) {
-					ERROR("Invalid ext window base '%s'.\n", optarg);
+			case LONGOPT_MMAP:
+				if (decode_mmap_arg(optarg))
 					return 1;
-				}
-				break;
-			case LONGOPT_EXT_WIN_SIZE:
-				param.ext_win_size = strtoul(optarg, &suffix, 0);
-				if (!*optarg || (suffix && *suffix)) {
-					ERROR("Invalid ext window size '%s'.\n", optarg);
-					return 1;
-				}
 				break;
 			case 'h':
 			case '?':

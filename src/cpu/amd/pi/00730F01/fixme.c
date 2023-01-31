@@ -1,8 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <arch/hpet.h>
-#include <cpu/x86/mtrr.h>
-#include <cpu/amd/msr.h>
 #include <cpu/amd/mtrr.h>
 #include <northbridge/amd/agesa/agesa_helper.h>
 #include <Porting.h>
@@ -11,10 +9,10 @@
 
 void amd_initcpuio(void)
 {
-	UINT64                        MsrReg;
-	UINT32                        PciData;
-	PCI_ADDR                      PciAddress;
-	AMD_CONFIG_PARAMS             StdHeader;
+	UINT64 MsrReg;
+	UINT32 PciData;
+	PCI_ADDR PciAddress;
+	AMD_CONFIG_PARAMS StdHeader;
 
 	/* Enable legacy video routing: D18F1xF4 VGA Enable */
 	PciAddress.AddressValue = MAKE_SBDFO(0, 0, 0x18, 1, 0xF4);

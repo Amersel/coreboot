@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 
+#include <intelblocks/tcss.h>
 #include <soc/iomap.h>
 
 /*
@@ -160,7 +161,7 @@ Scope (\_SB)
 				CDW1 |= UNRECOGNIZED_REVISION
 			}
 			Return (Arg3)
-#if CONFIG(CHROMEOS)
+#if CONFIG(SOFTWARE_CONNECTION_MANAGER)
 		/*
 		 * Software Connection Manager doesn't work with Linux 5.13 or later and
 		 * results in TBT ports timing out. Not advertising this results in

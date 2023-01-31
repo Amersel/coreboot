@@ -42,8 +42,7 @@ static void pch_enable_ioapic(struct device *dev)
 	else
 		ioapic_lock_max_vectors(VIO_APIC_VADDR);
 
-	setup_ioapic(VIO_APIC_VADDR, 0x02);
-
+	register_new_ioapic_gsi0(VIO_APIC_VADDR);
 }
 
 static void pch_enable_serial_irqs(struct device *dev)
@@ -120,7 +119,7 @@ static void pch_pirq_init(struct device *dev)
 	for (irq_dev = all_devices; irq_dev; irq_dev = irq_dev->next) {
 		u8 int_pin = 0, int_line = 0;
 
-		if (!irq_dev->enabled || irq_dev->path.type != DEVICE_PATH_PCI)
+		if (!is_enabled_pci(irq_dev))
 			continue;
 
 		int_pin = pci_read_config8(irq_dev, PCI_INTERRUPT_PIN);

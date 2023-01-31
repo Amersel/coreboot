@@ -68,9 +68,6 @@ msr_t read_msr_ppin(void)
 		wrmsr(MSR_PPIN_CTL, msr);
 	}
 	ppin = rdmsr(MSR_PPIN);
-	/* Set enable to 0 after reading MSR_PPIN */
-	msr.lo &= ~MSR_PPIN_CTL_ENABLE;
-	wrmsr(MSR_PPIN_CTL, msr);
 	return ppin;
 }
 
@@ -92,11 +89,11 @@ const IIO_UDS *get_iio_uds(void)
 	static const IIO_UDS *hob;
 	const uint8_t fsp_hob_iio_universal_data_guid[16] = FSP_HOB_IIO_UNIVERSAL_DATA_GUID;
 
-	if (hob != NULL)
+	if (hob)
 		return hob;
 
 	hob = fsp_find_extension_hob_by_guid(fsp_hob_iio_universal_data_guid, &hob_size);
-	assert(hob != NULL && hob_size != 0);
+	assert(hob && hob_size != 0);
 	return hob;
 }
 
@@ -150,11 +147,11 @@ static void get_core_thread_bits(uint32_t *core_bits, uint32_t *thread_bits)
 static void get_cpu_info_from_apicid(uint32_t apicid, uint32_t core_bits, uint32_t thread_bits,
 	uint8_t *package, uint8_t *core, uint8_t *thread)
 {
-	if (package != NULL)
+	if (package)
 		*package = (apicid >> (thread_bits + core_bits));
-	if (core != NULL)
+	if (core)
 		*core = (uint32_t)((apicid >> thread_bits) & ~((~0) << core_bits));
-	if (thread != NULL)
+	if (thread)
 		*thread = (uint32_t)(apicid & ~((~0) << thread_bits));
 }
 
@@ -277,7 +274,7 @@ static bool set_bios_reset_cpl_for_package(uint32_t socket, uint32_t rst_cpl_mas
 	const pci_devfn_t dev = PCI_DEV(bus, PCU_DEV, PCU_CR1_FUN);
 
 	uint32_t reg = pci_s_read_config32(dev, PCU_CR1_BIOS_RESET_CPL_REG);
-	reg &= (uint32_t) ~rst_cpl_mask;
+	reg &= (uint32_t)~rst_cpl_mask;
 	reg |= val;
 
 	/* update BIOS RESET completion bit */

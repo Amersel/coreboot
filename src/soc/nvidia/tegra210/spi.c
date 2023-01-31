@@ -331,7 +331,7 @@ static void flush_fifos(struct tegra_spi_channel *spi)
 
 	uint32_t fifo_status = read32(&spi->regs->fifo_status);
 	fifo_status |= flush_mask;
-	write32(&spi->regs->fifo_status, flush_mask);
+	write32(&spi->regs->fifo_status, fifo_status);
 
 	while (read32(&spi->regs->fifo_status) & flush_mask)
 		;
@@ -478,7 +478,7 @@ static int tegra_spi_dma_prepare(struct tegra_spi_channel *spi,
 		dcache_clean_by_mva(spi->out_buf, bytes);
 
 		write32(&spi->dma_out->regs->apb_ptr,
-			(uintptr_t) & spi->regs->tx_fifo);
+			(uintptr_t)&spi->regs->tx_fifo);
 		write32(&spi->dma_out->regs->ahb_ptr, (uintptr_t)spi->out_buf);
 		setbits32(&spi->dma_out->regs->csr, APB_CSR_DIR);
 		setup_dma_params(spi, spi->dma_out);

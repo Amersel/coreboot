@@ -277,6 +277,12 @@ static inline uint32_t inl(unsigned port)
 #define PCI_DEVICE_ID_INTEL_C226		0x8c56
 #define PCI_DEVICE_ID_INTEL_H81			0x8c5c
 
+#define PCI_DEVICE_ID_INTEL_C9_MOBILE		0x8cc1
+#define PCI_DEVICE_ID_INTEL_C9_DESKTOP		0x8cc2
+#define PCI_DEVICE_ID_INTEL_HM97		0x8cc3
+#define PCI_DEVICE_ID_INTEL_Z97			0x8cc4
+#define PCI_DEVICE_ID_INTEL_H97			0x8cc6
+
 #define PCI_DEVICE_ID_INTEL_82X58		0x3405
 #define PCI_DEVICE_ID_INTEL_SCH_POULSBO	0x8100
 #define PCI_DEVICE_ID_INTEL_ATOM_DXXX	0xa000
@@ -286,6 +292,12 @@ static inline uint32_t inl(unsigned port)
 #define PCI_DEVICE_ID_INTEL_I5000Z		0x25d0
 #define PCI_DEVICE_ID_INTEL_I5000V		0x25d4
 #define PCI_DEVICE_ID_INTEL_I5000P		0x25d8
+
+#define PCI_DEVICE_ID_INTEL_ADL_P		0x5182
+#define PCI_DEVICE_ID_INTEL_ADL_M		0x5187
+#define PCI_DEVICE_ID_INTEL_RPL_P		0x519d
+
+#define PCI_DEVICE_ID_INTEL_EHL			0x4b00
 
 /* untested, but almost identical to D-series */
 #define PCI_DEVICE_ID_INTEL_ATOM_NXXX	0xa010
@@ -323,6 +335,8 @@ static inline uint32_t inl(unsigned port)
 #define PCI_DEVICE_ID_INTEL_CORE_4TH_GEN_E3	0x0c08 /* Haswell (Xeon E3 v3) */
 #define PCI_DEVICE_ID_INTEL_CORE_4TH_GEN_U	0x0a04 /* Haswell-ULT */
 #define PCI_DEVICE_ID_INTEL_CORE_5TH_GEN_U	0x1604 /* Broadwell-ULT */
+#define PCI_DEVICE_ID_INTEL_CORE_5TH_GEN_D	0x1610 /* Broadwell (Desktop) */
+#define PCI_DEVICE_ID_INTEL_CORE_5TH_GEN_M	0x1614 /* Broadwell (Mobile) */
 #define PCI_DEVICE_ID_INTEL_CORE_6TH_GEN_D2	0x190f /* Skylake (Desktop) */
 #define PCI_DEVICE_ID_INTEL_CORE_6TH_GEN_U	0x1904 /* Skylake (Mobile) */
 #define PCI_DEVICE_ID_INTEL_CORE_6TH_GEN_Y	0x190c /* Skylake (Mobile) */
@@ -357,7 +371,9 @@ static inline uint32_t inl(unsigned port)
 #define PCI_DEVICE_ID_INTEL_CORE_ADL_ID_HX_8_8	0x4637 /* Alderlake HX 8+8 */
 #define PCI_DEVICE_ID_INTEL_CORE_ADL_ID_HX_6_8	0x463B /* Alderlake HX 6+8 */
 #define PCI_DEVICE_ID_INTEL_CORE_ADL_ID_HX_4_8	0x4623 /* Alderlake HX 4+8 */
-
+#define PCI_DEVICE_ID_INTEL_CORE_ADL_ID_P_6_8	0x4641 /* Alderlake P 6+8 */
+#define PCI_DEVICE_ID_INTEL_CORE_ADL_ID_P_4_8	0x4621 /* Alderlake P 4+8 */
+#define PCI_DEVICE_ID_INTEL_CORE_ADL_ID_P_2_8	0x4601 /* Alderlake P 2+8 */
 
 /* Intel GPUs */
 #define PCI_DEVICE_ID_INTEL_G35_EXPRESS		0x2982
@@ -482,6 +498,7 @@ int print_gfx(struct pci_dev *gfx);
 int print_ahci(struct pci_dev *ahci);
 int print_sgx(void);
 void print_tme(void);
+void print_keylocker(void);
 void ivybridge_dump_timings(const char *dump_spd_file);
 
 #endif

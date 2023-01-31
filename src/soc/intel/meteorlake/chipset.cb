@@ -16,8 +16,7 @@ chip soc/intel/meteorlake
 	# NOTE: if any variant wants to override this value, use the same format
 	# as register "common_soc_config.pch_thermal_trip" = "value", instead of
 	# putting it under register "common_soc_config" in overridetree.cb file.
-	#FIXME: update value for MTL
-	register "common_soc_config.pch_thermal_trip" = "100"
+	register "common_soc_config.pch_thermal_trip" = "130"
 
 	device domain 0 on
 		device pci 00.0 alias system_agent on end
@@ -81,6 +80,7 @@ chip soc/intel/meteorlake
 		device pci 10.0 alias thc0 off end
 		device pci 10.1 alias thc1 off end
 		device pci 12.0 alias ish off end
+		device pci 12.6 alias gspi2 off end
 		device pci 12.7 alias ufs off end
 		device pci 13.0 alias ioe_p2sb hidden end
 		device pci 13.1 alias ieh2 off end
@@ -164,7 +164,7 @@ chip soc/intel/meteorlake
 		device pci 1e.4 alias tsn_gbe1 off end
 		device pci 1e.5 alias tsn_gbe2 off end
 		device pci 1f.0 alias soc_espi on end
-		device pci 1f.1 alias p2sb off end
+		device pci 1f.1 alias p2sb hidden end
 		device pci 1f.2 alias pmc hidden end
 		device pci 1f.3 alias hda off end
 		device pci 1f.4 alias smbus off end

@@ -11,21 +11,20 @@
 #include <soc/platform_descriptors.h>
 
 const struct soc_amd_gpio *variant_early_gpio_table(size_t *size);
-/*
- * This function provides base GPIO configuration table. It is typically provided by
- * baseboard using a weak implementation. If GPIO configuration for a variant differs
- * significantly from the baseboard, then the variant can also provide a strong implementation
- * of this function.
- */
-const struct soc_amd_gpio *variant_base_gpio_table(size_t *size);
+
+/* This function provides base GPIO configuration table. */
+const struct soc_amd_gpio *baseboard_gpio_table(size_t *size);
 /*
  * This function allows variant to override any GPIOs that are different than the base GPIO
- * configuration provided by variant_base_gpio_table().
+ * configuration provided by baseboard_gpio_table().
  */
 const struct soc_amd_gpio *variant_override_gpio_table(size_t *size);
 
 /* This function provides GPIO init in bootblock. */
 const struct soc_amd_gpio *variant_bootblock_gpio_table(size_t *size, int slp_typ);
+
+/* This function provides GPIO settings for romstage. */
+const struct soc_amd_gpio *baseboard_romstage_gpio_table(size_t *size);
 
 /*
  * This function provides GPIO table for the pads that need to be configured when entering
@@ -51,8 +50,8 @@ void variant_audio_update(void);
 void variant_bluetooth_update(void);
 /* Update touchscreen configuration in devicetree during ramstage. */
 void variant_touchscreen_update(void);
-/* Configure PCIe GPIOs as per variant sequencing requirements. */
-void variant_pcie_gpio_configure(void);
+/* Configure PCIe GPIOs as per baseboard sequencing requirements. */
+void baseboard_pcie_gpio_configure(void);
 
 /* Per variant FSP-S initialization, default implementation in baseboard and
  * overridable by the variant. */

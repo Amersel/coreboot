@@ -4,25 +4,43 @@
 
 # DESCR: Check for auto-included headers
 
-LC_ALL=C export LC_ALL
+LINTDIR="$(
+  cd -- "$(dirname "$0")" > /dev/null 2>&1 || return
+  pwd -P
+)"
+
+# shellcheck source=helper_functions.sh
+. "${LINTDIR}/helper_functions.sh"
 
 INCLUDED_DIRS='^src/'
 EXCLUDED_FILES='src/include/kconfig.h'
 
-# TODO: Add rules when those patches are complete
-HEADER_FILES="k*config"
+HEADER_FILES="k\?config rules compiler"
 
-# Use git grep if the code is in a git repo, otherwise use grep.
-if [ -n "$(command -v git)" ] && \
-	[ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = "true" ]
-then
-	GREP_FILES="git grep -n"
-else
-	GREP_FILES="grep -rn"
+TESTFILE1="src/lib/version.c"
+TESTFILE2="src/lib/string.c"
+TESTFILE3="src/lib/malloc.c"
+TESTFILE4="src/lib/hardwaremain.c"
+EXPECTED_FAILURES=4
+
+# Configure to make sure tests fail
+if [ "$1" = "--test" ]; then
+	sed -i.bak "s|^.*SPDX-License-Identifier.*|&\n\n#include <config.h>\n|" "${TESTFILE1}"
+	sed -i.bak "s|^.*SPDX-License-Identifier.*|&\n\n#include \"kconfig.h\"\n|" "${TESTFILE2}"
+	sed -i.bak "s|^.*SPDX-License-Identifier.*|&\n\n#include \"compiler.h\"\n|" "${TESTFILE3}"
+	sed -i.bak "s|^.*SPDX-License-Identifier.*|&\n\n#include <rules.h>\n|" "${TESTFILE4}"
+	echo "Expect ${EXPECTED_FAILURES} failures."
+	exit 0
+elif [ "$1" = "--reset" ]; then
+	mv "${TESTFILE1}.bak" "${TESTFILE1}"
+	mv "${TESTFILE2}.bak" "${TESTFILE2}"
+	mv "${TESTFILE3}.bak" "${TESTFILE3}"
+	mv "${TESTFILE4}.bak" "${TESTFILE4}"
+	exit 0
 fi
 
 for header in $HEADER_FILES; do
-	${GREP_FILES} "#[[:blank:]]*include[[:blank:]]\+[\"<][[:blank:]]*${header}\.h[[:blank:]]*[\">]" | \
+	${GREP_FILES} -n "#[[:blank:]]*include[[:blank:]]\+[\"<][[:blank:]]*${header}\.h[[:blank:]]*[\">]" | \
 		grep "$INCLUDED_DIRS" | \
 		grep -v "$EXCLUDED_FILES"; \
 done

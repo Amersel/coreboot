@@ -28,9 +28,9 @@ config ARCH_RAMSTAGE_X86_32
 
 config ARCH_ALL_STAGES_X86_32
 	bool
-	default ARCH_ALL_STAGES_X86 && !ARCH_ALL_STAGES_X86_64
+	default !ARCH_ALL_STAGES_X86_64
 	select ARCH_BOOTBLOCK_X86_32
-	select ARCH_VERSTAGE_X86_32
+	select ARCH_VERSTAGE_X86_32 if !VBOOT_STARTS_BEFORE_BOOTBLOCK
 	select ARCH_ROMSTAGE_X86_32
 	select ARCH_RAMSTAGE_X86_32
 	select ARCH_SUPPORTS_CLANG
@@ -39,30 +39,32 @@ config ARCH_ALL_STAGES_X86_32
 
 config ARCH_BOOTBLOCK_X86_64
 	bool
+	select SSE2
 
 config ARCH_VERSTAGE_X86_64
 	bool
+	select SSE2
 
 config ARCH_ROMSTAGE_X86_64
 	bool
+	select SSE2
 
 config ARCH_POSTCAR_X86_64
 	bool
 	default ARCH_ROMSTAGE_X86_64 && POSTCAR_STAGE
+	select SSE2
 
 config ARCH_RAMSTAGE_X86_64
 	bool
+	select SSE2
 
 config ARCH_ALL_STAGES_X86_64
 	bool
 	select ARCH_BOOTBLOCK_X86_64
-	select ARCH_VERSTAGE_X86_64
+	select ARCH_VERSTAGE_X86_64 if !VBOOT_STARTS_BEFORE_BOOTBLOCK
 	select ARCH_ROMSTAGE_X86_64
 	select ARCH_RAMSTAGE_X86_64
-
-config ARCH_ALL_STAGES_X86
-	bool
-	default y
+	select ARCH_SUPPORTS_CLANG
 
 config HAVE_EXP_X86_64_SUPPORT
 	bool
@@ -132,15 +134,6 @@ config X86_TOP4G_BOOTMEDIA_MAP
 	bool
 	depends on !X86_CUSTOM_BOOTMEDIA
 	default y
-
-# This is something you almost certainly don't want to mess with.
-# How many SIPIs do we send when starting up APs and cores?
-# The answer in 2000 or so was '2'. Nowadays, on many systems,
-# it is 1. Set a safe default here, and you can override it
-# on reasonable platforms.
-config NUM_IPI_STARTS
-	int
-	default 2
 
 config PRERAM_CBMEM_CONSOLE_SIZE
 	hex

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-chip soc/amd/sabrina
+chip soc/amd/mendocino
 
 	# eSPI Configuration
 	register "common_config.espi_config" = "{
@@ -47,6 +47,32 @@ chip soc/amd/sabrina
 	register "i2c_pad[2].rx_level" = "I2C_PAD_RX_1_8V" # Audio/SAR
 	register "i2c_pad[3].rx_level" = "I2C_PAD_RX_1_8V" # GSC
 
+	# I2C Config
+	#+-------------------+----------------------------+
+	#| Field             |  Value                     |
+	#+-------------------+----------------------------+
+	#| I2C0              | Trackpad                   |
+	#| I2C1              | Touchscreen                |
+	#| I2C2              | Speaker, Codec, P-SAR, USB |
+	#| I2C3              | D2 TPM                     |
+	#+-------------------+----------------------------+
+	register "i2c[0]" = "{
+		.speed = I2C_SPEED_FAST,
+	}"
+
+	register "i2c[1]" = "{
+		.speed = I2C_SPEED_FAST,
+	}"
+
+	register "i2c[2]" = "{
+		.speed = I2C_SPEED_FAST,
+	}"
+
+	register "i2c[3]" = "{
+		.speed = I2C_SPEED_FAST,
+		.early_init = true,
+	}"
+
 	# general purpose PCIe clock output configuration
 	register "gpp_clk_config[0]" = "GPP_CLK_REQ"
 	register "gpp_clk_config[1]" = "GPP_CLK_REQ"
@@ -64,14 +90,22 @@ chip soc/amd/sabrina
 			end
 		end
 		device ref gpp_bridge_0 on # WLAN
-			chip drivers/wifi/generic
-				register "wake" = "GEVENT_8"
+			chip drivers/pcie/generic
+				register "wake_gpe" = "GEVENT_8"
+				register "wake_deepest" = "ACPI_S0"
+				register "name" = ""WLAN""
 				device pci 00.0 on end
 			end
 		end
 		device ref iommu on end
 		device ref gpp_bridge_1 on end # SD
-		device ref gpp_bridge_2 on end # NVMe
+		device ref gpp_bridge_2 on
+			# Required so the NVMe gets placed into D3 when entering S0i3.
+			chip drivers/pcie/rtd3/device
+				register "name" = ""NVME""
+				device pci 00.0 on end
+			end
+		end # NVMe
 
 		device ref gpp_bridge_a on  # Internal GPP Bridge 0 to Bus A
 			device ref gfx on end # Internal GPU (GFX)
@@ -128,6 +162,7 @@ chip soc/amd/sabrina
 				end
 			end
 			device ref acp on end # Audio Processor (ACP)
+			device ref mp2 on end # Sensor Fusion Hub (MP2)
 		end
 		device ref gpp_bridge_c on  # Internal GPP Bridge 2 to Bus C
 			device ref xhci_2 on # USB 2.0 (USB2)
@@ -137,7 +172,12 @@ chip soc/amd/sabrina
 						chip drivers/usb/acpi
 							register "desc" = ""Bluetooth""
 							register "type" = "UPC_TYPE_INTERNAL"
-							register "reset_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPIO_10)"
+							register "has_power_resource" = "true"
+							register "enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPIO_10)"
+							# TODO(b/263161283): Confirm the delay meets the requirement of all BT controllers
+							register "enable_delay_ms" = "500"
+							register "enable_off_delay_ms" = "200"
+							register "use_gpio_for_status" = "true"
 							device usb 2.0 alias usb2_port5 on end
 						end
 					end
@@ -154,7 +194,7 @@ chip soc/amd/sabrina
 			register "hid" = ""GOOG0005""
 			register "desc" = ""Ti50 TPM""
 			register "irq_gpio" = "ACPI_GPIO_IRQ_EDGE_LOW(GPIO_18)"
-			device i2c 50 on end
+			device i2c 50 alias ti50 on end
 		end
 	end
 
@@ -211,4 +251,22 @@ chip soc/amd/sabrina
 
 		device generic 3 on end
 	end
-end	# chip soc/amd/sabrina
+
+	# DPTC: Refer the spec "FT6 Infrastructure Roadmap"#57316
+	# Set system_configuration to 4 for 15W
+	register "system_configuration" = "4"
+	# Normal
+	register "slow_ppt_limit_mW"                     = "25000"
+	register "fast_ppt_limit_mW"                     = "30000"
+	register "slow_ppt_time_constant_s"              = "5"
+	register "stapm_time_constant_s"                 = "275"
+	register "sustained_power_limit_mW"              = "15000"
+	register "thermctl_limit_degreeC"                = "100"
+	register "vrm_current_limit_mA"                  = "28000"
+	register "vrm_maximum_current_limit_mA"          = "50000"
+	register "vrm_soc_current_limit_mA"              = "10000"
+	# Throttle (e.g., Low/No Battery)
+	register "vrm_current_limit_throttle_mA"         = "20000"
+	register "vrm_maximum_current_limit_throttle_mA" = "20000"
+	register "vrm_soc_current_limit_throttle_mA"     = "10000"
+end	# chip soc/amd/mendocino

@@ -269,7 +269,7 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 
 	/* Use coreboot MP PPI services if Kconfig is enabled */
 	if (CONFIG(USE_INTEL_FSP_TO_CALL_COREBOOT_PUBLISH_MP_PPI))
-		params->CpuMpPpi = (uintptr_t) mp_fill_ppi_services_data();
+		params->CpuMpPpi = (uintptr_t)mp_fill_ppi_services_data();
 
 	/* Chipset Lockdown */
 	if (get_lockdown_config() == CHIPSET_LOCKDOWN_COREBOOT) {
@@ -307,10 +307,22 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 	 */
 	params->EnableTcoTimer = 1;
 
-	/* PCH Master Gating Control */
-	params->PchPostMasterClockGating = 1;
-	params->PchPostMasterPowerGating = 1;
-
+	/* Set up recommended real time parameters if real time tuning is enabled. */
+	if (config->realtime_tuning_enable) {
+		params->PchPostMasterClockGating = 0;
+		params->PchPostMasterPowerGating = 0;
+		params->PchPwrOptEnable = 0;
+		params->PsfTccEnable = 1;
+		params->PmcLpmS0ixSubStateEnableMask = 0;
+		params->PchDmiAspmCtrl = 0;
+		params->PchLegacyIoLowLatency = 0;
+		params->EnableItbm = 0;
+		params->D3ColdEnable = 0;
+		params->PmcOsIdleEnable = 0;
+	} else {
+		params->PchPostMasterClockGating = 1;
+		params->PchPostMasterPowerGating = 1;
+	}
 	/* HECI */
 	params->Heci3Enabled = config->Heci3Enable;
 
@@ -360,6 +372,8 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 		params->PcieRpLtrMaxSnoopLatency[i] = 0x1003;
 		/* Virtual Channel 1 to Traffic Class mapping */
 		params->PcieRpVc1TcMap[i] = 0x60;
+		if (config->realtime_tuning_enable)
+			params->PcieRpEnableCpm[i] = 0;
 	}
 
 	/* SATA config */
@@ -368,6 +382,7 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 		params->SataMode = config->SataMode;
 		params->SataSalpSupport = config->SataSalpSupport;
 		params->SataPwrOptEnable = !(config->SataPwrOptimizeDisable);
+		params->SataSpeedLimit = config->SataSpeed;
 
 		for (i = 0; i < CONFIG_MAX_SATA_PORTS; i++) {
 			params->SataPortsEnable[i] = config->SataPortsEnable[i];

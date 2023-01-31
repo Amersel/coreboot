@@ -1,3 +1,4 @@
+## SPDX-License-Identifier: GPL-2.0-only
 ifeq ($(CONFIG_SOC_AMD_COMMON_BLOCK_PSP),y)
 
 romstage-y += psp.c
@@ -23,6 +24,7 @@ ifeq ($(CONFIG_SOC_AMD_COMMON_BLOCK_PSP_GEN2),y)
 romstage-y += psp_gen2.c
 ramstage-y += psp_gen2.c
 ramstage-$(CONFIG_PSP_PLATFORM_SECURE_BOOT) += psb.c
+ramstage-$(CONFIG_SOC_AMD_COMMON_BLOCK_I2C3_TPM_SHARED_WITH_PSP) += tpm.c
 
 smm-y += psp_gen2.c
 smm-y += psp_smm_gen2.c

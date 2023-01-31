@@ -387,7 +387,7 @@ void pch_enable_ioapic(void)
 	/* affirm full set of redirection table entries ("write once") */
 	ioapic_set_max_vectors(VIO_APIC_VADDR, PCH_REDIR_ETR);
 
-	setup_ioapic((void *)IO_APIC_ADDR, 0x02);
+	register_new_ioapic_gsi0((void *)IO_APIC_ADDR);
 }
 
 static const uint8_t pch_interrupt_routing[PIRQ_COUNT] = {
@@ -436,7 +436,7 @@ void pch_pirq_init(void)
 	for (irq_dev = all_devices; irq_dev; irq_dev = irq_dev->next) {
 		uint8_t int_pin = 0, int_line = 0;
 
-		if (!irq_dev->enabled || irq_dev->path.type != DEVICE_PATH_PCI)
+		if (!is_enabled_pci(irq_dev))
 			continue;
 
 		int_pin = pci_read_config8(PCI_BDF(irq_dev), PCI_INTERRUPT_PIN);

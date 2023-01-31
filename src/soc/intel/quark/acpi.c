@@ -5,11 +5,6 @@
 #include <soc/acpi.h>
 #include <soc/ramstage.h>
 
-unsigned long acpi_fill_madt(unsigned long current)
-{
-	return current;
-}
-
 void acpi_fill_fadt(acpi_fadt_t *fadt)
 {
 	struct device *dev = pcidev_on_root(PCI_DEVICE_NUMBER_QNC_LPC,
@@ -29,7 +24,7 @@ void acpi_fill_fadt(acpi_fadt_t *fadt)
 	fadt->x_pm1a_evt_blk.bit_width = fadt->pm1_evt_len * 8;
 	fadt->x_pm1a_evt_blk.bit_offset = 0;
 	fadt->x_pm1a_evt_blk.access_size = ACPI_ACCESS_SIZE_WORD_ACCESS;
-	fadt->x_pm1a_evt_blk.addrl = pmbase + R_QNC_PM1BLK_PM1S;
+	fadt->x_pm1a_evt_blk.addrl = fadt->pm1a_evt_blk;
 	fadt->x_pm1a_evt_blk.addrh = 0x0;
 
 	/* PM1 Control: ACPI 4.8.3.2.1 */
@@ -77,5 +72,5 @@ uint16_t get_pmbase(void)
 {
 	struct device *dev = pcidev_on_root(PCI_DEVICE_NUMBER_QNC_LPC,
 		PCI_FUNCTION_NUMBER_QNC_LPC);
-	return (uint16_t) pci_read_config32(dev, R_QNC_LPC_PM1BLK) & B_QNC_LPC_PM1BLK_MASK;
+	return (uint16_t)pci_read_config32(dev, R_QNC_LPC_PM1BLK) & B_QNC_LPC_PM1BLK_MASK;
 }

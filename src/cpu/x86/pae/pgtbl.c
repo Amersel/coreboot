@@ -3,13 +3,13 @@
 #include <cbfs.h>
 #include <commonlib/helpers.h>
 #include <console/console.h>
-#include <arch/cpu.h>
+#include <cpu/cpu.h>
 #include <cpu/x86/cr.h>
 #include <cpu/x86/msr.h>
 #include <cpu/x86/pae.h>
 #include <string.h>
 #include <symbols.h>
-#include <assert.h>
+#include <types.h>
 
 #define PDPTE_PRES (1ULL << 0)
 #define PDPTE_ADDR_MASK (~((1ULL << 12) - 1))

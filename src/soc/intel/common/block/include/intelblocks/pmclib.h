@@ -135,6 +135,8 @@ void pmc_disable_all_gpe(void);
 /* Clear STD and GPIO GPE status registers. */
 void pmc_clear_all_gpe_status(void);
 
+/* Write PMC MMIO register value with the provided bitmask. */
+void pmc_or_mmio32(uint32_t offset, uint32_t ormask);
 /* Clear status bits in Power and Reset Status (PRSTS) register */
 void pmc_clear_prsts(void);
 
@@ -180,6 +182,9 @@ int pmc_fill_power_state(struct chipset_power_state *ps);
  * in GPIO_CFG register which is assigned to ACPI register.
  */
 void pmc_gpe_init(void);
+
+/* Clear PMC GEN_PMCON_X register power failure status bits */
+void pmc_clear_pmcon_pwr_failure_sts(void);
 
 /* Clear PMC GEN_PMCON_A register status bits */
 void pmc_clear_pmcon_sts(void);

@@ -6,6 +6,7 @@
  */
 
 #include <acpi/acpi.h>
+#include <assert.h>
 #include <device/pci_ops.h>
 #include <bootmode.h>
 #include <console/console.h>
@@ -107,7 +108,7 @@ struct resource *pci_get_resource(struct device *dev, unsigned long index)
 	     PCI_BASE_ADDRESS_MEM_LIMIT_64)) {
 		/* Find the high bits that move. */
 		moving |=
-		    ((resource_t) pci_moving_config32(dev, index + 4)) << 32;
+		    ((resource_t)pci_moving_config32(dev, index + 4)) << 32;
 	}
 
 	/* Find the resource constraints.
@@ -163,8 +164,12 @@ struct resource *pci_get_resource(struct device *dev, unsigned long index)
 		/* A Memory mapped base address. */
 		attr &= PCI_BASE_ADDRESS_MEM_ATTR_MASK;
 		resource->flags |= IORESOURCE_MEM;
-		if (attr & PCI_BASE_ADDRESS_MEM_PREFETCH)
+		if (attr & PCI_BASE_ADDRESS_MEM_PREFETCH) {
 			resource->flags |= IORESOURCE_PREFETCH;
+			if (CONFIG(PCIEXP_HOTPLUG_PREFETCH_MEM_ABOVE_4G)
+			    && dev_path_hotplug(dev))
+				resource->flags |= IORESOURCE_ABOVE_4G;
+		}
 		attr &= PCI_BASE_ADDRESS_MEM_LIMIT_MASK;
 		if (attr == PCI_BASE_ADDRESS_MEM_LIMIT_32) {
 			/* 32bit limit. */
@@ -312,7 +317,7 @@ struct msix_entry *pci_msix_get_table(struct device *dev)
 
 static unsigned int get_rebar_offset(const struct device *dev, unsigned long index)
 {
-	uint32_t offset = pciexp_find_extended_cap(dev, PCIE_EXT_CAP_RESIZABLE_BAR);
+	uint32_t offset = pciexp_find_extended_cap(dev, PCIE_EXT_CAP_RESIZABLE_BAR, 0);
 	if (!offset)
 		return 0;
 
@@ -403,18 +408,18 @@ static void configure_adjustable_base(const struct device *dev,
 
 	int max_requested_bits = __fls64(size_mask);
 	if (max_requested_bits > CONFIG_PCIEXP_DEFAULT_MAX_RESIZABLE_BAR_BITS) {
-		printk(BIOS_WARNING, "WARNING: Device %s requests a BAR with"
-		       "%u bits of address space, which coreboot is not"
-		       "configured to hand out, truncating to %u bits\n",
+		printk(BIOS_WARNING, "Device %s requests a BAR with"
+		       " %u bits of address space, which coreboot is not"
+		       " configured to hand out, truncating to %u bits\n",
 		       dev_path(dev), max_requested_bits,
 		       CONFIG_PCIEXP_DEFAULT_MAX_RESIZABLE_BAR_BITS);
 		max_requested_bits = CONFIG_PCIEXP_DEFAULT_MAX_RESIZABLE_BAR_BITS;
 	}
 
 	if (!(res->flags & IORESOURCE_PCI64) && max_requested_bits > 32) {
-		printk(BIOS_ERR, "ERROR: Resizable BAR requested"
-		       "above 32 bits, but PCI function reported a"
-		       "32-bit BAR.");
+		printk(BIOS_ERR, "Resizable BAR requested"
+		       " above 32 bits, but PCI function reported a"
+		       " 32-bit BAR.");
 		return;
 	}
 
@@ -491,13 +496,13 @@ static void pci_bridge_read_bases(struct device *dev)
 	resource_t moving_base, moving_limit, moving;
 
 	/* See if the bridge I/O resources are implemented. */
-	moving_base = ((u32) pci_moving_config8(dev, PCI_IO_BASE)) << 8;
+	moving_base = ((u32)pci_moving_config8(dev, PCI_IO_BASE)) << 8;
 	moving_base |=
-	  ((u32) pci_moving_config16(dev, PCI_IO_BASE_UPPER16)) << 16;
+	  ((u32)pci_moving_config16(dev, PCI_IO_BASE_UPPER16)) << 16;
 
-	moving_limit = ((u32) pci_moving_config8(dev, PCI_IO_LIMIT)) << 8;
+	moving_limit = ((u32)pci_moving_config8(dev, PCI_IO_LIMIT)) << 8;
 	moving_limit |=
-	  ((u32) pci_moving_config16(dev, PCI_IO_LIMIT_UPPER16)) << 16;
+	  ((u32)pci_moving_config16(dev, PCI_IO_LIMIT_UPPER16)) << 16;
 
 	moving = moving_base & moving_limit;
 
@@ -506,14 +511,14 @@ static void pci_bridge_read_bases(struct device *dev)
 
 	/* See if the bridge prefmem resources are implemented. */
 	moving_base =
-	  ((resource_t) pci_moving_config16(dev, PCI_PREF_MEMORY_BASE)) << 16;
+	  ((resource_t)pci_moving_config16(dev, PCI_PREF_MEMORY_BASE)) << 16;
 	moving_base |=
-	  ((resource_t) pci_moving_config32(dev, PCI_PREF_BASE_UPPER32)) << 32;
+	  ((resource_t)pci_moving_config32(dev, PCI_PREF_BASE_UPPER32)) << 32;
 
 	moving_limit =
-	  ((resource_t) pci_moving_config16(dev, PCI_PREF_MEMORY_LIMIT)) << 16;
+	  ((resource_t)pci_moving_config16(dev, PCI_PREF_MEMORY_LIMIT)) << 16;
 	moving_limit |=
-	  ((resource_t) pci_moving_config32(dev, PCI_PREF_LIMIT_UPPER32)) << 32;
+	  ((resource_t)pci_moving_config32(dev, PCI_PREF_LIMIT_UPPER32)) << 32;
 
 	moving = moving_base & moving_limit;
 	/* Initialize the prefetchable memory constraints on the current bus. */
@@ -521,8 +526,8 @@ static void pci_bridge_read_bases(struct device *dev)
 				   IORESOURCE_MEM | IORESOURCE_PREFETCH);
 
 	/* See if the bridge mem resources are implemented. */
-	moving_base = ((u32) pci_moving_config16(dev, PCI_MEMORY_BASE)) << 16;
-	moving_limit = ((u32) pci_moving_config16(dev, PCI_MEMORY_LIMIT)) << 16;
+	moving_base = ((u32)pci_moving_config16(dev, PCI_MEMORY_BASE)) << 16;
+	moving_limit = ((u32)pci_moving_config16(dev, PCI_MEMORY_LIMIT)) << 16;
 
 	moving = moving_base & moving_limit;
 
@@ -1299,6 +1304,29 @@ unsigned int pci_match_simple_dev(struct device *dev, pci_devfn_t sdev)
 }
 
 /**
+ * Test whether a capability is available along the whole path from the given
+ * device to the host bridge.
+ *
+ * @param dev Pointer to the device structure.
+ * @param cap PCI_CAP_LIST_ID of the PCI capability we're looking for.
+ * @return The next matching capability of the given device, if it is available
+ * along the whole path, or zero if not.
+ */
+uint16_t pci_find_cap_recursive(const struct device *dev, uint16_t cap)
+{
+	assert(dev->bus);
+	uint16_t pos = pci_find_capability(dev, cap);
+	const struct device *bridge = dev->bus->dev;
+	while (bridge && (bridge->path.type == DEVICE_PATH_PCI)) {
+		assert(bridge->bus);
+		if (!pci_find_capability(bridge, cap))
+			return 0;
+		bridge = bridge->bus->dev;
+	}
+	return pos;
+}
+
+/**
  * PCI devices that are marked as "hidden" do not get probed. However, the same
  * initialization logic is still performed as if it were. This is useful when
  * devices would like to be described in the devicetree.cb file, and/or present
@@ -1395,7 +1423,7 @@ void pci_scan_bus(struct bus *bus, unsigned int min_devfn,
 		max_devfn=0xff;
 	}
 
-	post_code(0x24);
+	post_code(POST_ENTER_PCI_SCAN_BUS);
 
 	if (pci_bus_only_one_child(bus))
 		max_devfn = MIN(max_devfn, 0x07);
@@ -1435,8 +1463,6 @@ void pci_scan_bus(struct bus *bus, unsigned int min_devfn,
 			devfn += 0x07;
 		}
 	}
-
-	post_code(0x25);
 
 	/*
 	 * Warn if any leftover static devices are found.
@@ -1488,7 +1514,7 @@ void pci_scan_bus(struct bus *bus, unsigned int min_devfn,
 	 * side of any bridges that may be on this bus plus any devices.
 	 * Return how far we've got finding sub-buses.
 	 */
-	post_code(0x55);
+	post_code(POST_EXIT_PCI_SCAN_BUS);
 }
 
 typedef enum {

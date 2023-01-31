@@ -3,9 +3,8 @@
 #include <delay.h>
 #include <gpio.h>
 #include <baseboard/variants.h>
-#include <soc/gpio.h>
 
-void variant_ramstage_init(void)
+void variant_final(void)
 {
 	/*
 	 * Enable power to FPMCU, wait for power rail to stabilize,

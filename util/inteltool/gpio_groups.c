@@ -17,9 +17,12 @@
 #include "gpio_names/geminilake.h"
 #include "gpio_names/icelake.h"
 #include "gpio_names/lewisburg.h"
+#include "gpio_names/emmitsburg.h"
 #include "gpio_names/sunrise.h"
 #include "gpio_names/tigerlake.h"
 #include "gpio_names/alderlake_h.h"
+#include "gpio_names/alderlake_p.h"
+#include "gpio_names/elkhartlake.h"
 
 #define SBBAR_SIZE	(16 * MiB)
 #define PCR_PORT_SIZE	(64 * KiB)
@@ -80,6 +83,8 @@ static void print_gpio_community(const struct gpio_community *const community,
 	}
 
 	for (group = 0; group < community->group_count; ++group) {
+		if (community->groups[group]->pad_offset)
+			pad_cfg = community->groups[group]->pad_offset;
 		print_gpio_group(community->pcr_port_id,
 				 pad_cfg, community->groups[group],
 				 pad_stepping);
@@ -148,6 +153,10 @@ const struct gpio_community *const *get_gpio_communities(struct pci_dev *const s
 	case PCI_DEVICE_ID_INTEL_C629A_SUPER:
 		*community_count = ARRAY_SIZE(lewisburg_communities);
 		return lewisburg_communities;
+	case PCI_DEVICE_ID_INTEL_EBG:
+		*pad_stepping = 16;
+		*community_count = ARRAY_SIZE(emmitsburg_communities);
+		return emmitsburg_communities;
 	case PCI_DEVICE_ID_INTEL_DNV_LPC:
 		*community_count = ARRAY_SIZE(denverton_communities);
 		return denverton_communities;
@@ -217,6 +226,17 @@ const struct gpio_community *const *get_gpio_communities(struct pci_dev *const s
 		*community_count = ARRAY_SIZE(alderlake_pch_h_communities);
 		*pad_stepping = 16;
 		return alderlake_pch_h_communities;
+	case PCI_DEVICE_ID_INTEL_ADL_P:
+	case PCI_DEVICE_ID_INTEL_ADL_M:
+	case PCI_DEVICE_ID_INTEL_RPL_P:
+		*community_count = ARRAY_SIZE(alderlake_pch_p_communities);
+		*pad_stepping = 16;
+		return alderlake_pch_p_communities;
+	case PCI_DEVICE_ID_INTEL_EHL:
+		*community_count = ARRAY_SIZE(elkhartlake_pch_communities);
+		*pad_stepping = 16;
+		return elkhartlake_pch_communities;
+
 	default:
 		return NULL;
 	}

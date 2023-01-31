@@ -71,6 +71,10 @@
 #define CHARGE_80		0xbb
 #define CHARGE_60		0xaa
 
+/* Fast Charge Setting */
+#define CHARGE_RATE_NORMAL	0x00
+#define CHARGE_RATE_FAST	0x01
+
 /* Fan Mode Setting */
 #define FAN_NORMAL		0x00
 #define FAN_AGGRESSIVE		0xbb
@@ -93,6 +97,10 @@
 /* Keyboard Backlight State */
 #define KBL_DISABLED		0x00
 #define KBL_ENABLED		0xdd
+
+/* Mirror Flag */
+#define MIRROR_DISABLED		0x00
+#define MIRROR_ENABLED		0x01
 
 uint16_t ec_get_version(void);
 

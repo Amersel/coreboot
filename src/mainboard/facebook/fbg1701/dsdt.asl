@@ -10,15 +10,12 @@ DefinitionBlock(
 	ACPI_DSDT_REV_2,
 	OEM_ID,
 	ACPI_TABLE_CREATOR,
-	0x20110725	/* OEM revision */
+	0x20110725
 )
 {
 	#include <acpi/dsdt_top.asl>
 	#include <acpi/platform.asl>
-
-	/* global NVS and variables */
 	#include <acpi/globalnvs.asl>
-
 	#include <cpu/intel/common/acpi/cpu.asl>
 
 	Scope (\_SB) {
@@ -30,6 +27,5 @@ DefinitionBlock(
 
 	#include <southbridge/intel/common/acpi/sleepstates.asl>
 
-	/* Mainboard specific */
 	#include "acpi/mainboard.asl"
 }

@@ -30,6 +30,14 @@
 /* Get Firmware Version Command Id */
 #define MKHI_GEN_GET_FW_VERSION	0x2
 
+/* Firmware Feature Shipment Time State Override Command Id */
+#define MKHI_GEN_FW_FEATURE_SHIPMENT_OVER	0x14
+#define   ME_FW_FEATURE_PTT			BIT(29)
+
+/* Get Firmware Feature State Command Id */
+#define MKHI_FWCAPS_GET_FW_FEATURE_STATE	0x02
+#define   ME_FEATURE_STATE_RULE_ID		0x20
+
 /* MEI bus disable command. Must be sent to MEI client endpoint, not MKHI */
 #define MEI_BUS_DISABLE_COMMAND	0xc
 
@@ -405,7 +413,7 @@ int cse_request_global_reset(void);
  * Returns 0 on failure to send HECI command and to enable HMRFPO mode, and 1 on success.
  *
  */
-int cse_hmrfpo_enable(void);
+enum cb_err cse_hmrfpo_enable(void);
 
 /*
  * Send HMRFPO_GET_STATUS command.
@@ -500,6 +508,9 @@ void cse_fw_sync(void);
 /* Perform a board-specific reset sequence for CSE RO<->RW jump */
 void cse_board_reset(void);
 
+/* Perform a misc operation before CSE firmware update. */
+void cse_fw_update_misc_oper(void);
+
 /* Trigger vboot recovery mode on a CSE error */
 void cse_trigger_vboot_recovery(enum csme_failure_reason reason);
 
@@ -524,7 +535,7 @@ bool skip_cse_sub_part_update(void);
  * This command retrieves a set of boot performance timestamps CSME collected during
  * the last platform boot flow.
  */
-bool cse_get_boot_performance_data(struct cse_boot_perf_rsp *boot_perf);
+enum cb_err cse_get_boot_performance_data(struct cse_boot_perf_rsp *boot_perf);
 
 /* Function to make cse disable using PMC IPC */
 bool cse_disable_mei_devices(void);
@@ -542,6 +553,12 @@ void cse_control_global_reset_lock(void);
 void cse_send_end_of_post(void);
 
 /*
+ * This function to perform essential post EOP cse related operations
+ * upon SoC selecting `SOC_INTEL_CSE_SEND_EOP_LATE` config
+ */
+void cse_late_finalize(void);
+
+/*
  * SoC override API to make heci1 disable using PCR.
  *
  * Allow SoC to implement heci1 disable override due to PSF registers being
@@ -554,5 +571,20 @@ void soc_disable_heci1_using_pcr(void);
  * insert them into the CBMEM timestamp table.
  */
 void cse_get_telemetry_data(void);
+
+/* Function to log the cse WP information like range, if WP etc. */
+void cse_log_ro_write_protection_info(bool mfg_mode);
+
+/*
+ * Changes Intel PTT feature state at runtime. Global reset is required after
+ * successful HECI command completion.
+ */
+void cse_enable_ptt(bool state);
+
+/*
+ * Queries CSE for runtime status of firmware features.
+ * Returns 0 on success and < 0 on failure.
+ */
+enum cb_err cse_get_fw_feature_state(uint32_t *feature_state);
 
 #endif // SOC_INTEL_COMMON_CSE_H

@@ -1,4 +1,8 @@
 fw_config
+	field SD_BOOT 29
+		option SD_BOOT_ENABLE		0
+		option SD_BOOT_DISABLE		1
+	end
 	field STORAGE 30 31
 		option STORAGE_EMMC		0
 		option STORAGE_NVME		1
@@ -85,6 +89,8 @@ chip soc/intel/alderlake
 	# Disable Package C-state demotion for nissa baseboard.
 	register "disable_package_c_state_demotion" = "1"
 
+	register "skip_mbp_hob" = "1"
+
 	# Intel Common SoC Config
 	#+-------------------+---------------------------+
 	#| Field             |  Value                    |
@@ -100,11 +106,11 @@ chip soc/intel/alderlake
 	register "common_soc_config" = "{
 		.i2c[0] = {
 			.early_init = 1,
-			.speed = I2C_SPEED_FAST,
+			.speed = I2C_SPEED_FAST_PLUS,
 			.speed_config[0] = {
-				.speed = I2C_SPEED_FAST,
-				.scl_lcnt = 158,
-				.scl_hcnt = 79,
+				.speed = I2C_SPEED_FAST_PLUS,
+				.scl_lcnt = 55,
+				.scl_hcnt = 30,
 				.sda_hold = 7,
 			}
 		},
@@ -155,6 +161,7 @@ chip soc/intel/alderlake
 		device ref cnvi_wifi on
 			chip drivers/wifi/generic
 				register "wake" = "GPE0_PME_B0"
+				register "add_acpi_dma_property" = "true"
 				device generic 0 on end
 			end
 		end

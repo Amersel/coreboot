@@ -100,13 +100,13 @@ void memranges_init_with_alignment(struct memranges *ranges,
 /* Initialize memranges structure providing an optional array of range_entry
  * to use as the free list. Addresses are default aligned to 4KiB(2^12). */
 #define memranges_init_empty(__ranges, __free, __num_free)	\
-	memranges_init_empty_with_alignment(__ranges, __free, __num_free, 12);
+	memranges_init_empty_with_alignment(__ranges, __free, __num_free, 12)
 
 /* Initialize and fill a memranges structure according to the
  * mask and match type for all memory resources. Tag each entry with the
  * specified type. Addresses are default aligned to 4KiB(2^12). */
 #define memranges_init(__ranges, __mask, __match, __tag)	\
-	memranges_init_with_alignment(__ranges, __mask, __match, __tag, 12);
+	memranges_init_with_alignment(__ranges, __mask, __match, __tag, 12)
 
 /* Clone a memrange. The new memrange has the same entries as the old one. */
 void memranges_clone(struct memranges *newranges, struct memranges *oldranges);
@@ -161,15 +161,17 @@ struct range_entry *memranges_next_entry(struct memranges *ranges,
 					 const struct range_entry *r);
 
 /* Steals memory from the available list in given ranges as per the constraints:
- * limit = Upper bound for the memory range to steal (Inclusive).
- * size  = Requested size for the stolen memory.
- * align = Required alignment(log 2) for the starting address of the stolen memory.
- * tag   = Use a range that matches the given tag.
+ * limit    = Upper bound for the memory range to steal (Inclusive).
+ * size     = Requested size for the stolen memory.
+ * align    = Required alignment(log 2) for the starting address of the stolen memory.
+ * tag      = Use a range that matches the given tag.
+ * from_top = Steal the highest possible range.
  *
  * If the constraints can be satisfied, this function creates a hole in the memrange,
  * writes the base address of that hole to stolen_base and returns true. Otherwise it returns
  * false. */
 bool memranges_steal(struct memranges *ranges, resource_t limit, resource_t size,
-			unsigned char align, unsigned long tag, resource_t *stolen_base);
+			unsigned char align, unsigned long tag, resource_t *stolen_base,
+			bool from_top);
 
 #endif /* MEMRANGE_H_ */

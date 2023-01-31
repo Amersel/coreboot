@@ -31,11 +31,17 @@ KCONFIG_TRISTATE := $(obj)/tristate.conf
 KCONFIG_NEGATIVES := 1
 KCONFIG_STRICT := 1
 KCONFIG_PACKAGE := CB.Config
+KCONFIG_MAKEFILE_REAL ?= $(objk)/Makefile.real
 
 COREBOOT_EXPORTS += KCONFIG_CONFIG KCONFIG_AUTOHEADER KCONFIG_AUTOCONFIG
 COREBOOT_EXPORTS += KCONFIG_DEPENDENCIES KCONFIG_SPLITCONFIG KCONFIG_TRISTATE
 COREBOOT_EXPORTS += KCONFIG_NEGATIVES KCONFIG_STRICT
 COREBOOT_EXPORTS += KCONFIG_AUTOADS KCONFIG_PACKAGE
+
+# Make does not offer a recursive wildcard function, so here's one:
+rwildcard=$(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))
+SYMLINK_LIST = $(call rwildcard,site-local/,symlink.txt)
+
 
 # directory containing the toplevel Makefile.inc
 TOPLEVEL := .
@@ -44,6 +50,7 @@ CONFIG_SHELL := sh
 KBUILD_DEFCONFIG := configs/defconfig
 UNAME_RELEASE := $(shell uname -r)
 HAVE_DOTCONFIG := $(wildcard $(DOTCONFIG))
+HAVE_KCONFIG_MAKEFILE_REAL := $(wildcard $(KCONFIG_MAKEFILE_REAL))
 MAKEFLAGS += -rR --no-print-directory
 
 # Make is silent per default, but 'make V=1' will show all compiler calls.
@@ -61,6 +68,9 @@ endif
 
 HOSTCFLAGS := -g
 HOSTCXXFLAGS := -g
+
+HOSTPKG_CONFIG ?= pkg-config
+COREBOOT_EXPORTS += HOSTPKG_CONFIG
 
 PREPROCESS_ONLY := -E -P -x assembler-with-cpp -undef -I .
 
@@ -87,13 +97,19 @@ help_coreboot help::
 # Order _does_ matter for pattern rules.
 include $(srck)/Makefile.inc
 
-# Three cases where we don't need fully populated $(obj) lists:
+# The cases where we don't need fully populated $(obj) lists:
 # 1. when no .config exists
-# 2. when make config (in any flavour) is run
-# 3. when make distclean is run
+# 2. When no $(obj)/util/kconfig/Makefile.real exists and we're building tools
+# 3. when make config (in any flavour) is run
+# 4. when make distclean is run
 # Don't waste time on reading all Makefile.incs in these cases
 ifeq ($(strip $(HAVE_DOTCONFIG)),)
 NOCOMPILE:=1
+endif
+ifeq ($(strip $(HAVE_KCONFIG_MAKEFILE_REAL)),)
+ifneq ($(MAKECMDGOALS),tools)
+NOCOMPILE:=1
+endif
 endif
 ifneq ($(MAKECMDGOALS),)
 ifneq ($(filter %config %clean cross% clang iasl lint% help% what-jenkins-does,$(MAKECMDGOALS)),)
@@ -135,13 +151,14 @@ include $(TOPLEVEL)/payloads/Makefile.inc
 include $(TOPLEVEL)/util/testing/Makefile.inc
 -include $(TOPLEVEL)/site-local/Makefile.inc
 include $(TOPLEVEL)/tests/Makefile.inc
-real-all:
+printall real-all:
 	@echo "Error: Trying to build, but NOCOMPILE is set." >&2
 	@echo "  Please file a bug with the following information:"
 	@echo "- MAKECMDGOALS: $(MAKECMDGOALS)" >&2
 	@echo "- HAVE_DOTCONFIG: $(HAVE_DOTCONFIG)" >&2
 	@echo "- HAVE_KCONFIG_MAKEFILE_REAL: $(HAVE_KCONFIG_MAKEFILE_REAL)" >&2
 	@exit 1
+
 else
 
 ifneq ($(UNIT_TEST),1)
@@ -299,6 +316,9 @@ $(eval $(postinclude-hooks))
 $(foreach class,$(classes),$(eval $(class)-srcs:=$(sort $($(class)-srcs))))
 
 # Build Kconfig .ads if necessary
+ifeq ($(CONFIG_ROMSTAGE_ADA),y)
+romstage-srcs += $(obj)/romstage/$(notdir $(KCONFIG_AUTOADS))
+endif
 ifeq ($(CONFIG_RAMSTAGE_ADA),y)
 ramstage-srcs += $(obj)/ramstage/$(notdir $(KCONFIG_AUTOADS))
 endif
@@ -447,6 +467,29 @@ sphinx:
 sphinx-lint:
 	$(MAKE) SPHINXOPTS=-W -C Documentation -f Makefile.sphinx html
 
+symlink:
+	@echo "Creating Symbolic Links.."; \
+	for link in $(SYMLINK_LIST); do \
+		SYMLINK=`cat $$link`; \
+		REALPATH=`realpath $$link`; \
+		if [ -L "$$SYMLINK" ]; then \
+			continue; \
+		elif [ ! -e "$$SYMLINK" ]; then \
+			echo -e "\tLINK $$SYMLINK -> $$(dirname $$REALPATH)"; \
+			ln -s $$(dirname $$REALPATH) $$SYMLINK; \
+		else \
+			echo -e "\tFAILED: $$SYMLINK exists"; \
+		fi \
+	done
+
+clean-symlink:
+	@echo "Deleting symbolic link";\
+	EXISTING_SYMLINKS=`find -L ./src -xtype l | grep -v 3rdparty`; \
+	for link in $$EXISTING_SYMLINKS; do \
+		echo -e "\tUNLINK $$link"; \
+		rm "$$link"; \
+	done
+
 clean-for-update:
 	rm -rf $(obj) .xcompile
 
@@ -474,4 +517,4 @@ distclean: clean clean-ctags clean-cscope distclean-payloads distclean-utils
 	rm -f abuild*.xml junit.xml* util/lint/junit.xml
 
 .PHONY: $(PHONY) clean clean-for-update clean-cscope cscope distclean sphinx sphinx-lint
-.PHONY: ctags-project cscope-project clean-ctags
+.PHONY: ctags-project cscope-project clean-ctags symlink clean-symlink

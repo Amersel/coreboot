@@ -80,6 +80,7 @@ PHONY+= clean-abuild coreboot check-style build_complete
 #######################################################################
 # root source directories of coreboot
 subdirs-y := src/lib src/commonlib/ src/console src/device src/acpi src/superio/common
+subdirs-$(CONFIG_EC_ACPI) += src/ec/intel
 subdirs-y += src/ec/acpi $(wildcard src/ec/*/*) $(wildcard src/southbridge/*/*)
 subdirs-y += $(wildcard src/soc/*) $(wildcard src/soc/*/common) $(filter-out $(wildcard src/soc/*/common),$(wildcard src/soc/*/*))
 subdirs-y += $(wildcard src/northbridge/*/*)
@@ -93,6 +94,7 @@ subdirs-y += $(wildcard src/arch/*)
 subdirs-y += src/mainboard/$(MAINBOARDDIR)
 subdirs-y += src/security
 subdirs-y += payloads payloads/external
+subdirs-$(CONFIG_SBOM) += src/sbom
 
 subdirs-y += site-local
 subdirs-y += util/checklist util/testing
@@ -152,7 +154,7 @@ int-gt=$(if $(filter 1,$(words $1)),$(strip $1),$(shell expr $(call _toint,$(wor
 int-eq=$(if $(filter 1,$(words $1)),$(strip $1),$(shell expr $(call _toint,$(word 1,$1)) = $(call _toint,$(word 2,$1))))
 int-align=$(shell A=$(call _toint,$1) B=$(call _toint,$2); expr $$A + \( \( $$B - \( $$A % $$B \) \) % $$B \) )
 int-align-down=$(shell A=$(call _toint,$1) B=$(call _toint,$2); expr $$A - \( $$A % $$B \) )
-file-size=$(strip $(shell cat $1 | wc -c))
+file-size=$(strip $(shell wc -c "$1" | cut -f 1 -d ' '))
 tolower=$(shell echo '$1' | tr '[:upper:]' '[:lower:]')
 toupper=$(shell echo '$1' | tr '[:lower:]' '[:upper:]')
 ws_to_under=$(shell echo '$1' | tr ' \t' '_')
@@ -264,25 +266,8 @@ endef
 # ResourceTemplate is the correct code.
 # As it's valid ASL, disable the warning.
 EMPTY_RESOURCE_TEMPLATE_WARNING = 3150
-# IASL compiler check for usage of _CRS, _DIS, _PRS, and _SRS objects:
-#	1) If _PRS is present, must have _CRS and _SRS
-#	2) If _SRS is present, must have _PRS (_PRS requires _CRS and _SRS)
-#	3) If _DIS is present, must have _SRS (_SRS requires _PRS, _PRS requires _CRS and _SRS)
-#	4) If _SRS is present, probably should have a _DIS (Remark only)
-# A warning will be issued for each of these cases.
-# For existing ASL code, ignore this warnings
-IASL_MISSING_DEPENDENCY = 3141
 
 IASL_WARNINGS_LIST = $(EMPTY_RESOURCE_TEMPLATE_WARNING)
-
-ifeq ($(CONFIG_IGNORE_IASL_MISSING_DEPENDENCY),y)
-	IASL_WARNINGS_LIST += $(IASL_MISSING_DEPENDENCY)
-build_complete::
-	printf "*** WARNING: The ASL code for this platform is incomplete.  Please fix it. ***\n"
-	printf "*** If _PRS is present, must have _CRS and _SRS ***\n"
-	printf "*** If _SRS is present, must have _PRS and _CRS ***\n"
-	printf "*** If _DIS is present, must have _SRS, _PRS and _CRS ***\n"
-endif
 
 IGNORED_IASL_WARNINGS = $(addprefix -vw , $(IASL_WARNINGS_LIST))
 
@@ -321,18 +306,20 @@ cbfs-files-processor-nvramtool= \
 		mv $(2).tmp $(2))
 
 #######################################################################
-# Reduce a .config file to its minimal representation
+# Reduce a .config file by removing lines about default unset booleans
 # arg1: input
 # arg2: output
-define cbfs-files-processor-defconfig
+define cbfs-files-processor-config
 	$(eval $(2): $(1) $(obj)/build.h $(objutil)/kconfig/conf; \
 		+printf "    CREATE     $(2) (from $(1))\n"; \
 		printf "# This image was built using coreboot " > $(2).tmp && \
 		grep "\<COREBOOT_VERSION\>" $(obj)/build.h |cut -d\" -f2 >> $(2).tmp && \
 		$(MAKE) DOTCONFIG=$(1) DEFCONFIG=$(2).tmp2 savedefconfig && \
 		cat $(2).tmp2 >> $(2).tmp && \
+		printf "# End of defconfig. Derivable values start here.\n" >> $(2).tmp && \
+		grep "^CONFIG" $(1) | grep -F -v -f $(2).tmp2 >> $(2).tmp && \
 		rm -f $(2).tmp2 && \
-		\mv -f $(2).tmp $(2))
+		mv -f $(2).tmp $(2))
 endef
 
 #######################################################################
@@ -343,7 +330,7 @@ cbfs-files-processor-struct= \
 	$(eval $(2): $(1) $(obj)/build.h $(obj)/fmap_config.h $(KCONFIG_AUTOHEADER); \
 		printf "    CC+STRIP   $(1)\n"; \
 		$(CC_ramstage) -MMD $(CPPFLAGS_ramstage) $(CFLAGS_ramstage) --param asan-globals=0 $$(ramstage-c-ccopts) -include $(KCONFIG_AUTOHEADER) -MT $(2) -o $(2).tmp -c $(1) && \
-		$(OBJCOPY_ramstage) -O binary --set-section-flags .bss*=alloc,contents,load $(2).tmp $(2); \
+		$(OBJCOPY_ramstage) -O binary --only-section='.data*' --only-section='.bss*' --set-section-flags .bss*=alloc,contents,load $(2).tmp $(2); \
 		rm -f $(2).tmp) \
 	$(eval DEPENDENCIES += $(2).d)
 
@@ -385,8 +372,11 @@ cbfs-files-handler= \
 #######################################################################
 # a variety of flags for our build
 CBFS_COMPRESS_FLAG:=none
-ifeq ($(CONFIG_COMPRESS_RAMSTAGE),y)
+ifeq ($(CONFIG_COMPRESS_RAMSTAGE_LZMA),y)
 CBFS_COMPRESS_FLAG:=LZMA
+endif
+ifeq ($(CONFIG_COMPRESS_RAMSTAGE_LZ4),y)
+CBFS_COMPRESS_FLAG:=LZ4
 endif
 
 CBFS_PAYLOAD_COMPRESS_FLAG:=none
@@ -432,7 +422,7 @@ endif
 CFLAGS_common += -pipe -g -nostdinc -std=gnu11
 CFLAGS_common += -nostdlib -Wall -Wundef -Wstrict-prototypes -Wmissing-prototypes
 CFLAGS_common += -Wwrite-strings -Wredundant-decls -Wno-trigraphs -Wimplicit-fallthrough
-CFLAGS_common += -Wshadow -Wdate-time -Wtype-limits -Wvla
+CFLAGS_common += -Wshadow -Wdate-time -Wtype-limits -Wvla -Wold-style-definition
 CFLAGS_common += -Wdangling-else
 CFLAGS_common += -fno-common -ffreestanding -fno-builtin -fomit-frame-pointer
 CFLAGS_common += -fstrict-aliasing -ffunction-sections -fdata-sections -fno-pie
@@ -442,7 +432,7 @@ ifeq ($(CCC_ANALYZER_OUTPUT_FORMAT),)
 CFLAGS_common += -Wno-packed-not-aligned
 CFLAGS_common += -fconserve-stack
 CFLAGS_common += -Wnull-dereference -Wreturn-type
-CFLAGS_common += -Wlogical-op -Wduplicated-cond
+CFLAGS_common += -Wlogical-op -Wduplicated-cond -Wno-array-compare
 # cf. commit f69a99db (coreboot: x86: enable gc-sections)
 CFLAGS_common += -Wno-unused-but-set-variable
 endif
@@ -599,6 +589,7 @@ BINCFG:=$(objutil)/bincfg/bincfg
 IFDTOOL:=$(objutil)/ifdtool/ifdtool
 
 AMDFWTOOL:=$(objutil)/amdfwtool/amdfwtool
+AMDFWREAD:=$(objutil)/amdfwtool/amdfwread
 
 APCB_EDIT_TOOL:=$(top)/util/apcb/apcb_edit.py
 
@@ -700,7 +691,7 @@ install-git-commit-clangfmt:
 include util/crossgcc/Makefile.inc
 
 .PHONY: tools
-tools: $(objutil)/kconfig/conf $(objutil)/kconfig/toada $(CBFSTOOL) $(objutil)/cbfstool/cbfs-compression-tool $(FMAPTOOL) $(RMODTOOL) $(IFWITOOL) $(objutil)/nvramtool/nvramtool $(objutil)/sconfig/sconfig $(IFDTOOL) $(CBOOTIMAGE) $(AMDFWTOOL) $(AMDCOMPRESS) $(FUTILITY) $(BINCFG) $(IFITTOOL) $(objutil)/supermicro/smcbiosinfo $(CSE_FPT) $(CSE_SERGER)
+tools: $(objutil)/kconfig/conf $(objutil)/kconfig/toada $(CBFSTOOL) $(objutil)/cbfstool/cbfs-compression-tool $(FMAPTOOL) $(RMODTOOL) $(IFWITOOL) $(objutil)/nvramtool/nvramtool $(objutil)/sconfig/sconfig $(IFDTOOL) $(CBOOTIMAGE) $(AMDFWTOOL) $(AMDCOMPRESS) $(FUTILITY) $(BINCFG) $(IFITTOOL) $(objutil)/supermicro/smcbiosinfo $(CSE_FPT) $(CSE_SERGER) $(AMDFWREAD)
 
 ###########################################################################
 # Common recipes for all stages
@@ -1227,8 +1218,9 @@ vgaroms/seavgabios.bin-file := $(CONFIG_PAYLOAD_VGABIOS_FILE)
 vgaroms/seavgabios.bin-type := raw
 
 cbfs-files-$(CONFIG_INCLUDE_CONFIG_FILE) += config
-config-file := $(DOTCONFIG):defconfig
+config-file := $(DOTCONFIG):config
 config-type := raw
+config-compression := LZMA
 
 cbfs-files-$(CONFIG_INCLUDE_CONFIG_FILE) += revision
 revision-file := $(obj)/build.h

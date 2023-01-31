@@ -20,7 +20,7 @@ config BOARD_CLEVO_CMLU_COMMON
 config BOARD_CLEVO_L140CU_BASE
 	bool
 	select BOARD_CLEVO_CMLU_COMMON
-	select EC_SYSTEM76_EC
+	select EC_CLEVO_IT5570E
 	select HAVE_SPD_IN_CBFS
 
 if BOARD_CLEVO_CMLU_COMMON
@@ -49,10 +49,6 @@ config UART_FOR_CONSOLE
 	int
 	default 2
 
-config MAX_CPUS
-	int
-	default 8 if BOARD_CLEVO_L140CU_BASE
-
 config DIMM_MAX
 	default 2 if BOARD_CLEVO_L140CU_BASE
 
@@ -75,5 +71,8 @@ config SEABIOS_PS2_TIMEOUT
 	int
 	depends on PAYLOAD_SEABIOS
 	default 500
+
+config EC_CLEVO_IT5570E_MEM_BASE
+	default 0xfe700000
 
 endif
