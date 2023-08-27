@@ -16,8 +16,16 @@
 
 #define CMD_CPU_OK	0xc2
 
+#define CMD_RADIO_EN	0x2b
+enum mec5035_radio_dev {
+	RADIO_WLAN = 0,
+	RADIO_WWAN = 1,
+	RADIO_WPAN = 2,
+};
+
 u8 mec5035_mouse_touchpad(u8 setting);
 void mec5035_cpu_ok(void);
 void mec5035_early_init(void);
+void mec5035_radio_enable(enum mec5035_radio_dev device, u8 on);
 
 #endif /* _EC_DELL_MEC5035_H_ */
