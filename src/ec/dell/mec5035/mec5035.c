@@ -84,6 +84,15 @@ u8 mec5035_mouse_touchpad(u8 setting)
 	return buf[0];
 }
 
+void mec5035_radio_enable(enum mec5035_radio_dev dev, u8 on)
+{
+	/* From LPC traces and userspace testing with other values,
+	   the second byte has to be 2 for an unknown reason. */
+	u8 buf[3] = {dev, 2, on};
+	write_mailbox_regs(buf, 2, 3);
+	ec_command(CMD_RADIO_EN);
+}
+
 void mec5035_early_init(void)
 {
 	/* If this isn't sent the EC shuts down the system after about 15
