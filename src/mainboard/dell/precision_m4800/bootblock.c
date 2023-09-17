@@ -1,17 +1,11 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-// #include <southbridge/intel/lynxpoint/pch.h>
 #include <device/pci_ops.h>
 #include <ec/dell/mec5035/mec5035.h>
 #include <bootblock_common.h>
 #include <console/console.h>
 #include <southbridge/intel/lynxpoint/pch.h>
 
-// void bootblock_mainboard_early_init(void)
-// {
-// 	mec5035_early_init();
-// }
-/* FIXME: remove this if not needed */
 void mainboard_config_superio(void)
 {
 		printk(BIOS_DEBUG, "Beginning mainboard_config_superio\n");
