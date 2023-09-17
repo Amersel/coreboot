@@ -9,11 +9,6 @@ void mainboard_config_rcba(void)
 {
 }
 
-// /* FIXME: called after romstage_common, remove it if not used */
-// void mb_late_romstage_setup(void)
-// {
-// }
-
 void mb_get_spd_map(struct spd_info *spdi)
 {
 	/* FIXME: check this */
