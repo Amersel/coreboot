@@ -21,6 +21,11 @@ entries
 408	1	e	10	sata_mode
 409	2	e	7	power_on_after_fail
 
+# coreboot config options: EC
+412	1	e	1	bluetooth
+413	1	e	1	wwan
+415	1	e	1	wlan
+
 # coreboot config options: bootloader
 432	512	s	0	boot_devices
 944	8	h	0	boot_default
