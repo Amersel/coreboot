@@ -1,8 +1,5 @@
-Device (BAT0)
+Scope (\_SB)
 {
-    Name (_HID, EisaId ("PNP0C0A") /* Control Method Battery */)  // _HID: Hardware ID
-    Name (_UID, 1)  // _UID: Unique ID
-    Name (_PCL, Package () {\_SB})  // _PCL: Power Consumer List
     Mutex (ECM1, 0x01)
     Method (ECRB, 1, NotSerialized)
     {
@@ -249,30 +246,176 @@ Device (BAT0)
         Arg1 [0x0C] = Local3
         Release (ECM1)
     }
-
-    Method (_STA, 0, NotSerialized)  // _STA: Status
+    Device (BAT0)
     {
-        Local0 = ECG5 ()
-        Local0 &= 0x02
-        If (Local0)
+        Name (_HID, EisaId ("PNP0C0A") /* Control Method Battery */)  // _HID: Hardware ID
+        Name (_UID, 1)  // _UID: Unique ID
+        Name (_PCL, Package () {\_SB})  // _PCL: Power Consumer List
+
+        Method (_STA, 0, NotSerialized)  // _STA: Status
         {
-            Return (0x1F)
+            Local0 = ECG5 ()
+            Local0 &= 0x02
+            If (Local0)
+            {
+                Return (0x1F)
+            }
+
+            Return (0x0F)
         }
 
-        Return (0x0F)
+        Method (_BIF, 0, Serialized)  // _BIF: Battery Information
+        {
+            Name (BIF0, Package (0x0D){})
+            ECG9 (One, BIF0)
+            Return (BIF0) /* \_SB_.BAT0._BIF.BIF0 */
+        }
+
+        Method (_BST, 0, Serialized)  // _BST: Battery Status
+        {
+            Name (BST0, Package (0x04){})
+            ECG6 (One, BST0)
+            Return (BST0) /* \_SB_.BAT0._BST.BST0 */
+        }
     }
 
-    Method (_BIF, 0, Serialized)  // _BIF: Battery Information
+    Device (BAT1)
     {
-        Name (BIF0, Package (0x0D){})
-        ECG9 (One, BIF0)
-        Return (BIF0) /* \_SB_.BAT0._BIF.BIF0 */
+        Name (_HID, EisaId ("PNP0C0A") /* Control Method Battery */)  // _HID: Hardware ID
+        Name (_UID, 0x02)  // _UID: Unique ID
+        Name (_PCL, Package (0x01)  // _PCL: Power Consumer List
+        {
+            _SB
+        })
+        Method (_STA, 0, NotSerialized)  // _STA: Status
+        {
+            Local0 = EEAC (0x05, Zero)
+            If ((Local0 < 0x02))
+            {
+                Return (Zero)
+            }
+
+            Local0 = ECG5 ()
+            Local0 &= 0x08
+            If (Local0)
+            {
+                Return (0x1F)
+            }
+
+            Return (0x0F)
+        }
+
+        Method (_BIF, 0, NotSerialized)  // _BIF: Battery Information
+        {
+            Name (BIF1, Package (0x0D){})
+            ECG9 (0x02, BIF1)
+            Return (BIF1) /* \_SB_.BAT1._BIF.BIF1 */
+        }
+
+        Method (_BST, 0, NotSerialized)  // _BST: Battery Status
+        {
+            Name (BST1, Package (0x04){})
+            ECG6 (0x02, BST1)
+            Return (BST1) /* \_SB_.BAT1._BST.BST1 */
+        }
     }
 
-    Method (_BST, 0, Serialized)  // _BST: Battery Status
+    Device (BAT2)
     {
-        Name (BST0, Package (0x04){})
-        ECG6 (One, BST0)
-        Return (BST0) /* \_SB_.BAT0._BST.BST0 */
+        Name (_HID, EisaId ("PNP0C0A") /* Control Method Battery */)  // _HID: Hardware ID
+        Name (_UID, 0x03)  // _UID: Unique ID
+        Name (_PCL, Package (0x01)  // _PCL: Power Consumer List
+        {
+            _SB
+        })
+        Method (_STA, 0, NotSerialized)  // _STA: Status
+        {
+            Local0 = EEAC (0x05, Zero)
+            If ((Local0 < 0x03))
+            {
+                Return (Zero)
+            }
+
+            Local0 = ECG5 ()
+            Local0 &= 0x20
+            If (Local0)
+            {
+                Return (0x1F)
+            }
+
+            Return (Zero)
+        }
+
+        Method (_BIF, 0, NotSerialized)  // _BIF: Battery Information
+        {
+            Name (BIF1, Package (0x0D){})
+            ECG9 (0x03, BIF1)
+            Return (BIF1) /* \_SB_.BAT2._BIF.BIF1 */
+        }
+
+        Method (_BST, 0, NotSerialized)  // _BST: Battery Status
+        {
+            Name (BST1, Package (0x04){})
+            ECG6 (0x03, BST1)
+            Return (BST1) /* \_SB_.BAT2._BST.BST1 */
+        }
+    }
+
+    Method (BTEV, 2, NotSerialized)
+    {
+        If ((Arg0 == One))
+        {
+            If ((Arg1 == Zero))
+            {
+                Notify (BAT0, 0x81) // Information Change
+            }
+
+            If ((Arg1 == One))
+            {
+                Notify (BAT1, 0x81) // Information Change
+            }
+            Else
+            {
+                Notify (BAT2, 0x81) // Information Change
+            }
+        }
+
+        If ((Arg0 == 0x02))
+        {
+            If ((Arg1 == Zero))
+            {
+                Notify (BAT0, 0x80) // Status Change
+                Notify (BAT0, 0x81) // Information Change
+            }
+
+            If ((Arg1 == One))
+            {
+                Notify (BAT1, 0x80) // Status Change
+                Notify (BAT1, 0x81) // Information Change
+            }
+            Else
+            {
+                Notify (BAT2, 0x80) // Status Change
+                Notify (BAT2, 0x81) // Information Change
+            }
+        }
+
+        If ((Arg0 == 0x03))
+        {
+            If ((Arg1 == Zero))
+            {
+                Notify (BAT0, 0x80) // Status Change
+            }
+
+            If ((Arg1 == One))
+            {
+                Notify (BAT1, 0x80) // Status Change
+            }
+            Else
+            {
+                Notify (BAT2, 0x80) // Status Change
+            }
+        }
     }
 }
+

@@ -526,4 +526,5 @@ Device(EC)
 			Return (Local0)
 	}
 	#include "acpi/battery.asl"
+	#include "acpi/ac.asl"
 }
