@@ -5,24 +5,46 @@ Device(EC)
 	Name (_HID, EISAID("PNP0C09"))
 	Name (_UID, 0)
 	Name (_GPE, 16)
+	Mutex (ECLK, 1)
+	//Mutex (ECSX, 0x01)
+	Name (ECRD, Zero)
 	Name (ECRS, ResourceTemplate ()
 	{
-		IO (Decode16,
-			0x0000,             // Range Minimum
-			0x0000,             // Range Maximum
-			0x00,               // Alignment
-			0x01,               // Length
-			_Y36)
-		IO (Decode16,
-			0x0000,             // Range Minimum
-			0x0000,             // Range Maximum
-			0x00,               // Alignment
-			0x01,               // Length
-			_Y37)
+			IO (Decode16,
+					0x0000,             // Range Minimum
+					0x0000,             // Range Maximum
+					0x00,               // Alignment
+					0x01,               // Length
+					_Y36)
+			IO (Decode16,
+					0x0000,             // Range Minimum
+					0x0000,             // Range Maximum
+					0x00,               // Alignment
+					0x01,               // Length
+					_Y37)
 	})
+	Method (_STA, 0, Serialized)  // _STA: Status
+	{
+			Return (0x0F)
+	}
+
+	Method (_CRS, 0, NotSerialized)  // _CRS: Current Resource Settings
+	{
+			CreateWordField (ECRS, \_SB.PCI0.LPCB.EC._Y36._MIN, DMIN)  // _MIN: Minimum Base Address
+			CreateWordField (ECRS, \_SB.PCI0.LPCB.EC._Y36._MAX, DMAX)  // _MAX: Maximum Base Address
+			CreateWordField (ECRS, \_SB.PCI0.LPCB.EC._Y37._MIN, CMIN)  // _MIN: Minimum Base Address
+			CreateWordField (ECRS, \_SB.PCI0.LPCB.EC._Y37._MAX, CMAX)  // _MAX: Maximum Base Address
+			Local0 = (0x0900 + 0x30)
+			DMIN = Local0
+			DMAX = Local0
+			Local0 = (0x0900 + 0x34)
+			CMIN = Local0
+			CMAX = Local0
+			Return (ECRS) /* \_SB_.PCI0.LPCB.ECDV.ECRS */
+	}
 /* FIXME: EC support */
-	OperationRegion (ECOR, EmbeddedControl, 0, 0xFF)
-	Field (ECOR, ByteAcc, Lock, Preserve)
+	OperationRegion (ERAM, EmbeddedControl, 0, 0xFF)
+	Field (ERAM, ByteAcc, Lock, Preserve)
 	{
 		EC00,   8, 
 		EC01,   8, 
@@ -75,6 +97,52 @@ Device(EC)
 		EC48,   8, 
 		EC49,   8
 	}
+	Method (ECBT, 2, NotSerialized)
+	{
+			Local0 = \_SB.PCI0.LPCB.EC.ECR1 (Arg0)
+			Local0 &= Arg1
+			If (Local0)
+			{
+					Return (One)
+			}
+
+			Return (Zero)
+	}
+	Method (ECG3, 0, NotSerialized)
+	{
+			Return (ECBT (Zero, 0x10))
+	}
+	Method (ECS2, 1, NotSerialized)
+	{
+			ECWB (One, Arg0)
+	}
+	Method (ECS3, 0, NotSerialized)
+	{
+			ECWB (0x05, One)
+	}
+	Method (ECIN, 0, NotSerialized)
+	{
+			LIDS = ECG3 ()
+			ECS3 ()
+			ECS2 (0x40) // (ACOS) - 0x40 is LINX, 0x80 is WIN8/WIN7
+			//If ((OIDE () >= One))
+			//{
+			//		GENS (0x2D, Zero, Zero)
+			//}
+	}
+	Method (_REG, 2, NotSerialized)  // _REG: Region Availability
+	{
+			If (((Arg1 == One) == (Arg0 == 0x03)))
+			{
+					ECRD = One
+					ECIN ()
+			}
+
+			If (((Arg1 == Zero) && (Arg0 == 0x03)))
+			{
+					ECRD = Zero
+			}
+	}
 
 	Method (ECR1, 1, NotSerialized)
 	{
@@ -84,7 +152,7 @@ Device(EC)
 			//		Return (Local0)
 			//}
 
-			// Acquire (ECMX, 0xFFFF)
+			Acquire (ECLK, 0xFFFF)
 			Local0 = Zero
 			If ((Arg0 == Zero))
 			{
@@ -336,8 +404,29 @@ Device(EC)
 					Local0 = EC49 /* \_SB_.PCI0.LPCB.ECDV.EC49 */
 			}
 
-			// Release (ECMX)
+			Release (ECLK)
 			Return (Local0)
+	}
+
+	//Method (EISC, 3, NotSerialized)
+	//{
+	//		Acquire (ECSX, 0xFFFF)
+	//		Name (ECIB, Buffer (0x04){})
+	//		CreateByteField (ECIB, Zero, ECIC)
+	//		CreateByteField (ECIB, One, ECP1)
+	//		CreateByteField (ECIB, 0x02, ECP2)
+	//		ECIC = Arg0
+	//		ECP1 = Arg1
+	//		ECP2 = Arg2
+	//		//ECIB = GENS (0x08, ECIB, SizeOf (ECIB))
+	//		Local0 = ECIC /* \EISC.ECIC */
+	//		Release (ECSX)
+	//		Return (Local0)
+	//}
+
+	Method (ECWB, 2, NotSerialized)
+	{
+			\_SB.PCI0.LPCB.EC.ECW1 (Arg0, Arg1)
 	}
 
 	Method (ECW1, 2, NotSerialized)
@@ -348,7 +437,7 @@ Device(EC)
 			//		Return (Zero)
 			//}
 
-			//Acquire (ECMX, 0xFFFF)
+			Acquire (ECLK, 0xFFFF)
 			If ((Arg0 == Zero))
 			{
 					EC00 = Arg1
@@ -424,7 +513,7 @@ Device(EC)
 					EC17 = Arg1
 			}
 
-			//Release (ECMX)
+			Release (ECLK)
 			Return (Zero)
 	}
 
@@ -436,4 +525,5 @@ Device(EC)
 			Local0 += Local1
 			Return (Local0)
 	}
+	#include "acpi/battery.asl"
 }

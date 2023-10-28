@@ -14,7 +14,6 @@ DefinitionBlock(
 {
 	#include <acpi/dsdt_top.asl>
 	#include "acpi/platform.asl"
-	#include "acpi/battery.asl"
 	#include <cpu/intel/common/acpi/cpu.asl>
 	#include <southbridge/intel/common/acpi/platform.asl>
 	/* global NVS and variables. */
