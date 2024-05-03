@@ -85,13 +85,27 @@ u8 mec5035_mouse_touchpad(enum ec_mouse_setting setting)
 	return buf[0];
 }
 
-void mec5035_radio_enable(enum mec5035_radio_dev dev, u8 on)
+void mec5035_control_radio(enum ec_radio_dev dev, enum ec_radio_state state)
 {
 	/* From LPC traces and userspace testing with other values,
 	   the second byte has to be 2 for an unknown reason. */
-	u8 buf[3] = {dev, 2, on};
-	write_mailbox_regs(buf, 2, 3);
-	ec_command(CMD_RADIO_EN);
+	u8 buf[RADIO_CTRL_NUM_ARGS] = {(u8)dev, 2, (u8)state};
+	write_mailbox_regs(buf, 2, RADIO_CTRL_NUM_ARGS);
+	ec_command(CMD_RADIO_CTRL);
+}
+
+void mec5035_change_wake(u8 source, enum ec_wake_change change)
+{
+	u8 buf[ACPI_WAKEUP_NUM_ARGS] = {change, source, 0, 0x40};
+	write_mailbox_regs(buf, 2, ACPI_WAKEUP_NUM_ARGS);
+	ec_command(CMD_ACPI_WAKEUP_CHANGE);
+}
+
+void mec5035_sleep_enable(void)
+{
+	u8 buf[SLEEP_EN_NUM_ARGS] = {3, 0};
+	write_mailbox_regs(buf, 2, SLEEP_EN_NUM_ARGS);
+	ec_command(CMD_SLEEP_ENABLE);
 }
 
 void mec5035_early_init(void)
@@ -110,9 +124,9 @@ static void mec5035_init(struct device *dev)
 
 	pc_keyboard_init(NO_AUX_DEVICE);
 
-	mec5035_radio_enable(RADIO_WLAN, get_uint_option("wlan", 1));
-	mec5035_radio_enable(RADIO_WWAN, get_uint_option("wwan", 1));
-	mec5035_radio_enable(RADIO_WPAN, get_uint_option("bluetooth", 1));
+	mec5035_control_radio(RADIO_WLAN, get_uint_option("wlan", RADIO_ON));
+	mec5035_control_radio(RADIO_WWAN, get_uint_option("wwan", RADIO_ON));
+	mec5035_control_radio(RADIO_BT, get_uint_option("bluetooth", RADIO_ON));
 }
 
 static struct device_operations ops = {
@@ -131,6 +145,6 @@ static void mec5035_enable(struct device *dev)
 }
 
 struct chip_operations ec_dell_mec5035_ops = {
-	CHIP_NAME("MEC5035 EC")
+	.name = "MEC5035 EC",
 	.enable_dev = mec5035_enable,
 };
