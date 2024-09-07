@@ -11,7 +11,7 @@
 static struct device_operations pci_domain_ops = {
 	.read_resources   = pci_domain_read_resources,
 	.set_resources    = pci_domain_set_resources,
-	.scan_bus         = pci_domain_scan_bus,
+	.scan_bus         = pci_host_bridge_scan_bus,
 };
 
 static struct device_operations cpu_bus_ops = {
@@ -43,7 +43,7 @@ static void soc_init(void *chip_info)
 }
 
 struct chip_operations soc_intel_baytrail_ops = {
-	CHIP_NAME("Intel BayTrail SoC")
+	.name = "Intel BayTrail SoC",
 	.enable_dev = enable_dev,
 	.init = soc_init,
 };

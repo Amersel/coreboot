@@ -2,7 +2,9 @@
 
 #include <acpi/acpi.h>
 #include <arch/ioapic.h>
+#include <assert.h>
 #include <cpu/cpu.h>
+#include <lib.h>
 #include <version.h>
 
 void acpi_create_dmar(acpi_dmar_t *dmar, enum dmar_flags flags,
@@ -26,7 +28,7 @@ void acpi_create_dmar(acpi_dmar_t *dmar, enum dmar_flags flags,
 	header->length = sizeof(acpi_dmar_t);
 	header->revision = get_acpi_table_revision(DMAR);
 
-	dmar->host_address_width = cpu_phys_address_size() - 1;
+	dmar->host_address_width = soc_phys_address_size() - 1;
 	dmar->flags = flags;
 
 	current = acpi_fill_dmar(current);
@@ -36,9 +38,24 @@ void acpi_create_dmar(acpi_dmar_t *dmar, enum dmar_flags flags,
 	header->checksum = acpi_checksum((void *)dmar, header->length);
 }
 
-unsigned long acpi_create_dmar_drhd(unsigned long current, u8 flags,
-	u16 segment, u64 bar)
+unsigned long acpi_create_dmar_drhd_4k(unsigned long current, u8 flags,
+				       u16 segment, u64 bar)
 {
+	return acpi_create_dmar_drhd(current, flags, segment, bar, 4 * KiB);
+}
+
+unsigned long acpi_create_dmar_drhd(unsigned long current, u8 flags,
+	u16 segment, u64 bar, size_t size)
+{
+	/*
+	 * Refer to Intel® Virtualization Technology for Directed I/O
+	 * Architecture Specification Revision 4.1,
+	 * size is at least 1 page and max 2^15 pages, 4 KiB each, and the bar
+	 * should be aligned with size.
+	 */
+	assert(4 * KiB <= size && size <= (1 << 15) * 4 * KiB && IS_POWER_OF_2(size));
+	assert(IS_ALIGNED(bar, size));
+
 	dmar_entry_t *drhd = (dmar_entry_t *)current;
 	memset(drhd, 0, sizeof(*drhd));
 	drhd->type = DMAR_DRHD;
@@ -46,6 +63,7 @@ unsigned long acpi_create_dmar_drhd(unsigned long current, u8 flags,
 	drhd->flags = flags;
 	drhd->segment = segment;
 	drhd->bar = bar;
+	drhd->size = log2_64(size) - 12;
 
 	return drhd->length;
 }
@@ -183,7 +201,7 @@ unsigned long acpi_create_dmar_ds_ioapic(unsigned long current,
 unsigned long acpi_create_dmar_ds_ioapic_from_hw(unsigned long current,
 						 u32 addr, u8 bus, u8 dev, u8 fn)
 {
-	u8 enumeration_id = get_ioapic_id((void *)(uintptr_t)addr);
+	u8 enumeration_id = get_ioapic_id((uintptr_t)addr);
 	return acpi_create_dmar_ds(current,
 			SCOPE_IOAPIC, enumeration_id, bus, dev, fn);
 }

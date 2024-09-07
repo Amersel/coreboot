@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 ##
 ##
 ## Copyright (C) 2008 Advanced Micro Devices, Inc.
@@ -82,7 +84,6 @@ endchoice
 config LTO
 	bool "Use link time optimization (LTO)"
 	default n
-	depends on COMPILER_GCC
 	help
 	  Compile with link time optimization. This can often decrease the
 	  final binary size, but may increase compilation time.
@@ -104,17 +105,22 @@ menu "Architecture Options"
 
 choice
         prompt "Target Architecture"
-        default ARCH_X86
+        default ARCH_X86_32
 
 config ARCH_ARM
         bool "ARM"
         help
           Support the ARM architecture
 
-config ARCH_X86
-        bool "x86"
+config ARCH_X86_32
+        bool "x86_32"
         help
-          Support the x86 architecture
+          Support the x86_32 architecture
+
+config ARCH_X86_64
+        bool "x86_64"
+        help
+          Support the x86_64 architecture
 
 config ARCH_ARM64
         bool "ARM64"
@@ -130,6 +136,12 @@ config ARCH_MOCK
           for) arch-specific functions.
 
 endchoice
+
+config ARCH_X86
+	bool
+	default y if ARCH_X86_32 || ARCH_X86_64
+	help
+	  Support the x86 architecture
 
 config MULTIBOOT
 	bool "Multiboot header support"

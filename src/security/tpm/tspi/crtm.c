@@ -6,6 +6,7 @@
 #include <cbfs.h>
 #include <symbols.h>
 #include "crtm.h"
+#include <stdio.h>
 #include <string.h>
 
 static int tpm_log_initialized;
@@ -67,7 +68,7 @@ static tpm_result_t tspi_init_crtm(void)
 			if (rc)
 				return rc;
 		}
-	} else if (CONFIG(BOOTBLOCK_IN_CBFS)){
+	} else if (CONFIG(BOOTBLOCK_IN_CBFS)) {
 		/* Mapping measures the file. We know we can safely map here because
 		   bootblock-as-a-file is only used on x86, where we don't need cache to map. */
 		enum cbfs_type type = CBFS_TYPE_BOOTBLOCK;
@@ -161,8 +162,7 @@ void *tpm_log_init(void)
 
 	/* We are dealing here with pre CBMEM environment.
 	 * If cbmem isn't available use CAR or SRAM */
-	if (!cbmem_possibly_online() &&
-		!CONFIG(VBOOT_RETURN_FROM_VERSTAGE))
+	if (!ENV_HAS_CBMEM && !CONFIG(VBOOT_RETURN_FROM_VERSTAGE))
 		return _tpm_log;
 	else if (ENV_CREATES_CBMEM
 		 && !CONFIG(VBOOT_RETURN_FROM_VERSTAGE)) {

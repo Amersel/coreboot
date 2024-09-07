@@ -34,8 +34,8 @@ static void i440bx_domain_read_resources(struct device *dev)
 
 	pci_domain_read_resources(dev);
 
-	pci_tolm = find_pci_tolm(dev->link_list);
-	mc_dev = dev->link_list->children;
+	pci_tolm = find_pci_tolm(dev->downstream);
+	mc_dev = dev->downstream->children;
 	if (mc_dev) {
 		unsigned long tomk, tolmk;
 		int idx;
@@ -69,7 +69,7 @@ static void i440bx_domain_read_resources(struct device *dev)
 static struct device_operations pci_domain_ops = {
 	.read_resources		= i440bx_domain_read_resources,
 	.set_resources		= pci_domain_set_resources,
-	.scan_bus		= pci_domain_scan_bus,
+	.scan_bus		= pci_host_bridge_scan_bus,
 };
 
 static int get_cpu_count(void)
@@ -105,6 +105,6 @@ static void enable_dev(struct device *dev)
 }
 
 struct chip_operations northbridge_intel_i440bx_ops = {
-	CHIP_NAME("Intel 82443BX (440BX) Northbridge")
+	.name = "Intel 82443BX (440BX) Northbridge",
 	.enable_dev = enable_dev,
 };

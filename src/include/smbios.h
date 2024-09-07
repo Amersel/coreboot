@@ -32,7 +32,8 @@ int smbios_write_type9(unsigned long *current, int *handle,
 			const enum slot_data_bus_bandwidth bandwidth,
 			const enum misc_slot_usage usage,
 			const enum misc_slot_length length,
-			const u16 id, u8 slot_char1, u8 slot_char2, u8 bus, u8 dev_func);
+			const u16 id, u8 slot_char1, u8 slot_char2,
+			u8 segment_group, u8 bus, u8 dev_func);
 enum smbios_bmc_interface_type;
 int smbios_write_type38(unsigned long *current, int *handle,
 			const enum smbios_bmc_interface_type interface_type,
@@ -40,7 +41,7 @@ int smbios_write_type38(unsigned long *current, int *handle,
 			const u64 base_addr, const u8 base_modifier,
 			const u8 irq);
 int smbios_write_type41(unsigned long *current, int *handle,
-			const char *name, u8 instance, u16 segment,
+			const char *name, u8 instance, u16 segment_group,
 			u8 bus, u8 device, u8 function, u8 device_type);
 enum smbios_temp_location;
 enum smbios_temp_status;
@@ -69,9 +70,12 @@ const char *smbios_system_version(void);
 void smbios_system_set_uuid(u8 *uuid);
 const char *smbios_system_sku(void);
 
+void smbios_cpu_get_core_counts(u16 *core_count, u16 *thread_count);
 unsigned int smbios_cpu_get_max_speed_mhz(void);
 unsigned int smbios_cpu_get_current_speed_mhz(void);
 unsigned int smbios_cpu_get_voltage(void);
+unsigned int smbios_get_max_sockets(void);
+unsigned int smbios_soc_get_max_sockets(void);
 
 const char *smbios_mainboard_manufacturer(void);
 const char *smbios_mainboard_product_name(void);
@@ -494,6 +498,15 @@ struct smbios_type4 {
 #define SMBIOS_PROCESSOR_STATUS_POPULATED		(1 << 6)
 #define SMBIOS_PROCESSOR_STATUS_CPU_ENABLED		(1 << 0)
 
+enum smbios_processor_type {
+	SMBIOS_PROCESSOR_TYPE_OTHER = 0x01,
+	SMBIOS_PROCESSOR_TYPE_UNKNOWN = 0x02,
+	SMBIOS_PROCESSOR_TYPE_CENTRAL = 0x03,
+	SMBIOS_PROCESSOR_TYPE_MATH = 0x04,
+	SMBIOS_PROCESSOR_TYPE_DSP = 0x05,
+	SMBIOS_PROCESSOR_TYPE_VIDEO = 0x06,
+};
+
 /* enum for socket type */
 enum smbios_processor_upgrade_field {
 	PROCESSOR_UPGRADE_OTHER = 0x01,
@@ -573,7 +586,13 @@ enum smbios_processor_upgrade_field {
 /* defines for processor family */
 #define SMBIOS_PROCESSOR_FAMILY_OTHER			0x01
 #define SMBIOS_PROCESSOR_FAMILY_UNKNOWN			0x02
+#define SMBIOS_PROCESSOR_FAMILY_INTEL486		0x06
+#define SMBIOS_PROCESSOR_FAMILY_PENTIUM_PRO		0x0c
 #define SMBIOS_PROCESSOR_FAMILY_XEON			0xb3
+#define SMBIOS_PROCESSOR_FAMILY_FROM_FAMILY2		0xfe
+
+/* defines for processor family 2 */
+#define SMBIOS_PROCESSOR_FAMILY2_ARMV8			0x101
 
 /* defines for processor characteristics */
 #define PROCESSOR_64BIT_CAPABLE				(1 << 2)

@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <console/console.h>
 #include <soc/romstage.h>
 #include <soc/ddr.h>
 #include <soc/soc_util.h>
@@ -70,11 +69,11 @@ sbp1_socket_config[CONFIG_MAX_SOCKET][IIO_PORT_SETTINGS] = {
 	CFG_UPD_PCIE_PORT(0, 1, 16), /* 37:07.0 RSSD16 */
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	/* IOU3 (PE3): array index 25 ~ 32 IIO_BIFURCATE_x4x4x4x4 */
-	CFG_UPD_PCIE_PORT(0, 0, 0), /* 48:01.0 - NIC2*/
+	CFG_UPD_PCIE_PORT(0, 1, 37), /* 48:01.0 - NIC2*/
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	CFG_UPD_PCIE_PORT(1, 0, 0),
-	CFG_UPD_PCIE_PORT(0, 0, 0), /* 48:05.0 - NIC1 */
+	CFG_UPD_PCIE_PORT(0, 1, 33), /* 48:05.0 - NIC1 */
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	CFG_UPD_PCIE_PORT(1, 0, 0),
@@ -128,11 +127,11 @@ sbp1_socket_config[CONFIG_MAX_SOCKET][IIO_PORT_SETTINGS] = {
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	/* IOU4 (PE4): array index 33 ~ 40 IIO_BIFURCATE_x4x4x4x4 */
-	CFG_UPD_PCIE_PORT(0, 0, 0), /* 59:01.0 - NIC2 */
+	CFG_UPD_PCIE_PORT(0, 1, 38), /* 59:01.0 - NIC2 */
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	CFG_UPD_PCIE_PORT(1, 0, 0),
-	CFG_UPD_PCIE_PORT(0, 0, 0), /* 59:05.0 - NIC1 */
+	CFG_UPD_PCIE_PORT(0, 1, 34), /* 59:05.0 - NIC1 */
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	CFG_UPD_PCIE_PORT(1, 0, 0),
@@ -159,11 +158,11 @@ sbp1_socket_config[CONFIG_MAX_SOCKET][IIO_PORT_SETTINGS] = {
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	/* IOU2 (PE2): array index 17 ~ 24 IIO_BIFURCATE_x4x4x4x4 */
-	CFG_UPD_PCIE_PORT(0, 0, 0), /* 37:01.0 - NIC1 */
+	CFG_UPD_PCIE_PORT(0, 1, 35), /* 37:01.0 - NIC1 */
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	CFG_UPD_PCIE_PORT(1, 0, 0),
-	CFG_UPD_PCIE_PORT(0, 0, 0), /* 37:05.0 - NIC2 */
+	CFG_UPD_PCIE_PORT(0, 1, 39), /* 37:05.0 - NIC2 */
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	CFG_UPD_PCIE_PORT(1, 0, 0),
@@ -208,11 +207,11 @@ sbp1_socket_config[CONFIG_MAX_SOCKET][IIO_PORT_SETTINGS] = {
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	/* IOU2 (PE2): array index 17 ~ 24 IIO_BIFURCATE_x4x4x4x4 */
-	CFG_UPD_PCIE_PORT(0, 0, 0), /* 37:01.0 - NIC1 */
+	CFG_UPD_PCIE_PORT(0, 1, 36), /* 37:01.0 - NIC1 */
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	CFG_UPD_PCIE_PORT(1, 0, 0),
-	CFG_UPD_PCIE_PORT(0, 0, 0), /* 37:05.0 - NIC2 */
+	CFG_UPD_PCIE_PORT(0, 1, 40), /* 37:05.0 - NIC2 */
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	CFG_UPD_PCIE_PORT(1, 0, 0),
 	CFG_UPD_PCIE_PORT(1, 0, 0),
@@ -270,8 +269,6 @@ static const UINT8 sbp1_socket_config_iou[CONFIG_MAX_SOCKET][5] = {
 
 void mainboard_memory_init_params(FSPM_UPD *mupd)
 {
-	UINT32 *sktbmp;
-
 	/* Set Rank Margin Tool to disable. */
 	mupd->FspmConfig.EnableRMT = 0x0;
 
@@ -279,28 +276,15 @@ void mainboard_memory_init_params(FSPM_UPD *mupd)
 	/* Determines if warnings are promoted to system level. */
 	mupd->FspmConfig.promoteWarnings = 0x0;
 
-	/* Set FSP debug message to Disable */
-	mupd->FspmConfig.serialDebugMsgLvl = 0x0;
+	if (CONFIG(DEFAULT_CONSOLE_LOGLEVEL_7) ||
+	    CONFIG(DEFAULT_CONSOLE_LOGLEVEL_8))
+		mupd->FspmConfig.serialDebugMsgLvl = 3;
+	else if (CONFIG(DEFAULT_CONSOLE_LOGLEVEL_6))
+		mupd->FspmConfig.serialDebugMsgLvl = 1;
+	else
+		mupd->FspmConfig.serialDebugMsgLvl = 0;
 
-	/* Force 256MiB MMCONF (Segment0) only */
-	mupd->FspmConfig.mmCfgSize = 0x2;
 	mupd->FspmConfig.PcieHotPlugEnable = 1;
-
-	/*
-	 * Disable unused IIO stack:
-	 * Socket 0 : IIO1, IIO4
-	 * Socket 1 : IIO1, IIO2
-	 * Socket 2 : IIO1, IIO5
-	 * Socket 3 : IIO1, IIO5
-	 * Stack Disable bit mapping is:
-	 * IIO stack number:  1 2 3 4 5
-	 * Stack Disable Bit: 1 5 3 2 4
-	 */
-	sktbmp = (UINT32 *)&mupd->FspmConfig.StackDisableBitMap[0];
-	sktbmp[0] = BIT(1) | BIT(2);
-	sktbmp[1] = BIT(1) | BIT(5);
-	sktbmp[2] = BIT(1) | BIT(4);
-	sktbmp[3] = BIT(1) | BIT(4);
 	soc_config_iio(mupd, sbp1_socket_config, sbp1_socket_config_iou);
 }
 

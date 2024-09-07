@@ -170,12 +170,20 @@ typedef struct {
 	cpu_crashlog_buffer_info_t buffers[256];
 } __packed cpu_crashlog_discovery_table_t;
 
+typedef struct cl_node_t {
+	u32 size;
+	void *data;
+	struct cl_node_t *next;
+} cl_node_t;
+
+cl_node_t *malloc_cl_node(size_t len);
+void free_cl_node(cl_node_t *node);
 int cl_get_cpu_record_size(void);
 int cl_get_pmc_record_size(void);
 int cl_get_ioe_record_size(void);
-u32 cl_get_cpu_bar_addr(void);
-u32 cl_get_cpu_tmp_bar(void);
-u32 cl_get_cpu_mb_int_addr(void);
+uintptr_t cl_get_cpu_bar_addr(void);
+uintptr_t cl_get_cpu_tmp_bar(void);
+uintptr_t cl_get_cpu_mb_int_addr(void);
 int cl_get_total_data_size(void);
 bool cl_pmc_sram_has_mmio_access(void);
 bool cl_ioe_sram_has_mmio_access(void);
@@ -184,8 +192,8 @@ bool pmc_crashlog_support(void);
 bool cl_cpu_data_present(void);
 bool cl_pmc_data_present(void);
 bool cl_ioe_data_present(void);
-void cl_get_cpu_sram_data(void);
-void cl_get_pmc_sram_data(void);
+void cl_get_cpu_sram_data(cl_node_t *head);
+void cl_get_pmc_sram_data(cl_node_t *head);
 void reset_discovery_buffers(void);
 void update_new_pmc_crashlog_size(u32 *pmc_crash_size);
 void update_new_cpu_crashlog_size(u32 *cpu_crash_size);
@@ -193,13 +201,13 @@ void update_new_ioe_crashlog_size(u32 *pmc_crash_size);
 pmc_ipc_discovery_buf_t cl_get_pmc_discovery_buf(void);
 pmc_crashlog_desc_table_t cl_get_pmc_descriptor_table(void);
 cpu_crashlog_discovery_table_t cl_get_cpu_discovery_table(void);
-u32 cl_gen_cpu_bar_addr(void);
-int cpu_cl_poll_mailbox_ready(u32 cl_mailbox_addr);
+uintptr_t cl_gen_cpu_bar_addr(void);
+int cpu_cl_poll_mailbox_ready(uintptr_t cl_mailbox_addr);
 int cpu_cl_mailbox_cmd(u8 cmd, u8 param);
 int cpu_cl_clear_data(void);
 void cpu_cl_rearm(void);
 void cpu_cl_cleanup(void);
-int pmc_cl_gen_descriptor_table(u32 desc_table_addr,
+int pmc_cl_gen_descriptor_table(uintptr_t desc_table_addr,
 				pmc_crashlog_desc_table_t *descriptor_table);
 bool pmc_cl_discovery(void);
 bool cpu_cl_discovery(void);
@@ -207,17 +215,9 @@ int cl_pmc_re_arm_after_reset(void);
 int cl_pmc_clear(void);
 int cl_pmc_en_gen_on_all_reboot(void);
 bool discover_crashlog(void);
-bool cl_copy_data_from_sram(u32 src_bar,
-			u32 offset,
-			u32 size,
-			u32 *dest_addr,
-			u32 buffer_index,
-			bool pmc_sram);
-void collect_pmc_and_cpu_crashlog_from_srams(void);
-bool cl_fill_cpu_records(void *cl_record);
-bool cl_fill_pmc_records(void *cl_record);
-bool cl_fill_ioe_records(void *cl_record);
-
+bool cl_copy_data_from_sram(uintptr_t src_bar, u32 offset, size_t size, u32 *dest_addr,
+				u32 buffer_index, bool pmc_sram);
+void collect_pmc_and_cpu_crashlog_from_srams(cl_node_t *head);
 static const EFI_GUID FW_ERR_SECTION_GUID = {
 	0x81212a96, 0x09ed, 0x4996,
 	{ 0x94, 0x71, 0x8d, 0x72, 0x9c, 0x8e, 0x69, 0xed }

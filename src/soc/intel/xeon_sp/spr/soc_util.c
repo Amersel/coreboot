@@ -10,8 +10,6 @@
 #include <soc/pci_devs.h>
 #include <soc/soc_util.h>
 #include <soc/util.h>
-#include <stdlib.h>
-#include <string.h>
 #include <pc80/mc146818rtc.h>
 
 const EWL_PRIVATE_DATA *get_ewl_hob(void)
@@ -68,9 +66,19 @@ const struct SystemMemoryMapElement *get_system_memory_map_elment(uint8_t *num)
 	return hob->Element;
 }
 
-bool is_iio_stack_res(const STACK_RES *res)
+bool is_pcie_iio_stack_res(const STACK_RES *res)
 {
-	return res->Personality == TYPE_UBOX_IIO || res->Personality == TYPE_DINO;
+	return res->Personality == TYPE_UBOX_IIO;
+}
+
+bool is_ubox_stack_res(const STACK_RES *res)
+{
+	return res->Personality == TYPE_UBOX;
+}
+
+bool is_ioat_iio_stack_res(const STACK_RES *res)
+{
+	return res->Personality == TYPE_DINO;
 }
 
 /*
@@ -82,11 +90,14 @@ bool is_iio_stack_res(const STACK_RES *res)
  */
 bool is_iio_cxl_stack_res(const STACK_RES *res)
 {
+	/* pds should be setup ahead of this call */
+	assert(pds.num_pds);
+
 	for (uint8_t i = 0; i < pds.num_pds; i++) {
-		if (pds.pds[i].pd_type == PD_TYPE_PROCESSOR)
+		if (pds.pds[i].pd_type != PD_TYPE_GENERIC_INITIATOR)
 			continue;
 
-		uint32_t bus = pds.pds[i].device_handle >> 20;
+		uint32_t bus = PCI_BDF(pds.pds[i].dev) >> 20;
 		if (bus >= res->BusBase && bus <= res->BusLimit)
 			return true;
 	}
@@ -125,32 +136,18 @@ uint8_t get_cxl_node_count(void)
 	return count;
 }
 
-uint32_t get_socket_stack_busno(uint32_t socket, uint32_t stack)
+/* Returns the UBOX(offset) bus number for socket0 */
+uint8_t socket0_get_ubox_busno(uint8_t offset)
 {
 	const IIO_UDS *hob = get_iio_uds();
 
-	assert(socket < CONFIG_MAX_SOCKET && stack < MAX_LOGIC_IIO_STACK);
-
-	return hob->PlatformData.IIO_resource[socket].StackRes[stack].BusBase;
-}
-
-uint32_t get_ubox_busno(uint32_t socket, uint8_t offset)
-{
-	const IIO_UDS *hob = get_iio_uds();
-
-	assert(socket < CONFIG_MAX_SOCKET);
 	for (int stack = 0; stack < MAX_LOGIC_IIO_STACK; ++stack) {
-		if (hob->PlatformData.IIO_resource[socket].StackRes[stack].Personality
+		if (hob->PlatformData.IIO_resource[0].StackRes[stack].Personality
 		    == TYPE_UBOX)
-			return (hob->PlatformData.IIO_resource[socket].StackRes[stack].BusBase
+			return (hob->PlatformData.IIO_resource[0].StackRes[stack].BusBase
 				+ offset);
 	}
 	die("Unable to locate UBOX BUS NO");
-}
-
-uint32_t get_socket_ubox_busno(uint32_t socket)
-{
-	return get_ubox_busno(socket, UNCORE_BUS_1);
 }
 
 void bios_done_msr(void *unused)
@@ -169,5 +166,25 @@ void soc_set_mrc_cold_boot_flag(bool cold_boot_required)
 	printk(BIOS_SPEW, "MRC status: 0x%02x want 0x%02x\n", mrc_status, new_mrc_status);
 	if (new_mrc_status != mrc_status)
 		cmos_write(new_mrc_status, CMOS_OFFSET_MRC_STATUS);
+}
 
+bool is_memtype_reserved(uint16_t mem_type)
+{
+	return !!(mem_type & MEM_TYPE_RESERVED);
+}
+
+bool is_memtype_non_volatile(uint16_t mem_type)
+{
+	return !(mem_type & MEMTYPE_VOLATILE_MASK);
+}
+
+bool is_memtype_processor_attached(uint16_t mem_type)
+{
+	/*
+	 * Refer to the definition of MEM_TYPE enum type in
+	 * vendorcode/intel/fsp/fsp2_0/sapphirerapids_sp/MemoryMapDataHob.h,
+	 * values less than MemTypeCxlAccVolatileMem represents
+	 * processor attached memory
+	 */
+	return (mem_type < MemTypeCxlAccVolatileMem);
 }

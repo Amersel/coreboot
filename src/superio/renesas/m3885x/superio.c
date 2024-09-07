@@ -9,7 +9,6 @@ void m3885_configure_multikey(void);
 
 static void m3885x_init(struct device *dev)
 {
-
 	if (!dev->enabled)
 		return;
 
@@ -45,6 +44,6 @@ static void enable_dev(struct device *dev)
 }
 
 struct chip_operations superio_renesas_m3885x_ops = {
-	CHIP_NAME("Renesas M3885x Super I/O")
+	.name = "Renesas M3885x Super I/O",
 	.enable_dev = enable_dev,
 };

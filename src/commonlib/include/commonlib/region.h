@@ -6,8 +6,10 @@
 #include <sys/types.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <commonlib/bsd/cb_err.h>
 #include <commonlib/bsd/helpers.h>
 #include <commonlib/mem_pool.h>
+#include <stdint.h>
 
 /*
  * Region support.
@@ -94,10 +96,20 @@ struct region_device {
 		},					\
 	}
 
-/* Helper to dynamically initialize region device. */
-void region_device_init(struct region_device *rdev,
-			const struct region_device_ops *ops, size_t offset,
-			size_t size);
+static inline struct region region_create(size_t offset, size_t size)
+{
+	assert(offset + size - 1 >= offset);
+	return (struct region){ .offset = offset, .size = size };
+}
+
+static inline enum cb_err region_create_untrusted(
+		struct region *r, unsigned long long offset, unsigned long long size)
+{
+	if (offset > SIZE_MAX || size > SIZE_MAX || (size_t)(offset + size - 1) < offset)
+		return CB_ERR_ARG;
+	*r = (struct region){ .offset = offset, .size = size };
+	return CB_SUCCESS;
+}
 
 /* Return 1 if child is subregion of parent, else 0. */
 int region_is_subregion(const struct region *p, const struct region *c);
@@ -112,16 +124,21 @@ static inline size_t region_sz(const struct region *r)
 	return r->size;
 }
 
-static inline size_t region_end(const struct region *r)
+static inline size_t region_last(const struct region *r)
 {
-	return region_offset(r) + region_sz(r);
+	return region_offset(r) + (region_sz(r) - 1);
 }
 
 static inline bool region_overlap(const struct region *r1, const struct region *r2)
 {
-	return (region_end(r1) > region_offset(r2)) &&
-	       (region_offset(r1) < region_end(r2));
+	return (region_last(r1) >= region_offset(r2)) &&
+	       (region_offset(r1) <= region_last(r2));
 }
+
+/* Helper to dynamically initialize region device. */
+void region_device_init(struct region_device *rdev,
+			const struct region_device_ops *ops, size_t offset,
+			size_t size);
 
 static inline const struct region *region_device_region(
 					const struct region_device *rdev)
@@ -139,9 +156,9 @@ static inline size_t region_device_offset(const struct region_device *rdev)
 	return region_offset(region_device_region(rdev));
 }
 
-static inline size_t region_device_end(const struct region_device *rdev)
+static inline size_t region_device_last(const struct region_device *rdev)
 {
-	return region_end(region_device_region(rdev));
+	return region_last(region_device_region(rdev));
 }
 
 /* Memory map entire region device. Same semantics as rdev_mmap() above. */

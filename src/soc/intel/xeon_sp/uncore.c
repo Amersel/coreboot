@@ -6,8 +6,8 @@
 #include <cpu/x86/lapic_def.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
-#include <drivers/ocp/include/vpd.h>
 #include <soc/acpi.h>
+#include <soc/chip_common.h>
 #include <soc/iomap.h>
 #include <soc/pci_devs.h>
 #include <soc/ramstage.h>
@@ -15,6 +15,7 @@
 #include <fsp/util.h>
 #include <security/intel/txt/txt_platform.h>
 #include <security/intel/txt/txt.h>
+#include <soc/config.h>
 #include <soc/numa.h>
 #include <soc/soc_util.h>
 #include <stdint.h>
@@ -45,9 +46,24 @@ enum {
 	ME_LIMIT_REG,
 	TSEG_BASE_REG,
 	TSEG_LIMIT_REG,
+	VTDBAR_REG,
 	/* Must be last. */
 	NUM_MAP_ENTRIES
 };
+
+size_t vtd_probe_bar_size(struct device *dev)
+{
+	uint32_t id = pci_read_config32(dev, PCI_VENDOR_ID);
+	assert(id == (PCI_VID_INTEL | (MMAP_VTD_CFG_REG_DEVID << 16)));
+
+	uint32_t val = pci_read_config32(dev, VTD_BAR_CSR);
+	pci_write_config32(dev, VTD_BAR_CSR, (uint32_t)(-4 * KiB));
+	size_t size = (~(pci_read_config32(dev, VTD_BAR_CSR) & ((uint32_t)(-4 * KiB)))) + 1;
+	assert(size != 0);
+	pci_write_config32(dev, VTD_BAR_CSR, val);
+
+	return size;
+}
 
 static struct map_entry memory_map[NUM_MAP_ENTRIES] = {
 		[TOHM_REG] = MAP_ENTRY_LIMIT_64(VTD_TOHM_CSR, 26, "TOHM"),
@@ -64,6 +80,7 @@ static struct map_entry memory_map[NUM_MAP_ENTRIES] = {
 #endif
 		[TSEG_BASE_REG] = MAP_ENTRY_BASE_32(VTD_TSEG_BASE_CSR, "TSEGMB_BASE"),
 		[TSEG_LIMIT_REG] = MAP_ENTRY_LIMIT_32(VTD_TSEG_LIMIT_CSR, 20, "TSEGMB_LIMIT"),
+		[VTDBAR_REG] = MAP_ENTRY_BASE_32(VTD_BAR_CSR, "VTD_BAR"),
 };
 
 static void read_map_entry(struct device *dev, struct map_entry *entry,
@@ -72,7 +89,16 @@ static void read_map_entry(struct device *dev, struct map_entry *entry,
 	uint64_t value;
 	uint64_t mask;
 
-	/* All registers are on a 1MiB granularity. */
+	if (!entry->reg) {
+		*result = 0;
+		return;
+	}
+	if (entry->reg == VTD_BAR_CSR && !(pci_read_config32(dev, entry->reg) & 1)) {
+		/* VTDBAR is not enabled */
+		*result = 0;
+		return;
+	}
+
 	mask = ((1ULL << entry->mask_bits) - 1);
 	mask = ~mask;
 
@@ -103,14 +129,17 @@ static void mc_report_map_entries(struct device *dev, uint64_t *values)
 {
 	int i;
 	for (i = 0; i < NUM_MAP_ENTRIES; i++) {
-		printk(BIOS_DEBUG, "MC MAP: %s: 0x%llx\n",
-		       memory_map[i].description, values[i]);
+		if (!memory_map[i].description)
+			continue;
+
+		printk(BIOS_DEBUG, "%s: MC MAP: %s: 0x%llx\n",
+		       dev_path(dev), memory_map[i].description, values[i]);
 	}
 }
 
 static void configure_dpr(struct device *dev)
 {
-	const uintptr_t cbmem_top_mb = ALIGN_UP((uintptr_t)cbmem_top(), MiB) / MiB;
+	const uintptr_t cbmem_top_mb = ALIGN_UP(cbmem_top(), MiB) / MiB;
 	union dpr_register dpr = { .raw = pci_read_config32(dev, VTD_LTDPR) };
 
 	/* The DPR lock bit has to be set sufficiently early. It looks like
@@ -191,13 +220,19 @@ static void mc_add_dram_resources(struct device *dev, int *res_count)
 	int index = *res_count;
 	struct range_entry fsp_mem;
 
-	/* Only add dram resources once. */
-	if (dev->bus->secondary != 0)
-		return;
-
 	/* Read in the MAP registers and report their values. */
 	mc_read_map_entries(dev, &mc_values[0]);
 	mc_report_map_entries(dev, &mc_values[0]);
+
+	if (mc_values[VTDBAR_REG]) {
+		res = mmio_range(dev, VTD_BAR_CSR, mc_values[VTDBAR_REG],
+				vtd_probe_bar_size(dev));
+		LOG_RESOURCE("vtd_bar", dev, res);
+	}
+
+	/* Only add dram resources once. */
+	if (dev->upstream->secondary != 0 || dev->upstream->segment_group != 0)
+		return;
 
 	/* Conventional Memory (DOS region, 0x0 to 0x9FFFF) */
 	res = ram_from_to(dev, index++, 0, 0xa0000);
@@ -210,7 +245,7 @@ static void mc_add_dram_resources(struct device *dev, int *res_count)
 	LOG_RESOURCE("low_ram", dev, res);
 
 	/* top_of_ram -> cbmem_top */
-	res = ram_from_to(dev, index++, top_of_ram, (uintptr_t)cbmem_top());
+	res = ram_from_to(dev, index++, top_of_ram, cbmem_top());
 	LOG_RESOURCE("cbmem_ram", dev, res);
 
 	/* Mark TSEG/SMM region as reserved */
@@ -226,7 +261,7 @@ static void mc_add_dram_resources(struct device *dev, int *res_count)
 		 * DPR has a 1M granularity so it's possible if cbmem_top is not 1M
 		 * aligned that some memory does not get marked as assigned.
 		 */
-		res = reserved_ram_from_to(dev, index++, (uintptr_t)cbmem_top(),
+		res = reserved_ram_from_to(dev, index++, cbmem_top(),
 			(dpr.top - dpr.size) * MiB);
 		LOG_RESOURCE("unused_dram", dev, res);
 
@@ -234,7 +269,6 @@ static void mc_add_dram_resources(struct device *dev, int *res_count)
 		res = reserved_ram_from_to(dev, index++, (dpr.top - dpr.size) * MiB,
 					   dpr.top * MiB);
 		LOG_RESOURCE("dpr", dev, res);
-
 	}
 
 	/* Mark TSEG/SMM region as reserved */
@@ -265,25 +299,23 @@ static void mc_add_dram_resources(struct device *dev, int *res_count)
 		/* CXL Memory */
 		uint8_t i;
 		for (i = 0; i < pds.num_pds; i++) {
-			if (pds.pds[i].pd_type == PD_TYPE_PROCESSOR)
+			if (pds.pds[i].pd_type != PD_TYPE_GENERIC_INITIATOR)
 				continue;
 
-			if (CONFIG(OCP_VPD)) {
-				unsigned long flags = IORESOURCE_CACHEABLE;
-				int cxl_mode = get_cxl_mode_from_vpd();
-				if (cxl_mode == CXL_SPM)
-					flags |= IORESOURCE_SOFT_RESERVE;
-				else
-					flags |= IORESOURCE_STORED;
+			unsigned long flags = IORESOURCE_CACHEABLE;
+			int cxl_mode = get_cxl_mode();
+			if (cxl_mode == XEONSP_CXL_SP_MEM)
+				flags |= IORESOURCE_SOFT_RESERVE;
+			else
+				flags |= IORESOURCE_STORED;
 
-				res = fixed_mem_range_flags(dev, index++,
-					(uint64_t)pds.pds[i].base << 26,
-					(uint64_t)pds.pds[i].size << 26, flags);
-				if (cxl_mode == CXL_SPM)
-					LOG_RESOURCE("specific_purpose_memory", dev, res);
-				else
-					LOG_RESOURCE("CXL_memory", dev, res);
-			}
+			res = fixed_mem_range_flags(dev, index++,
+				(uint64_t)pds.pds[i].base << 26,
+				(uint64_t)pds.pds[i].size << 26, flags);
+			if (cxl_mode == XEONSP_CXL_SP_MEM)
+				LOG_RESOURCE("specific_purpose_memory", dev, res);
+			else
+				LOG_RESOURCE("CXL_memory", dev, res);
 		}
 	} else {
 		/* 4GiB -> TOHM */
@@ -320,14 +352,6 @@ static void mmapvtd_read_resources(struct device *dev)
 {
 	int index = 0;
 
-	if (CONFIG(SOC_INTEL_HAS_CXL)) {
-		/* Construct NUMA data structure. This is needed for CXL. */
-		if (fill_pds() != CB_SUCCESS)
-			pds.num_pds = 0;
-
-		dump_pds();
-	}
-
 	/* Read standard PCI resources. */
 	pci_dev_read_resources(dev);
 
@@ -348,9 +372,6 @@ static struct device_operations mmapvtd_ops = {
 	.enable_resources  = pci_dev_enable_resources,
 	.init              = mmapvtd_init,
 	.ops_pci           = &soc_pci_ops,
-#if CONFIG(HAVE_ACPI_TABLES)
-	.acpi_inject_dsdt  = uncore_inject_dsdt,
-#endif
 };
 
 static const unsigned short mmapvtd_ids[] = {

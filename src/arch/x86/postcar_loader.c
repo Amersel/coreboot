@@ -147,7 +147,8 @@ static void postcar_flush_cache(void)
 	uintptr_t stage_cache_base;
 	size_t stage_cache_size;
 
-	cbmem_get_region((void **)&cbmem_base, &cbmem_size);
+	if (cbmem_get_region((void **)&cbmem_base, &cbmem_size))
+		die("Could not find cbmem region");
 	prog_segment_loaded(cbmem_base, cbmem_size, SEG_FINAL);
 	if (CONFIG(TSEG_STAGE_CACHE) && !romstage_handoff_is_resume()) {
 		stage_cache_external_region((void **)&stage_cache_base, &stage_cache_size);
@@ -181,7 +182,7 @@ static void run_postcar_phase(struct postcar_frame *pcf)
 
 	postcar_flush_cache();
 
-	prog_set_arg(&prog, cbmem_top());
+	prog_set_arg(&prog, (void *)cbmem_top());
 
 	prog_run(&prog);
 }

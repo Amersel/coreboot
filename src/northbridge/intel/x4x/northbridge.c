@@ -45,7 +45,7 @@ static void mch_domain_read_resources(struct device *dev)
 	ram_from_to(dev, index++, 0, 0xa0000);
 	mmio_from_to(dev, index++, 0xa0000, 0xc0000);
 	reserved_ram_from_to(dev, index++, 0xc0000, 1 * MiB);
-	ram_from_to(dev, index++, 1 * MiB, (uintptr_t)cbmem_top());
+	ram_from_to(dev, index++, 1 * MiB, cbmem_top());
 
 	/*
 	 * If >= 4GB installed then memory from TOLUD to 4GB
@@ -57,7 +57,7 @@ static void mch_domain_read_resources(struct device *dev)
 	size_t tseg_size;
 	smm_region(&tseg_base, &tseg_size);
 	mmio_from_to(dev, index++, tseg_base, tolud);
-	reserved_ram_from_to(dev, index++, (uintptr_t)cbmem_top(), tseg_base);
+	reserved_ram_from_to(dev, index++, cbmem_top(), tseg_base);
 
 	/* Reserve high memory where the NB BARs are up to 4GiB */
 	mmio_from_to(dev, index++, DEFAULT_HECIBAR, 4ull * GiB);
@@ -72,7 +72,7 @@ static void mch_domain_set_resources(struct device *dev)
 	for (res = dev->resource_list; res; res = res->next)
 		report_resource_stored(dev, res, "");
 
-	assign_resources(dev->link_list);
+	assign_resources(dev->downstream);
 }
 
 static void mch_domain_init(struct device *dev)
@@ -111,7 +111,7 @@ struct device_operations x4x_pci_domain_ops = {
 	.read_resources   = mch_domain_read_resources,
 	.set_resources    = mch_domain_set_resources,
 	.init             = mch_domain_init,
-	.scan_bus         = pci_domain_scan_bus,
+	.scan_bus         = pci_host_bridge_scan_bus,
 	.write_acpi_tables = northbridge_write_acpi_tables,
 	.acpi_fill_ssdt   = generate_cpu_entries,
 	.acpi_name        = northbridge_acpi_name,
@@ -154,7 +154,7 @@ static void x4x_init(void *const chip_info)
 }
 
 struct chip_operations northbridge_intel_x4x_ops = {
-	CHIP_NAME("Intel 4-Series Northbridge")
+	.name = "Intel 4-Series Northbridge",
 	.init = x4x_init,
 };
 

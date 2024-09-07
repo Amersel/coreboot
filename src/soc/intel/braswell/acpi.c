@@ -70,9 +70,7 @@ size_t size_of_dnvs(void)
 
 void soc_fill_gnvs(struct global_nvs *gnvs)
 {
-	const struct soc_intel_braswell_config *config = config_of_soc();
-
-	gnvs->dpte = config->dptf_enable;
+	gnvs->dpte = is_devfn_enabled(PCI_DEVFN(PUNIT_DEV, 0));
 
 	/* Fill in the Wi-Fi Region ID */
 	if (CONFIG(HAVE_REGULATORY_DOMAIN))
@@ -259,7 +257,6 @@ static void generate_p_state_entries(int core)
 	/* Generate the remaining entries */
 	for (ratio = ratio_min + ((num_entries - 1) * ratio_step);
 	     ratio >= ratio_min; ratio -= ratio_step) {
-
 		/* Calculate VID for this ratio */
 		vid = ((ratio - ratio_min) * vid_range_2) / ratio_range_2 + vid_min;
 

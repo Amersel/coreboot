@@ -3,6 +3,8 @@
 #ifndef OCP_VPD_H
 #define OCP_VPD_H
 
+#include <include/types.h>
+
 /* VPD variable for enabling/disabling FRB2 timer. 1/0: Enable/disable */
 #define FRB2_TIMER "frb2_timer_enable"
 #define FRB2_TIMER_DEFAULT 1 /* Default value when the VPD variable is not found */
@@ -64,7 +66,7 @@ enum cxl_memory_mode {
 #define DISABLE_BOOTDRIVE "disable_bootdrive"
 #define DISABLE_BOOTDRIVE_DEFAULT 0 /* By default don't disable */
 
-/* Skip Global reset so that information in Previous Boot Error Hob won't be cleared */
+/* Skip Global reset so that information in Previous Boot Error HOB won't be cleared */
 #define SKIP_GLOBAL_RESET "skip_global_reset"
 #define SKIP_GLOBAL_RESET_DEFAULT 1
 

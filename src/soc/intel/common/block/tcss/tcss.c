@@ -18,10 +18,8 @@
 #include <soc/tcss.h>
 #include <drivers/intel/pmc_mux/conn/chip.h>
 
-#define BIAS_CTRL_VW_INDEX_SHIFT		16
-#define BIAS_CTRL_BIT_POS_SHIFT			8
 #define WAIT_FOR_DISPLAYPORT_TIMEOUT_MS		1000
-#define WAIT_FOR_DP_MODE_ENTRY_TIMEOUT_MS	500
+#define WAIT_FOR_DP_MODE_ENTRY_TIMEOUT_MS	1500
 #define WAIT_FOR_HPD_TIMEOUT_MS			3000
 
 static uint32_t tcss_make_conn_cmd(int u, int u3, int u2, int ufp, int hsl,
@@ -41,7 +39,6 @@ static uint32_t tcss_make_alt_mode_cmd_buf_0(int u, int u3, int m)
 	return TCSS_ALT_FIELD(USAGE, u) |
 		TCSS_ALT_FIELD(USB3, u3) |
 		TCSS_ALT_FIELD(MODE, m);
-
 }
 
 static uint32_t tcss_make_alt_mode_cmd_buf_1(int p, int c, int ufp, int dp)
@@ -65,7 +62,6 @@ static uint32_t tcss_make_hpd_mode_cmd(int u, int u3, int hpd_lvl, int hpd_irq)
 		TCSS_HPD_FIELD(USB3, u3) |
 		TCSS_HPD_FIELD(LVL, hpd_lvl) |
 		TCSS_HPD_FIELD(IRQ, hpd_irq);
-
 }
 
 static int send_pmc_req(int cmd_type, const struct pmc_ipc_buffer *req,
@@ -269,7 +265,7 @@ static int send_pmc_dp_mode_request(int port, const struct usbc_mux_info *mux_da
 	return 0;
 }
 
-static void tcss_init_mux(int port, const struct tcss_port_map *port_map)
+static void disconnect_tcss_devices(int port, const struct tcss_port_map *port_map)
 {
 	int ret;
 
@@ -442,23 +438,22 @@ void tcss_configure(const struct typec_aux_bias_pads aux_bias_pads[MAX_TYPE_C_PO
 	size_t i;
 
 	port_map = tcss_get_port_info(&num_ports);
-	if (port_map == NULL)
+	if ((port_map == NULL) || platform_is_resuming())
 		return;
 
-	if (!platform_is_resuming()) {
+	if (CONFIG(TCSS_HAS_USBC_OPS))
 		for (i = 0; i < num_ports; i++)
-			tcss_init_mux(i, &port_map[i]);
+			disconnect_tcss_devices(i, &port_map[i]);
 
-		/* This should be performed before alternate modes are entered */
-		if (tcss_ops.configure_aux_bias_pads)
-			tcss_ops.configure_aux_bias_pads(aux_bias_pads);
+	/* This should be performed before alternate modes are entered */
+	if (tcss_ops.configure_aux_bias_pads)
+		tcss_ops.configure_aux_bias_pads(aux_bias_pads);
 
-		if (CONFIG(ENABLE_TCSS_DISPLAY_DETECTION))
-			tcss_configure_dp_mode(port_map, num_ports);
+	if (CONFIG(ENABLE_TCSS_DISPLAY_DETECTION))
+		tcss_configure_dp_mode(port_map, num_ports);
 
-		if (CONFIG(ENABLE_TCSS_USB_DETECTION))
-			tcss_configure_usb_mode(port_map, num_ports);
-	}
+	if (CONFIG(ENABLE_TCSS_USB_DETECTION))
+		tcss_configure_usb_mode(port_map, num_ports);
 }
 
 bool tcss_valid_tbt_auth(void)

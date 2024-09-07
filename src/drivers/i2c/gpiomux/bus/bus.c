@@ -4,8 +4,7 @@
 #include <acpi/acpigen.h>
 #include <console/console.h>
 #include <device/device.h>
-#include <device/path.h>
-#include <string.h>
+#include <stdio.h>
 
 #include "chip.h"
 
@@ -55,6 +54,6 @@ static void i2c_gpiomux_bus_enable(struct device *dev)
 }
 
 struct chip_operations drivers_i2c_gpiomux_bus_ops = {
-	CHIP_NAME("I2C GPIO MUX Bus Device")
+	.name = "I2C GPIO MUX Bus Device",
 	.enable_dev = i2c_gpiomux_bus_enable
 };

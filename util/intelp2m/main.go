@@ -21,8 +21,7 @@ func generateOutputFile(parser *parser.ParserData) (err error) {
 #include <gpio.h>
 
 /* Pad configuration was generated automatically using intelp2m utility */
-static const struct pad_config gpio_table[] = {
-`)
+static const struct pad_config gpio_table[] = {`)
 	// Add the pads map
 	parser.PadMapFprint()
 	config.OutputGenFile.WriteString(`};
@@ -70,8 +69,11 @@ func main() {
 		"\tlbg - Lewisburg PCH with Xeon SP\n"+
 		"\tapl - Apollo Lake SoC\n"+
 		"\tcnl - CannonLake-LP or Whiskeylake/Coffeelake/Cometlake-U SoC\n"+
+		"\ttgl - TigerLake-H SoC\n"+
 		"\tadl - AlderLake PCH\n"+
-		"\tjsl - Jasper Lake SoC\n")
+		"\tjsl - Jasper Lake SoC\n"+
+		"\tmtl - MeteorLake SoC\n"+
+		"\tebg - Emmitsburg PCH with Xeon SP\n")
 
 	fieldstyle :=  flag.String("fld", "none", "set fields macros style:\n"+
 		"\tcb  - use coreboot style for bit fields macros\n"+

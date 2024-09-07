@@ -3,7 +3,7 @@
 #include <baseboard/variants.h>
 #include <ec/google/chromeec/ec.h>
 #include <smbios.h>
-#include <string.h>
+#include <stdio.h>
 #include <sar.h>
 
 #define SKU_UNKNOWN     0xFFFFFFFF

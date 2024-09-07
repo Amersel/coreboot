@@ -12,7 +12,8 @@ static u16 acpi_sci_int(void)
 
 	ioapic_get_sci_pin(&gsi, &irq, &flags);
 
-	/* ACPI Release 6.5, 5.2.9 and 5.2.15.5. */
+	/* In systems without 8259, the SCI_INT field in the FADT contains the SCI GSI number
+	   instead of the 8259 IRQ number */
 	if (!CONFIG(ACPI_HAVE_PCAT_8259))
 		return gsi;
 
@@ -39,7 +40,7 @@ void arch_fill_fadt(acpi_fadt_t *fadt)
 	}
 
 	if (permanent_smi_handler()) {
-		fadt->smi_cmd = APM_CNT;
+		fadt->smi_cmd = pm_acpi_smi_cmd_port();
 		fadt->acpi_enable = APM_CNT_ACPI_ENABLE;
 		fadt->acpi_disable = APM_CNT_ACPI_DISABLE;
 	}

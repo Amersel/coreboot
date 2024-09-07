@@ -16,7 +16,19 @@
 #include <soc/pci_devs.h>
 #include <types.h>
 
+/* Display Type:
+*  0 - only internal display aka eDP attached
+*  1 - only external display aka HDMI/USB-C attached
+*  2 - dual display aka both internal and external display attached
+*/
+enum display_type {
+	INTERNAL_DISPLAY_ONLY,
+	EXTERNAL_DISPLAY_ONLY,
+	DUAL_DISPLAY,
+};
+
 #define GFX_MBUS_CTL		0x4438C
+#define GFX_MBUS_SEL(x)		(GFX_MBUS_CTL + (x))
 #define GFX_MBUS_JOIN		BIT(31)
 #define GFX_MBUS_HASHING_MODE	BIT(30)
 #define GFX_MBUS_JOIN_PIPE_SEL	(BIT(28) | BIT(27) | BIT(26))
@@ -69,7 +81,7 @@ static uint32_t graphics_get_ddi_func_ctrl(unsigned long reg)
  * Consider external display is present and enabled, if eDP/DDI-A is not enabled
  * and transcoder is attached to any DDI port (bits 27-30 are not zero).
  */
-static int get_external_display_status(void)
+static enum display_type get_external_display_status(void)
 {
 	/* Read the transcoder register for DDI-A (eDP) */
 	uint32_t ddi_a_func_ctrl = graphics_get_ddi_func_ctrl(TRANS_DDI_FUNC_CTL_A);
@@ -81,20 +93,27 @@ static int get_external_display_status(void)
 	 * Report no external display in both cases.
 	 */
 	if (ddi_a_func_ctrl == TRANS_DDI_PORT_NONE) {
-		return 0;
+		return INTERNAL_DISPLAY_ONLY;
 	} else {
-		if ((ddi_a_func_ctrl == TRANS_DDI_SELECT_PORT(PORT_A)) &&
-			 (ddi_b_func_ctrl == TRANS_DDI_SELECT_PORT(PORT_B))) {
+		if (ddi_a_func_ctrl == TRANS_DDI_SELECT_PORT(PORT_A) &&
+			 (ddi_b_func_ctrl == TRANS_DDI_SELECT_PORT(PORT_B)
+#if CONFIG(INTEL_GMA_VERSION_2)
+			 || ddi_b_func_ctrl == TRANS_DDI_SELECT_PORT(PORT_USB_C1)
+			 || ddi_b_func_ctrl == TRANS_DDI_SELECT_PORT(PORT_USB_C2)
+			 || ddi_b_func_ctrl == TRANS_DDI_SELECT_PORT(PORT_USB_C3)
+			 || ddi_b_func_ctrl == TRANS_DDI_SELECT_PORT(PORT_USB_C4)
+#endif
+		)) {
 			/*
 			 * Dual display detected: both DDI-A(eDP) and
 			 * DDI-B(HDMI) pipes are active
 			 */
-			return 1;
+			return DUAL_DISPLAY;
 		} else {
 			if (ddi_a_func_ctrl == TRANS_DDI_SELECT_PORT(PORT_A))
-				return 0;
+				return INTERNAL_DISPLAY_ONLY;
 			else
-				return 1;
+				return EXTERNAL_DISPLAY_ONLY;
 		}
 	}
 }
@@ -103,6 +122,21 @@ static int get_external_display_status(void)
 int fsp_soc_report_external_display(void)
 {
 	return graphics_get_framebuffer_address() && get_external_display_status();
+}
+
+static void configure_ddi_a_bifurcation(void)
+{
+	u32 ddi_buf_ctl = graphics_gtt_read(DDI_BUF_CTL_A);
+	/* Only program if the buffer is not enabled yet. */
+	if (ddi_buf_ctl & DDI_BUF_CTL_ENABLE)
+		return;
+
+	if (CONFIG(SOC_INTEL_GFX_ENABLE_DDI_E_BIFURCATION))
+		ddi_buf_ctl &= ~DDI_A_4_LANES;
+	else
+		ddi_buf_ctl |= DDI_A_4_LANES;
+
+	graphics_gtt_write(DDI_BUF_CTL_A, ddi_buf_ctl);
 }
 
 static void gma_init(struct device *const dev)
@@ -116,12 +150,8 @@ static void gma_init(struct device *const dev)
 	if (!CONFIG(RUN_FSP_GOP))
 		graphics_soc_panel_init(dev);
 
-	if (CONFIG(SOC_INTEL_CONFIGURE_DDI_A_4_LANES) && !acpi_is_wakeup_s3()) {
-		const u32 ddi_buf_ctl = graphics_gtt_read(DDI_BUF_CTL_A);
-		/* Only program if the buffer is not enabled yet. */
-		if (!(ddi_buf_ctl & DDI_BUF_CTL_ENABLE))
-			graphics_gtt_write(DDI_BUF_CTL_A, ddi_buf_ctl | DDI_A_4_LANES);
-	}
+	if (CONFIG(SOC_INTEL_GFX_HAVE_DDI_A_BIFURCATION) && !acpi_is_wakeup_s3())
+		configure_ddi_a_bifurcation();
 
 	/*
 	 * GFX PEIM module inside FSP binary is taking care of graphics
@@ -261,19 +291,42 @@ static void graphics_dev_read_resources(struct device *dev)
 	}
 }
 
+static void graphics_join_mbus(void)
+{
+	enum display_type type = get_external_display_status();
+	uint32_t hashing_mode = 0;  /* 2x2 */
+	if (type == INTERNAL_DISPLAY_ONLY) {
+		hashing_mode = GFX_MBUS_HASHING_MODE; /* 1x4 */
+		/* Only eDP pipes is joining the MBUS */
+		graphics_gtt_rmw(GFX_MBUS_SEL(PIPE_A), PIPE_A, GFX_MBUS_JOIN | hashing_mode);
+	} else if (type == DUAL_DISPLAY) {
+		/* All pipes are joining the MBUS */
+		graphics_gtt_rmw(GFX_MBUS_SEL(PIPE_A), PIPE_A, GFX_MBUS_JOIN | hashing_mode);
+		graphics_gtt_rmw(GFX_MBUS_SEL(PIPE_B), PIPE_B, GFX_MBUS_JOIN | hashing_mode);
+		graphics_gtt_rmw(GFX_MBUS_SEL(PIPE_C), PIPE_C, GFX_MBUS_JOIN | hashing_mode);
+#if CONFIG(INTEL_GMA_VERSION_2)
+		graphics_gtt_rmw(GFX_MBUS_SEL(PIPE_D), PIPE_D, GFX_MBUS_JOIN | hashing_mode);
+#endif
+	} else {
+		/* No pipe joins the MBUS */
+		graphics_gtt_rmw(GFX_MBUS_CTL, GFX_MBUS_JOIN_PIPE_SEL,
+				 GFX_MBUS_JOIN | hashing_mode);
+	}
+}
+
 static void graphics_dev_final(struct device *dev)
 {
 	pci_dev_request_bus_master(dev);
 
-	if (CONFIG(SOC_INTEL_GFX_MBUS_JOIN)) {
-		uint32_t hashing_mode = 0;  /* 2x2 */
-		uint32_t pipe_select = 0; /* None */
-		if (!get_external_display_status()) {
-			hashing_mode = GFX_MBUS_HASHING_MODE; /* 1x4 */
-			pipe_select = GFX_MBUS_JOIN_PIPE_SEL; /* Pipe-A */
-		}
-		graphics_gtt_rmw(GFX_MBUS_CTL, (uint32_t)(~pipe_select), GFX_MBUS_JOIN | hashing_mode);
-	}
+	/*
+	 * Call function to join the MBUS if GFX PEIM module inside FSP
+	 * binary is taking care of graphics initialization based on
+	 * RUN_FSP_GOP config option.
+	 *
+	 * Skip FW joining the MBUS in case of non-FSP solution.
+	 */
+	if (CONFIG(RUN_FSP_GOP) && CONFIG(SOC_INTEL_GFX_MBUS_JOIN) && display_init_required())
+		graphics_join_mbus();
 }
 
 const struct device_operations graphics_ops = {
@@ -290,6 +343,10 @@ const struct device_operations graphics_ops = {
 };
 
 static const unsigned short pci_device_ids[] = {
+	PCI_DID_INTEL_PTL_U_GT2_1,
+	PCI_DID_INTEL_PTL_H_GT2_1,
+	PCI_DID_INTEL_PTL_H_GT2_2,
+	PCI_DID_INTEL_LNL_M_GT2,
 	PCI_DID_INTEL_RPL_U_GT1,
 	PCI_DID_INTEL_RPL_U_GT2,
 	PCI_DID_INTEL_RPL_U_GT3,
@@ -305,6 +362,7 @@ static const unsigned short pci_device_ids[] = {
 	PCI_DID_INTEL_MTL_P_GT2_2,
 	PCI_DID_INTEL_MTL_P_GT2_3,
 	PCI_DID_INTEL_MTL_P_GT2_4,
+	PCI_DID_INTEL_MTL_P_GT2_5,
 	PCI_DID_INTEL_APL_IGD_HD_505,
 	PCI_DID_INTEL_APL_IGD_HD_500,
 	PCI_DID_INTEL_CNL_GT2_ULX_1,
@@ -413,6 +471,8 @@ static const unsigned short pci_device_ids[] = {
 	PCI_DID_INTEL_RPL_HX_GT2,
 	PCI_DID_INTEL_RPL_HX_GT3,
 	PCI_DID_INTEL_RPL_HX_GT4,
+	PCI_DID_INTEL_TWL_GT1_1,
+	PCI_DID_INTEL_TWL_GT1_2,
 	0,
 };
 

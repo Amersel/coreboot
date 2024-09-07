@@ -5,13 +5,6 @@ chip soc/intel/tigerlake
 	register "DdiPort2Hpd" = "0"
 	register "typec_aux_bias_pads[0]" = "{.pad_auxp_dc = GPP_E10, .pad_auxn_dc = GPP_E13}"
 
-        # Enable EMMC PCIE 5 using clk 5
-        register "PcieRpEnable[4]" = "1"
-        register "PcieRpLtrEnable[4]" = "1"
-        register "PcieRpHotPlug[4]" = "1"
-        register "PcieClkSrcUsage[5]" = "4"
-        register "PcieClkSrcClkReq[5]" = "5"
-
 	#+-------------------+---------------------------+
 	#| Field             |  Value                    |
 	#+-------------------+---------------------------+
@@ -66,15 +59,6 @@ chip soc/intel/tigerlake
 
 		},
 	}"
-
-	# Disable M.2 WWAN
-	register "usb2_ports[2]" = "USB2_PORT_EMPTY"
-
-	# Type-A / Type-C C1
-	register "usb2_ports[3]" = "USB2_PORT_TYPE_C(OC_SKIP)"
-
-	# Type-A / Type-C C0
-	register "usb2_ports[8]" = "USB2_PORT_TYPE_C(OC_SKIP)"
 
 	device domain 0 on
 		device ref dptf on
@@ -147,6 +131,12 @@ chip soc/intel/tigerlake
 			end
 		end
 		device ref south_xhci on
+			register "usb2_ports" = "{
+				[2] = USB2_PORT_EMPTY,			// Disable M.2 WWAN
+				[3] = USB2_PORT_TYPE_C(OC_SKIP),	// Type-A / Type-C C1
+				[8] = USB2_PORT_TYPE_C(OC_SKIP),	// Type-A / Type-C C0
+			}"
+
 			chip drivers/usb/acpi
 				device ref xhci_root_hub on
 					chip drivers/usb/acpi
@@ -278,7 +268,13 @@ chip soc/intel/tigerlake
 				device generic 0 on end
 			end
 		end
-		device ref pcie_rp5 on end
+		device ref pcie_rp5 on
+			# EMMC PCIE 5 using clk 5
+			register "PcieRpLtrEnable[4]" = "1"
+			register "PcieRpHotPlug[4]" = "1"
+			register "PcieClkSrcUsage[5]" = "4"
+			register "PcieClkSrcClkReq[5]" = "5"
+		end
 		device ref pmc hidden
 			# The pmc_mux chip driver is a placeholder for the
 			# PMC.MUX device in the ACPI hierarchy.

@@ -3,7 +3,7 @@
 This information is valid for all supported models, except T430s, [T431s](t431s.md) and [X230s](x230s.md).
 
 ## Flashing coreboot
-```eval_rst
+```{eval-rst}
 +---------------------+--------------------------------+
 | Type                | Value                          |
 +=====================+================================+
@@ -37,7 +37,7 @@ This information is valid for all supported models, except T430s, [T431s](t431s.
   exceed 4MiB in size, which means CONFIG_CBFS_SIZE must be smaller than 4MiB.
 * ROM chip size should be set to 12MiB.
 
-```eval_rst
+```{eval-rst}
 Please also have a look at :doc:`../../tutorial/flashing_firmware/index`.
 ```
 
@@ -82,7 +82,7 @@ It is possible to reduce the Intel ME firmware size to free additional
 space for the `bios` region. This is usually referred to as *cleaning the ME* or
 *stripping the ME*.
 After reducing the Intel ME firmware size you must modify the original IFD,
-[split the resulting coreboot ROM](#splitting-the-coreboot-rom) and then write
+[split the resulting coreboot ROM](#splitting-the-corebootrom) and then write
 each ROM using an [external programmer].
 Have a look at [me_cleaner] for more information.
 

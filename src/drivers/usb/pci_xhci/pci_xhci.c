@@ -7,6 +7,7 @@
 #include <device/pci.h>
 #include <device/pci_ids.h>
 #include <device/xhci.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #define PCI_XHCI_CLASSCODE	0x0c0330 /* USB3.0 xHCI controller */
@@ -73,10 +74,10 @@ static bool xhci_port_exists(const struct device *dev, const struct usb_path *pa
 static const struct device *get_xhci_dev(const struct device *dev)
 {
 	while (dev && dev->ops != &xhci_pci_ops) {
-		if (dev->path.type == DEVICE_PATH_ROOT)
+		if (is_root_device(dev))
 			return NULL;
 
-		dev = dev->bus->dev;
+		dev = dev->upstream->dev;
 	}
 
 	return dev;

@@ -10,7 +10,7 @@
 static struct device_operations pci_domain_ops = {
 	.read_resources = &qcom_pci_domain_read_resources,
 	.set_resources = &pci_domain_set_resources,
-	.scan_bus = &pci_domain_scan_bus,
+	.scan_bus = &pci_host_bridge_scan_bus,
 	.enable = &qcom_setup_pcie_host,
 };
 
@@ -19,7 +19,7 @@ static void soc_read_resources(struct device *dev)
 	void *start = NULL;
 	void *end = NULL;
 
-	ram_range(dev, 0, (uintptr_t)ddr_region->offset, ddr_region->size);
+	ram_range(dev, 0, (uintptr_t)region_offset(ddr_region), region_sz(ddr_region));
 	reserved_ram_range(dev, 1, (uintptr_t)_dram_soc, REGION_SIZE(dram_soc));
 	reserved_ram_range(dev, 2, (uintptr_t)_dram_wlan, REGION_SIZE(dram_wlan));
 	reserved_ram_range(dev, 3, (uintptr_t)_dram_wpss, REGION_SIZE(dram_wpss));
@@ -53,6 +53,6 @@ static void enable_soc_dev(struct device *dev)
 }
 
 struct chip_operations soc_qualcomm_sc7280_ops = {
-	CHIP_NAME("SOC Qualcomm SC7280")
+	.name = "SOC Qualcomm SC7280",
 	.enable_dev = enable_soc_dev,
 };

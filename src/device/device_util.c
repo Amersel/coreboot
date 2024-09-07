@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <assert.h>
 #include <commonlib/bsd/helpers.h>
 #include <console/console.h>
 #include <device/device.h>
-#include <device/path.h>
 #include <device/pci_def.h>
-#include <device/resource.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <types.h>
@@ -97,7 +97,7 @@ u32 dev_path_encode(const struct device *dev)
 	case DEVICE_PATH_ROOT:
 		break;
 	case DEVICE_PATH_PCI:
-		ret |= dev->bus->secondary << 8 | dev->path.pci.devfn;
+		ret |= dev->upstream->segment_group << 16 | dev->upstream->secondary << 8 | dev->path.pci.devfn;
 		break;
 	case DEVICE_PATH_PNP:
 		ret |= dev->path.pnp.port << 8 | dev->path.pnp.device;
@@ -109,7 +109,7 @@ u32 dev_path_encode(const struct device *dev)
 		ret |= dev->path.apic.apic_id;
 		break;
 	case DEVICE_PATH_DOMAIN:
-		ret |= dev->path.domain.domain;
+		ret |= dev->path.domain.domain_id;
 		break;
 	case DEVICE_PATH_CPU_CLUSTER:
 		ret |= dev->path.cpu_cluster.cluster;
@@ -168,8 +168,9 @@ const char *dev_path(const struct device *dev)
 			break;
 		case DEVICE_PATH_PCI:
 			snprintf(buffer, sizeof(buffer),
-				 "PCI: %02x:%02x.%01x",
-				 dev->bus->secondary,
+				 "PCI: %02x:%02x:%02x.%01x",
+				 dev->upstream->segment_group,
+				 dev->upstream->secondary,
 				 PCI_SLOT(dev->path.pci.devfn),
 				 PCI_FUNC(dev->path.pci.devfn));
 			break;
@@ -179,7 +180,7 @@ const char *dev_path(const struct device *dev)
 			break;
 		case DEVICE_PATH_I2C:
 			snprintf(buffer, sizeof(buffer), "I2C: %02x:%02x",
-				 dev->bus->secondary,
+				 dev->upstream->secondary,
 				 dev->path.i2c.device);
 			break;
 		case DEVICE_PATH_APIC:
@@ -191,8 +192,8 @@ const char *dev_path(const struct device *dev)
 				 dev->path.ioapic.ioapic_id);
 			break;
 		case DEVICE_PATH_DOMAIN:
-			snprintf(buffer, sizeof(buffer), "DOMAIN: %04x",
-				dev->path.domain.domain);
+			snprintf(buffer, sizeof(buffer), "DOMAIN: %08x",
+				dev->path.domain.domain_id);
 			break;
 		case DEVICE_PATH_CPU_CLUSTER:
 			snprintf(buffer, sizeof(buffer), "CPU_CLUSTER: %01x",
@@ -248,12 +249,41 @@ const char *dev_name(const struct device *dev)
 		return "unknown";
 }
 
-const char *bus_path(struct bus *bus)
+/* Returns the domain for the given device */
+const struct device *dev_get_domain(const struct device *dev)
 {
-	static char buffer[BUS_PATH_MAX];
-	snprintf(buffer, sizeof(buffer),
-		 "%s,%d", dev_path(bus->dev), bus->link_num);
-	return buffer;
+	/* Walk up the tree up to the domain */
+	while (dev && dev->upstream && !is_root_device(dev)) {
+		if (dev->path.type == DEVICE_PATH_DOMAIN)
+			return dev;
+		dev = dev->upstream->dev;
+	}
+
+	return NULL;
+}
+
+unsigned int dev_get_domain_id(const struct device *dev)
+{
+	const struct device *domain_dev = dev_get_domain(dev);
+
+	assert(domain_dev);
+
+	if (!domain_dev) {
+		printk(BIOS_ERR, "%s: doesn't have a domain device\n", dev_path(dev));
+		return 0;
+	}
+
+	return domain_dev->path.domain.domain_id;
+}
+
+bool is_domain0(const struct device *dev)
+{
+	return dev && dev->path.type == DEVICE_PATH_DOMAIN && dev->path.domain.domain_id == 0;
+}
+
+bool is_dev_on_domain0(const struct device *dev)
+{
+	return is_domain0(dev_get_domain(dev));
 }
 
 /**
@@ -523,9 +553,10 @@ void report_resource_stored(struct device *dev, const struct resource *resource,
 	end = resource_end(resource);
 	buf[0] = '\0';
 
-	if (dev->link_list && (resource->flags & IORESOURCE_PCI_BRIDGE)) {
+	if (dev->downstream && (resource->flags & IORESOURCE_PCI_BRIDGE)) {
 		snprintf(buf, sizeof(buf),
-			 "bus %02x ", dev->link_list->secondary);
+			 "seg %02x bus %02x ", dev->downstream->segment_group,
+			 dev->downstream->secondary);
 	}
 	printk(BIOS_DEBUG, "%s %02lx <- [0x%016llx - 0x%016llx] size 0x%08llx "
 	       "gran 0x%02x %s%s%s\n", dev_path(dev), resource->index,
@@ -553,16 +584,9 @@ void search_bus_resources(struct bus *bus, unsigned long type_mask,
 
 			/* If it is a subtractive resource recurse. */
 			if (res->flags & IORESOURCE_SUBTRACTIVE) {
-				struct bus *subbus;
-				for (subbus = curdev->link_list; subbus;
-				     subbus = subbus->next)
-					if (subbus->link_num
-					== IOINDEX_SUBTRACTIVE_LINK(res->index))
-						break;
-				if (!subbus) /* Why can subbus be NULL?  */
-					break;
-				search_bus_resources(subbus, type_mask, type,
-						     search, gp);
+				if (curdev->downstream)
+					search_bus_resources(curdev->downstream, type_mask, type,
+							     search, gp);
 				continue;
 			}
 			search(gp, curdev, res);
@@ -617,9 +641,8 @@ void disable_children(struct bus *bus)
 	struct device *child;
 
 	for (child = bus->children; child; child = child->sibling) {
-		struct bus *link;
-		for (link = child->link_list; link; link = link->next)
-			disable_children(link);
+		if (child->downstream)
+			disable_children(child->downstream);
 		dev_set_enabled(child, 0);
 	}
 }
@@ -630,80 +653,28 @@ void disable_children(struct bus *bus)
  */
 bool dev_is_active_bridge(struct device *dev)
 {
-	struct bus *link;
 	struct device *child;
 
 	if (!dev || !dev->enabled)
 		return 0;
 
-	if (!dev->link_list || !dev->link_list->children)
+	if (!dev->downstream || !dev->downstream->children)
 		return 0;
 
-	for (link = dev->link_list; link; link = link->next) {
-		for (child = link->children; child; child = child->sibling) {
-			if (child->path.type == DEVICE_PATH_NONE)
-				continue;
-
-			if (child->enabled)
-				return 1;
-		}
+	for (child = dev->downstream->children; child; child = child->sibling) {
+		if (child->path.type == DEVICE_PATH_NONE)
+			continue;
+		if (child->enabled)
+			return 1;
 	}
 
 	return 0;
-}
-
-/**
- * Ensure the device has a minimum number of bus links.
- *
- * @param dev The device to add links to.
- * @param total_links The minimum number of links to have.
- */
-void add_more_links(struct device *dev, unsigned int total_links)
-{
-	struct bus *link, *last = NULL;
-	int link_num = -1;
-
-	for (link = dev->link_list; link; link = link->next) {
-		if (link_num < link->link_num)
-			link_num = link->link_num;
-		last = link;
-	}
-
-	if (last) {
-		int links = total_links - (link_num + 1);
-		if (links > 0) {
-			link = malloc(links * sizeof(*link));
-			if (!link)
-				die("Couldn't allocate more links!\n");
-			memset(link, 0, links * sizeof(*link));
-			last->next = link;
-		} else {
-			/* No more links to add */
-			return;
-		}
-	} else {
-		link = malloc(total_links * sizeof(*link));
-		if (!link)
-			die("Couldn't allocate more links!\n");
-		memset(link, 0, total_links * sizeof(*link));
-		dev->link_list = link;
-	}
-
-	for (link_num = link_num + 1; link_num < total_links; link_num++) {
-		link->link_num = link_num;
-		link->dev = dev;
-		link->next = link + 1;
-		last = link;
-		link = link->next;
-	}
-	last->next = NULL;
 }
 
 static void resource_tree(const struct device *root, int debug_level, int depth)
 {
 	int i = 0;
 	struct device *child;
-	struct bus *link;
 	struct resource *res;
 	char indent[30];	/* If your tree has more levels, it's wrong. */
 
@@ -712,9 +683,9 @@ static void resource_tree(const struct device *root, int debug_level, int depth)
 	indent[i] = '\0';
 
 	printk(BIOS_DEBUG, "%s%s", indent, dev_path(root));
-	if (root->link_list && root->link_list->children)
+	if (root->downstream && root->downstream->children)
 		printk(BIOS_DEBUG, " child on link 0 %s",
-			  dev_path(root->link_list->children));
+			  dev_path(root->downstream->children));
 	printk(BIOS_DEBUG, "\n");
 
 	for (res = root->resource_list; res; res = res->next) {
@@ -725,10 +696,11 @@ static void resource_tree(const struct device *root, int debug_level, int depth)
 			  res->index);
 	}
 
-	for (link = root->link_list; link; link = link->next) {
-		for (child = link->children; child; child = child->sibling)
-			resource_tree(child, debug_level, depth + 1);
-	}
+	if (!root->downstream)
+		return;
+
+	for (child = root->downstream->children; child; child = child->sibling)
+		resource_tree(child, debug_level, depth + 1);
 }
 
 void print_resource_tree(const struct device *root, int debug_level,
@@ -753,7 +725,6 @@ void show_devs_tree(const struct device *dev, int debug_level, int depth)
 	char depth_str[20];
 	int i;
 	struct device *sibling;
-	struct bus *link;
 
 	for (i = 0; i < depth; i++)
 		depth_str[i] = ' ';
@@ -762,11 +733,11 @@ void show_devs_tree(const struct device *dev, int debug_level, int depth)
 	printk(debug_level, "%s%s: enabled %d\n",
 		  depth_str, dev_path(dev), dev->enabled);
 
-	for (link = dev->link_list; link; link = link->next) {
-		for (sibling = link->children; sibling;
-		     sibling = sibling->sibling)
-			show_devs_tree(sibling, debug_level, depth + 1);
-	}
+	if (!dev->downstream)
+		return;
+
+	for (sibling = dev->downstream->children; sibling; sibling = sibling->sibling)
+		show_devs_tree(sibling, debug_level, depth + 1);
 }
 
 void show_all_devs_tree(int debug_level, const char *msg)
@@ -831,7 +802,7 @@ void show_all_devs_resources(int debug_level, const char *msg)
 	}
 }
 
-const struct resource *fixed_resource_range_idx(struct device *dev, unsigned long index,
+const struct resource *resource_range_idx(struct device *dev, unsigned long index,
 				uint64_t base, uint64_t size, unsigned long flags)
 {
 	struct resource *resource;
@@ -840,8 +811,13 @@ const struct resource *fixed_resource_range_idx(struct device *dev, unsigned lon
 
 	resource = new_resource(dev, index);
 	resource->base = base;
-	resource->size = size;
-	resource->flags = IORESOURCE_FIXED | IORESOURCE_ASSIGNED;
+
+	if (flags & IORESOURCE_FIXED)
+		resource->size = size;
+	if (flags & IORESOURCE_BRIDGE)
+		resource->limit = base + size - 1;
+
+	resource->flags = IORESOURCE_ASSIGNED;
 	resource->flags |= flags;
 
 	printk(BIOS_SPEW, "dev: %s, index: 0x%lx, base: 0x%llx, size: 0x%llx\n",
@@ -943,7 +919,7 @@ const char *dev_path_name(enum device_path_type type)
 
 bool dev_path_hotplug(const struct device *dev)
 {
-	for (dev = dev->bus->dev; dev != dev->bus->dev; dev = dev->bus->dev) {
+	for (dev = dev->upstream->dev; dev != dev->upstream->dev; dev = dev->upstream->dev) {
 		if (dev->hotplug_port)
 			return true;
 	}
@@ -962,7 +938,7 @@ void log_resource(const char *type, const struct device *dev, const struct resou
 bool is_cpu(const struct device *cpu)
 {
 	return cpu->path.type == DEVICE_PATH_APIC &&
-	       cpu->bus->dev->path.type == DEVICE_PATH_CPU_CLUSTER;
+	       cpu->upstream->dev->path.type == DEVICE_PATH_CPU_CLUSTER;
 }
 
 bool is_enabled_cpu(const struct device *cpu)
@@ -982,5 +958,11 @@ bool is_enabled_pci(const struct device *pci)
 
 bool is_pci_dev_on_bus(const struct device *pci, unsigned int bus)
 {
-	return is_pci(pci) && pci->bus->secondary == bus;
+	return is_pci(pci) && pci->upstream->segment_group == 0
+		&& pci->upstream->secondary == bus;
+}
+
+bool is_pci_bridge(const struct device *pci)
+{
+	return is_pci(pci) && ((pci->hdr_type & 0x7f) == PCI_HEADER_TYPE_BRIDGE);
 }

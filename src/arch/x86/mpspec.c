@@ -7,11 +7,11 @@
 #include <cpu/cpu.h>
 #include <cpu/x86/lapic.h>
 #include <device/device.h>
-#include <device/path.h>
+#include <device/pci_def.h>
 #include <device/pci_ids.h>
 #include <identity.h>
-#include <stdint.h>
 #include <string.h>
+#include <types.h>
 
 /* Initialize the specified "mc" struct with initial values. */
 void mptable_init(struct mp_config_table *mc)
@@ -205,8 +205,8 @@ static void smp_write_bus(struct mp_config_table *mc,
  * Entry Type, APIC ID, Version,
  * APIC Flags:EN, Address
  */
-void smp_write_ioapic(struct mp_config_table *mc,
-	u8 id, u8 ver, void *apicaddr)
+static void smp_write_ioapic(struct mp_config_table *mc,
+	u8 id, u8 ver, uintptr_t apicaddr)
 {
 	struct mpc_config_ioapic *mpc;
 	mpc = smp_next_mpc_entry(mc);
@@ -219,7 +219,7 @@ void smp_write_ioapic(struct mp_config_table *mc,
 	smp_add_mpc_entry(mc, sizeof(*mpc));
 }
 
-u8 smp_write_ioapic_from_hw(struct mp_config_table *mc, void *apicaddr)
+u8 smp_write_ioapic_from_hw(struct mp_config_table *mc, uintptr_t apicaddr)
 {
 	u8 id = get_ioapic_id(apicaddr);
 	u8 ver = get_ioapic_version(apicaddr);
@@ -281,48 +281,46 @@ void smp_write_intsrc_pci_bridge(struct mp_config_table *mc,
 	int srcbus;
 	int slot;
 
-	struct bus *link;
 	unsigned char dstirq_x[4];
 
-	for (link = dev->link_list; link; link = link->next) {
+	if (!dev->downstream)
+		return;
 
-		child = link->children;
-		srcbus = link->secondary;
+	child = dev->downstream->children;
+	srcbus = dev->downstream->secondary;
 
-		while (child) {
-			if (child->path.type != DEVICE_PATH_PCI)
-				goto next;
+	while (child) {
+		if (child->path.type != DEVICE_PATH_PCI)
+			goto next;
 
-			slot = (child->path.pci.devfn >> 3);
-			/* round pins */
+		slot = (child->path.pci.devfn >> 3);
+		/* round pins */
+		for (i = 0; i < 4; i++)
+			dstirq_x[i] = dstirq[(i + slot) % 4];
+
+		if ((child->class >> 16) != PCI_BASE_CLASS_BRIDGE) {
+			/* pci device */
+			printk(BIOS_DEBUG, "route irq: %s\n",
+			       dev_path(child));
 			for (i = 0; i < 4; i++)
-				dstirq_x[i] = dstirq[(i + slot) % 4];
-
-			if ((child->class >> 16) != PCI_BASE_CLASS_BRIDGE) {
-				/* pci device */
-				printk(BIOS_DEBUG, "route irq: %s\n",
-					dev_path(child));
-				for (i = 0; i < 4; i++)
-					smp_write_intsrc(mc, irqtype, irqflag,
-						srcbus, (slot<<2)|i, dstapic,
-						dstirq_x[i]);
-				goto next;
-			}
-
-			switch (child->class>>8) {
-			case PCI_CLASS_BRIDGE_PCI:
-			case PCI_CLASS_BRIDGE_PCMCIA:
-			case PCI_CLASS_BRIDGE_CARDBUS:
-				printk(BIOS_DEBUG, "route irq bridge: %s\n",
-					dev_path(child));
-				smp_write_intsrc_pci_bridge(mc, irqtype,
-					irqflag, child, dstapic, dstirq_x);
-			}
-
-next:
-			child = child->sibling;
+				smp_write_intsrc(mc, irqtype, irqflag,
+						 srcbus, (slot<<2)|i, dstapic,
+						 dstirq_x[i]);
+			goto next;
 		}
 
+		switch (child->class>>8) {
+		case PCI_CLASS_BRIDGE_PCI:
+		case PCI_CLASS_BRIDGE_PCMCIA:
+		case PCI_CLASS_BRIDGE_CARDBUS:
+			printk(BIOS_DEBUG, "route irq bridge: %s\n",
+			       dev_path(child));
+			smp_write_intsrc_pci_bridge(mc, irqtype,
+						    irqflag, child, dstapic, dstirq_x);
+		}
+
+next:
+		child = child->sibling;
 	}
 }
 
@@ -477,17 +475,16 @@ void mptable_write_buses(struct mp_config_table *mc, int *max_pci_bus,
 	memset(buses, 0, sizeof(buses));
 
 	for (dev = all_devices; dev; dev = dev->next) {
-		struct bus *bus;
-		for (bus = dev->link_list; bus; bus = bus->next) {
-			if (bus->secondary > 255) {
-				printk(BIOS_ERR,
-					"A bus claims to have a bus ID > 255?!? Aborting");
-				return;
-			}
-			buses[bus->secondary] = 1;
-			if (highest < bus->secondary)
-				highest = bus->secondary;
+		struct bus *bus = dev->downstream;
+		if (!bus)
+			continue;
+		if (bus->secondary > 255) {
+			printk(BIOS_ERR, "A bus claims to have a bus ID > 255?!? Aborting\n");
+			return;
 		}
+		buses[bus->secondary] = 1;
+		if (highest < bus->secondary)
+			highest = bus->secondary;
 	}
 	for (i = 0; i <= highest; i++) {
 		if (buses[i]) {

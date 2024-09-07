@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <string.h>
+#include <amdblocks/acpi.h>
 #include <console/console.h>
 #include <device/device.h>
 #include <device/mmio.h>
@@ -15,6 +15,7 @@
 #include <soc/acpi.h>
 #include <soc/pci_devs.h>
 #include <soc/southbridge.h>
+#include <stdio.h>
 #include <amdblocks/acpimmio.h>
 #include <variant/ec.h>
 #include <variant/thermal.h>
@@ -134,7 +135,6 @@ static void mainboard_enable(struct device *dev)
 {
 	/* Initialize the PIRQ data structures for consumption */
 	pirq_setup();
-
 }
 
 int mainboard_get_xhci_oc_map(uint16_t *map)

@@ -56,7 +56,7 @@ export KCONFIG_NEGATIVES := 1
 export KBUILD_KCONFIG := Kconfig
 export CONFIG_ := CONFIG_LP_
 
-# directory containing the toplevel Makefile.inc
+# directory containing the toplevel Makefile.mk
 TOPLEVEL := .
 
 CONFIG_LP_SHELL := sh
@@ -103,7 +103,7 @@ endif
 
 # This include must come _before_ the pattern rules below!
 # Order _does_ matter for pattern rules.
-include $(srck)/Makefile.inc
+include $(srck)/Makefile.mk
 
 include $(HAVE_DOTCONFIG)
 
@@ -118,7 +118,8 @@ ARCH-y := $(ARCHDIR-y)
 # override here.
 ARCH-$(CONFIG_LP_ARCH_ARM)     := arm
 ARCH-$(CONFIG_LP_ARCH_ARM64)   := arm64
-ARCH-$(CONFIG_LP_ARCH_X86)     := x86_32
+ARCH-$(CONFIG_LP_ARCH_X86_32)  := x86_32
+ARCH-$(CONFIG_LP_ARCH_X86_64)  := x86_64
 ARCH-$(CONFIG_LP_ARCH_MOCK)    := mock
 
 # Five cases where we don't need fully populated $(obj) lists:
@@ -127,7 +128,7 @@ ARCH-$(CONFIG_LP_ARCH_MOCK)    := mock
 # 3. when make distclean is run
 # 4. when make help% or make clean% is run
 # 5. when make %-test or make %-tests or make %coverage-report is run
-# Don't waste time on reading all Makefile.incs in these cases
+# Don't waste time on reading all Makefiles in these cases
 ifeq ($(strip $(HAVE_DOTCONFIG)),)
 NOCOMPILE := 1
 endif
@@ -159,8 +160,8 @@ $(xcompile): $(top)/../../util/xcompile/xcompile
 	\mv -f $@.tmp $@ 2> /dev/null
 
 ifeq ($(NOCOMPILE),1)
-include $(TOPLEVEL)/Makefile.inc
-include $(TOPLEVEL)/tests/Makefile.inc
+include $(TOPLEVEL)/Makefile.mk
+include $(TOPLEVEL)/tests/Makefile.mk
 real-all: config
 
 else
@@ -285,7 +286,7 @@ add-special-class= \
 	$(eval $(1):=) \
 	$(eval special-classes+=$(1))
 
-# Clean -y variables, include Makefile.inc
+# Clean -y variables, include Makefile.mk
 # Add paths to files in X-y to X-srcs
 # Add subdirs-y to subdirs
 includemakefiles= \
@@ -308,7 +309,7 @@ evaluate_subdirs= \
 	$(eval cursubdirs:=$(subdirs)) \
 	$(eval subdirs:=) \
 	$(foreach dir,$(cursubdirs), \
-		$(eval $(call includemakefiles,$(dir)/Makefile.inc))) \
+		$(eval $(call includemakefiles,$(dir)/Makefile.mk))) \
 	$(if $(subdirs),$(eval $(call evaluate_subdirs)))
 
 # collect all object files eligible for building or run unit-tests
@@ -316,7 +317,7 @@ ifneq ($(UNIT_TEST),1)
 subdirs:=$(TOPLEVEL)
 $(eval $(call evaluate_subdirs))
 else
-include $(TOPLEVEL)/tests/Makefile.inc
+include $(TOPLEVEL)/tests/Makefile.mk
 endif
 
 # Converts one or more source file paths to the corresponding build/ paths.

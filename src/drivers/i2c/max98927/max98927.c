@@ -5,7 +5,6 @@
 #include <console/console.h>
 #include <device/i2c_simple.h>
 #include <device/device.h>
-#include <device/path.h>
 #include "chip.h"
 
 #define MAX98927_ACPI_NAME	"MAXI"
@@ -86,6 +85,6 @@ static void max98927_enable(struct device *dev)
 }
 
 struct chip_operations drivers_i2c_max98927_ops = {
-	CHIP_NAME("Maxim MAX98927 Codec")
+	.name = "Maxim MAX98927 Codec",
 	.enable_dev = max98927_enable
 };

@@ -1,8 +1,8 @@
+## SPDX-License-Identifier: GPL-2.0-only
 
 config SOC_QUALCOMM_SC7180
 	bool
 	default n
-	depends on USE_QC_BLOBS
 	select ARCH_BOOTBLOCK_ARMV8_64
 	select ARCH_RAMSTAGE_ARMV8_64
 	select ARCH_ROMSTAGE_ARMV8_64

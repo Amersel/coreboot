@@ -1,7 +1,7 @@
 chip soc/intel/skylake
 # CPU
 	# Enable Enhanced Intel SpeedStep
-	register "eist_enable"			= "1"
+	register "eist_enable"			= "true"
 
 	# Graphics
 	# IGD Displays
@@ -30,9 +30,6 @@ chip soc/intel/skylake
 	register "PmConfigSlpSusMinAssert"	= "3"				# 500ms
 	register "PmConfigSlpAMinAssert"	= "3"				# 2s
 
-	# Thermal
-	register "tcc_offset"			= "10"
-
 	# PM Util
 	# GPE configuration
 	# Note that GPE events called out in ASL code rely on this
@@ -49,8 +46,6 @@ chip soc/intel/skylake
 						   LPC_IOE_EC_62_66"
 
 # Actual device tree.
-	device cpu_cluster 0 on end
-
 	device domain 0 on
 		device ref igpu		on  end
 		device ref sa_thermal	on  end
@@ -114,7 +109,7 @@ chip soc/intel/skylake
 			smbios_slot_desc "SlotTypeM2Socket3" "SlotLengthOther" "M.2/M 2280" "SlotDataBusWidth4X"
 		end
 		device ref uart0	on  end
-		device pci 1f.0 on						# LPC Interface
+		device ref lpc_espi on
 			register "gen1_dec"			= "0x000c0681"
 			register "gen2_dec"			= "0x000c1641"
 			register "gen3_dec"			= "0x00000069"
@@ -144,7 +139,9 @@ chip soc/intel/skylake
 				device pnp 4e.19 off end			# Power Management Channel 5
 			end
 		end
-		device ref hda		on  end
+		device ref hda		on
+			subsystemid 0x10ec 0x10d0
+		end
 		device ref smbus	on  end
 		device ref fast_spi	on  end
 	end

@@ -8,7 +8,7 @@ might be inaccurate or wrong.
 
 ## LDNs
 
-```eval_rst
+```{eval-rst}
 +-------+---------------------------+
 | LDN # | Function                  |
 +=======+===========================+
@@ -78,7 +78,7 @@ Looks like a WDT.
 ### LDN8
 
 Custom HWM space. It exposes 256 byte of IO config space.
-See [HWM](#HWM) for more details.
+See [HWM](#hwm) for more details.
 
 ## HWM
 
@@ -86,7 +86,7 @@ See [HWM](#HWM) for more details.
 
 The registers are accessible via IO space and are located at LDN8's IOBASE.
 
-```eval_rst
+```{eval-rst}
 +---------------+-----------------------+
 | IOBASE offset | Register              |
 +---------------+-----------------------+
@@ -108,7 +108,7 @@ The SuperIO exposes 16 different pages. Nearly all registers are unknown.
 
 **Page 1**
 
-```eval_rst
+```{eval-rst}
 +---------------+-----------------------+
 | IOBASE offset | Register              |
 +---------------+-----------------------+

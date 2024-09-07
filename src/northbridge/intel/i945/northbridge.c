@@ -26,7 +26,7 @@ static void mch_domain_read_resources(struct device *dev)
 	/* Can we find out how much memory we can use at most
 	 * this way?
 	 */
-	pci_tolm = find_pci_tolm(dev->link_list);
+	pci_tolm = find_pci_tolm(dev->downstream);
 	printk(BIOS_DEBUG, "pci_tolm: 0x%x\n", pci_tolm);
 
 	tolud = pci_read_config8(d0f0, TOLUD) << 24;
@@ -34,7 +34,7 @@ static void mch_domain_read_resources(struct device *dev)
 
 	/* Report the memory regions */
 	ram_range(dev, idx++, 0, 0xa0000);
-	ram_from_to(dev, idx++, 1 * MiB, (uintptr_t)cbmem_top());
+	ram_from_to(dev, idx++, 1 * MiB, cbmem_top());
 
 	/* TSEG */
 	uintptr_t tseg_base;
@@ -44,10 +44,10 @@ static void mch_domain_read_resources(struct device *dev)
 
 	/* cbmem_top can be shifted downwards due to alignment.
 	   Mark the region between cbmem_top and tseg_base as unusable */
-	if ((uintptr_t)cbmem_top() < tseg_base) {
+	if (cbmem_top() < tseg_base) {
 		printk(BIOS_DEBUG, "Unused RAM between cbmem_top and TOM: 0x%lx\n",
-		       tseg_base - (uintptr_t)cbmem_top());
-		mmio_from_to(dev, idx++, (uintptr_t)cbmem_top(), tseg_base);
+		       tseg_base - cbmem_top());
+		mmio_from_to(dev, idx++, cbmem_top(), tseg_base);
 	}
 	if (tseg_base + tseg_size < tolud)
 		mmio_from_to(dev, idx++, tseg_base + tseg_size, tolud);
@@ -65,7 +65,7 @@ static void mch_domain_set_resources(struct device *dev)
 	for (res = dev->resource_list; res; res = res->next)
 		report_resource_stored(dev, res, "");
 
-	assign_resources(dev->link_list);
+	assign_resources(dev->downstream);
 }
 
 static const char *northbridge_acpi_name(const struct device *dev)
@@ -97,7 +97,7 @@ void northbridge_write_smram(u8 smram)
 struct device_operations i945_pci_domain_ops = {
 	.read_resources   = mch_domain_read_resources,
 	.set_resources    = mch_domain_set_resources,
-	.scan_bus         = pci_domain_scan_bus,
+	.scan_bus         = pci_host_bridge_scan_bus,
 	.acpi_name        = northbridge_acpi_name,
 };
 
@@ -134,7 +134,7 @@ struct device_operations i945_cpu_bus_ops = {
 };
 
 struct chip_operations northbridge_intel_i945_ops = {
-	CHIP_NAME("Intel i945 Northbridge")
+	.name = "Intel i945 Northbridge",
 };
 
 bool northbridge_support_slfm(void)

@@ -61,9 +61,22 @@ jne .testAcpiRsdp
 mov 4(%ebx), %eax
 sub $8, %eax
 shr $2, %eax /* eax = number of dwords of e820 data */
+/*
+ * Historically linux had space for 32 entries. This limit was increased in
+ * the year 2005 (Linux 2.6.11) to hold up to 128 entries.
+ * Assume 128 entries when the boot protocol version is 2.04+.
+ */
+cmpw $0x0204, (LINUX_PARAM_LOC + PROTOCOL_VERSION)
+jge .e820big  /* protocol version >= 2.04 can handle 128 entries of 5 dwords */
 cmp $(32 * 5), %eax /* linux wants at most 32 entries of 5 dwords */
 jng 1f
 mov $(32 * 5), %eax /* only copy 32 entries */
+jmp 1f
+
+.e820big:
+cmp $(128 * 5), %eax /* linux wants at most 128 entries of 5 dwords */
+jng 1f
+mov $(128 * 5), %eax /* only copy 128 entries */
 1:
 mov %eax, %esi
 mov $5, %edi
@@ -84,7 +97,7 @@ je .endScan
 cmp $12, 16(%edi) /* type */
 jng .next_e820_entry
 /* Fixup the type to 2, reserved memory */
-mov $2, 16(%edi)
+movl $2, 16(%edi)
 .next_e820_entry:
 dec %eax
 add $20, %edi

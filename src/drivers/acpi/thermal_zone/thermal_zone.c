@@ -5,8 +5,8 @@
 #include <commonlib/bsd/helpers.h>
 #include <console/console.h>
 #include <device/device.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #include "chip.h"
 
@@ -16,7 +16,7 @@
 #define DEFAULT_TC2	5
 #define DEFAULT_TSP	10
 
-#define CELSIUS_TO_DECI_KELVIN(temp_c)	((temp_c) * 10 + 2731)
+#define CELSIUS_TO_DECI_KELVIN(temp_c)	((temp_c) * 10 + 2732)
 #define SECONDS_TO_DECI_SECONDS(s)	((s) * 10)
 
 static const char *thermal_zone_acpi_name(const struct device *dev)
@@ -126,6 +126,6 @@ static void thermal_zone_enable_dev(struct device *dev)
 }
 
 struct chip_operations drivers_acpi_thermal_zone_ops = {
-	CHIP_NAME("ACPI Thermal Zone")
+	.name = "ACPI Thermal Zone",
 	.enable_dev = thermal_zone_enable_dev,
 };

@@ -12,8 +12,8 @@ const u32 cim_verb_data[] = {
 	/* Pin Widget Verb Table */
 
 	AZALIA_PIN_CFG(0, 0x14, 0x01014010),
-	AZALIA_PIN_CFG(0, 0x15, 0x411111f0),
-	AZALIA_PIN_CFG(0, 0x16, 0x411111f0),
+	AZALIA_PIN_CFG(0, 0x15, AZALIA_PIN_CFG_NC(0)),
+	AZALIA_PIN_CFG(0, 0x16, AZALIA_PIN_CFG_NC(0)),
 	AZALIA_PIN_CFG(0, 0x18, 0x01a19840),
 	AZALIA_PIN_CFG(0, 0x19, 0x02a19c50),
 	AZALIA_PIN_CFG(0, 0x1a, 0x0181304f),
@@ -25,5 +25,4 @@ const u32 cim_verb_data[] = {
 
 const u32 pc_beep_verbs[0] = {};
 
-const u32 pc_beep_verbs_size = ARRAY_SIZE(pc_beep_verbs);
-const u32 cim_verb_data_size = ARRAY_SIZE(cim_verb_data);
+AZALIA_ARRAY_SIZES;

@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 config SOC_INTEL_METEORLAKE
 	bool
 	select ACPI_INTEL_HARDWARE_SLEEP_VALUES
@@ -18,11 +20,13 @@ config SOC_INTEL_METEORLAKE
 	select FAST_SPI_SUPPORTS_EXT_BIOS_WINDOW
 	select FSP_M_XIP
 	select FSP_STATUS_GLOBAL_RESET_REQUIRED_3
+	select FSP_UGOP_EARLY_SIGN_OF_LIFE if !SOC_INTEL_METEORLAKE_PRE_PRODUCTION_SILICON
 	select FSP_USES_CB_DEBUG_EVENT_HANDLER
 	select FSPS_HAS_ARCH_UPD
 	select GENERIC_GPIO_LIB
 	select HAVE_DEBUG_RAM_SETUP
 	select HAVE_FSP_GOP
+	select HAVE_FSP_LOGO_SUPPORT if RUN_FSP_GOP
 	select HAVE_HYPERTHREADING
 	select HAVE_INTEL_COMPLIANCE_TEST_MODE
 	select HAVE_SMI_HANDLER
@@ -33,12 +37,13 @@ config SOC_INTEL_METEORLAKE
 	select INTEL_GMA_OPREGION_2_1
 	select INTEL_GMA_VERSION_2
 	select IOAPIC
-	select MICROCODE_BLOB_UNDISCLOSED
 	select MP_SERVICES_PPI_V2
+	select MRC_CACHE_USING_MRC_VERSION
 	select MRC_SETTINGS_PROTECT
 	select PARALLEL_MP_AP_WORK
 	select PCIE_CLOCK_CONTROL_THROUGH_P2SB
-	select PLATFORM_USES_FSP2_3
+	select PLATFORM_USES_FSP2_4 if HAVE_X86_64_SUPPORT
+	select PLATFORM_USES_FSP2_3 if !HAVE_X86_64_SUPPORT
 	select PMC_GLOBAL_RESET_ENABLE_LOCK
 	select SOC_INTEL_COMMON
 	select SOC_INTEL_COMMON_ACPI_WAKE_SOURCE
@@ -75,6 +80,7 @@ config SOC_INTEL_METEORLAKE
 	select SOC_INTEL_COMMON_BLOCK_SA
 	select SOC_INTEL_COMMON_BLOCK_SMM
 	select SOC_INTEL_COMMON_BLOCK_SMM_IO_TRAP
+	select SOC_INTEL_COMMON_BLOCK_SMM_TCO_ENABLE
 	select SOC_INTEL_COMMON_BLOCK_THERMAL_BEHIND_PMC
 	select SOC_INTEL_COMMON_BLOCK_XHCI
 	select SOC_INTEL_COMMON_BLOCK_XHCI_ELOG
@@ -85,7 +91,7 @@ config SOC_INTEL_METEORLAKE
 	select SOC_INTEL_COMMON_RESET
 	select SOC_INTEL_COMMON_BLOCK_IOC
 	select SOC_INTEL_CRASHLOG
-	select SOC_INTEL_CSE_LITE_PSR if MAINBOARD_HAS_CHROMEOS
+	select SOC_INTEL_CSE_LITE_PSR if MAINBOARD_HAS_CHROMEOS && SOC_INTEL_CSE_LITE_SKU
 	select SOC_INTEL_CSE_SEND_EOP_LATE if !MAINBOARD_HAS_CHROMEOS
 	select SOC_INTEL_CSE_SET_EOP
 	select SOC_INTEL_IOE_DIE_SUPPORT
@@ -165,12 +171,12 @@ config DCACHE_RAM_SIZE
 
 config DCACHE_BSP_STACK_SIZE
 	hex
-	default 0x80400
+	default 0x88000
 	help
 	  The amount of anticipated stack usage in CAR by bootblock and
 	  other stages. In the case of FSP_USES_CB_STACK default value will be
 	  sum of FSP-M stack requirement(512KiB) and CB romstage stack requirement
-	  (~1KiB).
+	  (~32KiB).
 
 config FSP_TEMP_RAM_SIZE
 	hex
@@ -301,10 +307,6 @@ config CONSOLE_UART_BASE_ADDRESS
 	default 0xfe02c000
 	depends on INTEL_LPSS_UART_FOR_CONSOLE
 
-config VBT_DATA_SIZE_KB
-	int
-	default 9
-
 # Clock divider parameters for 115200 baud rate
 # Baudrate = (UART source clock * M) /(N *16)
 # MTL UART source clock: 100MHz
@@ -323,6 +325,7 @@ config VBOOT
 	select VBOOT_VBNV_CMOS
 	select VBOOT_VBNV_CMOS_BACKUP_TO_FLASH
 	select VBOOT_X86_SHA256_ACCELERATION
+	select VBOOT_X86_RSA_ACCELERATION
 
 # Default hash block size is 1KiB. Increasing it to 4KiB to improve
 # hashing time as well as read time.
@@ -345,27 +348,21 @@ config CONSOLE_CBMEM_BUFFER_SIZE
 
 config FSP_HEADER_PATH
 	string "Location of FSP headers"
-	default "src/vendorcode/intel/fsp/fsp2_0/meteorlake/"
+	default "src/vendorcode/intel/fsp/fsp2_0/meteorlake/x86_64/" if HAVE_X86_64_SUPPORT
+	default "src/vendorcode/intel/fsp/fsp2_0/meteorlake/x86_32/"
 
 config FSP_FD_PATH
 	string
 	depends on FSP_USE_REPO
 	default "3rdparty/fsp/MeteorLakeFspBinPkg/Fsp.fd"
 
-config SOC_INTEL_METEORLAKE_DEBUG_CONSENT
-	int "Debug Consent for MTL"
-	# USB DBC is more common for developers so make this default to 6 if
-	# SOC_INTEL_DEBUG_CONSENT=y
+# Override platform debug consent value:
+#  0:Disabled, 2:Enabled Trace Active, 4:Enabled Trace Ready,
+#  6:Enable Trace Power-Off, 7:Manual
+config SOC_INTEL_COMMON_DEBUG_CONSENT
+	int
 	default 6 if SOC_INTEL_DEBUG_CONSENT
-	default 0
-	help
-	  This is to control debug interface on SOC.
-	  Setting non-zero value will allow to use DBC or DCI to debug SOC.
-	  PlatformDebugConsent in FspmUpd.h has the details.
-
-	  Desired platform debug type are
-	  0:Disabled, 2:Enabled Trace Active, 4:Enabled Trace Ready,
-	  6:Enable Trace Power-Off, 7:Manual
+	default 2 if SOC_INTEL_COMMON_BLOCK_TRACEHUB
 
 config DATA_BUS_WIDTH
 	int
@@ -447,10 +444,13 @@ config SOC_INTEL_CSE_FW_PARTITION_CMOS_OFFSET
 	int
 	default 161
 
-config ACPI_SOC_INTEL_SLP_S0_FREQ_HZ
-	hex
+config SOC_INTEL_COMMON_BLOCK_ACPI_SLP_S0_FREQ_HZ
 	default 0x2005
 	help
 	  slp_s0_residency granularity in 122us ticks (i.e. ~8.2KHz) in Meteor Lake.
+
+config SOC_PHYSICAL_ADDRESS_WIDTH
+	int
+	default 42
 
 endif

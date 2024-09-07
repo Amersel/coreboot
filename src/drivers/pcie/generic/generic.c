@@ -27,13 +27,13 @@ static void pcie_generic_fill_ssdt(const struct device *dev)
 	pci_rom_ssdt(dev);
 
 	config = dev->chip_info;
-	if (!config || !dev->bus || !dev->bus->dev)
+	if (!config || !dev->upstream || !dev->upstream->dev)
 		return;
 
 	const char *scope;
 	const char *name;
 
-	scope = acpi_device_path(dev->bus->dev);
+	scope = acpi_device_path(dev->upstream->dev);
 	name = acpi_device_name(dev);
 
 	acpigen_write_scope(scope);
@@ -68,6 +68,6 @@ static void pcie_generic_enable(struct device *dev)
 }
 
 struct chip_operations drivers_pcie_generic_ops = {
-	CHIP_NAME("PCIe Device")
+	.name = "PCIe Device",
 	.enable_dev = pcie_generic_enable
 };

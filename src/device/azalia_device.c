@@ -7,8 +7,9 @@
 #include <device/mmio.h>
 #include <delay.h>
 #include <timer.h>
+#include <types.h>
 
-int azalia_set_bits(void *port, u32 mask, u32 val)
+static enum cb_err azalia_set_bits(void *port, u32 mask, u32 val)
 {
 	struct stopwatch sw;
 	u32 reg32;
@@ -31,17 +32,17 @@ int azalia_set_bits(void *port, u32 mask, u32 val)
 
 	/* Timeout occurred */
 	if (stopwatch_expired(&sw))
-		return -1;
-	return 0;
+		return CB_ERR;
+	return CB_SUCCESS;
 }
 
-int azalia_enter_reset(u8 *base)
+enum cb_err azalia_enter_reset(u8 *base)
 {
 	/* Set bit 0 to 0 to enter reset state (BAR + 0x8)[0] */
 	return azalia_set_bits(base + HDA_GCTL_REG, HDA_GCTL_CRST, 0);
 }
 
-int azalia_exit_reset(u8 *base)
+enum cb_err azalia_exit_reset(u8 *base)
 {
 	/* Set bit 0 to 1 to exit reset state (BAR + 0x8)[0] */
 	return azalia_set_bits(base + HDA_GCTL_REG, HDA_GCTL_CRST, HDA_GCTL_CRST);
@@ -52,13 +53,22 @@ static u16 codec_detect(u8 *base)
 	struct stopwatch sw;
 	u16 reg16;
 
-	if (azalia_exit_reset(base) < 0)
+	if (azalia_exit_reset(base) != CB_SUCCESS)
 		goto no_codec;
 
-	if (CONFIG(AZALIA_LOCK_DOWN_R_WO_GCAP)) {
-		/* If GCAP is R/WO, lock it down after deasserting controller reset */
-		write16(base + HDA_GCAP_REG, read16(base + HDA_GCAP_REG));
-	}
+	/*
+	 * In the HD Audio Specification Rev. 1.0a, every bitfield in the GCAP
+	 * register is RO (Read Only). However, it is known that in some Intel
+	 * PCHs (e.g 6-series and 7-series, documents 324645 and 326776), some
+	 * of the bitfields in the GCAP register are R/WO (Read / Write Once).
+	 * GCAP is RO on 5-series PCHs; 8-series and 9-series PCHs have a lock
+	 * bit for GCAP elsewhere.
+	 *
+	 * Lock GCAP by reading GCAP and writing back the same value. This has
+	 * no effect on platforms that implement GCAP as a RO register or lock
+	 * GCAP through a different mechanism.
+	 */
+	write16(base + HDA_GCAP_REG, read16(base + HDA_GCAP_REG));
 
 	/* clear STATESTS bits (BAR + 0x0e)[14:0] */
 	reg16 = read16(base + HDA_STATESTS_REG);
@@ -79,10 +89,10 @@ static u16 codec_detect(u8 *base)
 	if (stopwatch_expired(&sw))
 		goto no_codec;
 
-	if (azalia_enter_reset(base) < 0)
+	if (azalia_enter_reset(base) != CB_SUCCESS)
 		goto no_codec;
 
-	if (azalia_exit_reset(base) < 0)
+	if (azalia_exit_reset(base) != CB_SUCCESS)
 		goto no_codec;
 
 	/* Read in Codec location (BAR + 0x0e)[14:0] */
@@ -95,9 +105,8 @@ static u16 codec_detect(u8 *base)
 
 no_codec:
 	/* Codec Not found */
-	/* Put HDA back in reset (BAR + 0x8) [0] */
-	azalia_set_bits(base + HDA_GCTL_REG, 1, 0);
-	printk(BIOS_DEBUG, "azalia_audio: No codec!\n");
+	azalia_enter_reset(base);
+	printk(BIOS_DEBUG, "azalia_audio: no codec!\n");
 	return 0;
 }
 
@@ -226,55 +235,57 @@ __weak void mainboard_azalia_program_runtime_verbs(u8 *base, u32 viddid)
 {
 }
 
-void azalia_codec_init(u8 *base, int addr, const u32 *verb_table, u32 verb_table_bytes)
+static bool codec_is_operative(u8 *base, const int addr)
 {
-	u32 reg32;
-	const u32 *verb;
-	u32 verb_size;
-
-	printk(BIOS_DEBUG, "azalia_audio: Initializing codec #%d\n", addr);
-
-	/* 1 */
 	if (wait_for_ready(base) < 0) {
-		printk(BIOS_DEBUG, "  codec not ready.\n");
-		return;
+		printk(BIOS_DEBUG, "azalia_audio: codec #%d not ready\n", addr);
+		return false;
 	}
 
-	reg32 = (addr << 28) | 0x000f0000;
+	const u32 reg32 = (addr << 28) | 0x000f0000;
 	write32(base + HDA_IC_REG, reg32);
 
 	if (wait_for_valid(base) < 0) {
-		printk(BIOS_DEBUG, "  codec not valid.\n");
+		printk(BIOS_DEBUG, "azalia_audio: codec #%d not valid\n", addr);
+		return false;
+	}
+	return true;
+}
+
+void azalia_codec_init(u8 *base, int addr, const u32 *verb_table, u32 verb_table_bytes)
+{
+	const u32 viddid = read32(base + HDA_IR_REG);
+	const u32 *verb;
+	u32 verb_size;
+
+	printk(BIOS_DEBUG, "azalia_audio: initializing codec #%d...\n", addr);
+	printk(BIOS_DEBUG, "azalia_audio:  - vendor/device id: 0x%08x\n", viddid);
+
+	verb_size = azalia_find_verb(verb_table, verb_table_bytes, viddid, &verb);
+
+	if (verb_size == 0) {
+		printk(BIOS_DEBUG, "azalia_audio:  - no verb!\n");
 		return;
 	}
+	printk(BIOS_DEBUG, "azalia_audio:  - verb size: %u\n", verb_size);
 
-	/* 2 */
-	reg32 = read32(base + HDA_IR_REG);
-	printk(BIOS_DEBUG, "azalia_audio: codec viddid: %08x\n", reg32);
-	verb_size = azalia_find_verb(verb_table, verb_table_bytes, reg32, &verb);
-
-	if (!verb_size) {
-		printk(BIOS_DEBUG, "azalia_audio: No verb!\n");
-		return;
-	}
-	printk(BIOS_DEBUG, "azalia_audio: verb_size: %u\n", verb_size);
-
-	/* 3 */
-	const int rc = azalia_program_verb_table(base, verb, verb_size);
-	if (rc < 0)
-		printk(BIOS_DEBUG, "azalia_audio: verb not loaded.\n");
+	if (azalia_program_verb_table(base, verb, verb_size) < 0)
+		printk(BIOS_DEBUG, "azalia_audio:  - verb not loaded\n");
 	else
-		printk(BIOS_DEBUG, "azalia_audio: verb loaded.\n");
+		printk(BIOS_DEBUG, "azalia_audio:  - verb loaded\n");
 
-	mainboard_azalia_program_runtime_verbs(base, reg32);
+	mainboard_azalia_program_runtime_verbs(base, viddid);
+}
+
+static bool codec_can_init(const u16 codec_mask, u8 *base, const int addr)
+{
+	return codec_mask & (1 << addr) && codec_is_operative(base, addr);
 }
 
 void azalia_codecs_init(u8 *base, u16 codec_mask)
 {
-	int i;
-
-	for (i = 14; i >= 0; i--) {
-		if (codec_mask & (1 << i))
+	for (int i = AZALIA_MAX_CODECS - 1; i >= 0; i--) {
+		if (codec_can_init(codec_mask, base, i))
 			azalia_codec_init(base, i, cim_verb_data, cim_verb_data_size);
 	}
 
@@ -298,7 +309,7 @@ void azalia_audio_init(struct device *dev)
 	codec_mask = codec_detect(base);
 
 	if (codec_mask) {
-		printk(BIOS_DEBUG, "azalia_audio: codec_mask = %02x\n", codec_mask);
+		printk(BIOS_DEBUG, "azalia_audio: codec_mask = 0x%02x\n", codec_mask);
 		azalia_codecs_init(base, codec_mask);
 	}
 }

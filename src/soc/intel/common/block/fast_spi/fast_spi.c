@@ -502,17 +502,17 @@ static const char *fast_spi_acpi_name(const struct device *dev)
  */
 static void fast_spi_fill_ssdt(const struct device *dev)
 {
+	/* Do not add SSDT if the fast SPI device is hidden. */
+	if (!CONFIG(FAST_SPI_GENERATE_SSDT) || dev->hidden)
+		return;
+
 	const char *scope = acpi_device_scope(dev);
 	const char *hid = fast_spi_acpi_hid(dev);
-	struct resource *res;
 
-	/* Do not add SSDT if the fast SPI device is hidden. */
-	if (dev->hidden || !CONFIG(FAST_SPI_GENERATE_SSDT))
-		return;
 	if (!scope || !hid)
 		return;
 
-	res = probe_resource(dev, PCI_BASE_ADDRESS_0);
+	struct resource *res = probe_resource(dev, PCI_BASE_ADDRESS_0);
 	if (!res)
 		return;
 
@@ -563,6 +563,7 @@ static struct device_operations fast_spi_dev_ops = {
 };
 
 static const unsigned short pci_device_ids[] = {
+	PCI_DID_INTEL_LNL_HWSEQ_SPI,
 	PCI_DID_INTEL_ADP_M_N_HWSEQ_SPI,
 	PCI_DID_INTEL_ADP_P_HWSEQ_SPI,
 	PCI_DID_INTEL_ADP_S_HWSEQ_SPI,

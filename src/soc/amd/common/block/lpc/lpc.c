@@ -17,7 +17,6 @@
 #include <amdblocks/ioapic.h>
 #include <amdblocks/iomap.h>
 #include <amdblocks/lpc.h>
-#include <soc/acpi.h>
 #include <soc/iomap.h>
 #include <soc/lpc.h>
 #include <soc/southbridge.h>
@@ -46,7 +45,7 @@ void ioapic_get_sci_pin(u8 *gsi, u8 *irq, u8 *flags)
 static void fch_ioapic_init(void)
 {
 	fch_enable_ioapic_decode();
-	register_new_ioapic_gsi0(VIO_APIC_VADDR);
+	register_new_ioapic_gsi0(IO_APIC_ADDR);
 }
 
 static void lpc_init(struct device *dev)
@@ -279,20 +278,20 @@ static void configure_child_espi_windows(struct device *child)
 
 static void lpc_enable_children_resources(struct device *dev)
 {
-	struct bus *link;
 	struct device *child;
 
-	for (link = dev->link_list; link; link = link->next) {
-		for (child = link->children; child; child = child->sibling) {
-			if (!child->enabled)
-				continue;
-			if (child->path.type != DEVICE_PATH_PNP)
-				continue;
-			if (CONFIG(SOC_AMD_COMMON_BLOCK_USE_ESPI))
-				configure_child_espi_windows(child);
-			else
-				configure_child_lpc_windows(dev, child);
-		}
+	if (!dev->downstream)
+		return;
+
+	for (child = dev->downstream->children; child; child = child->sibling) {
+		if (!child->enabled)
+			continue;
+		if (child->path.type != DEVICE_PATH_PNP)
+			continue;
+		if (CONFIG(SOC_AMD_COMMON_BLOCK_USE_ESPI))
+			configure_child_espi_windows(child);
+		else
+			configure_child_lpc_windows(dev, child);
 	}
 }
 

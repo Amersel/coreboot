@@ -15,6 +15,8 @@
 #define ITE_CONFIG_REG_WATCHDOG		0x72 /* watchdog config */
 #define ITE_CONFIG_REG_WDT_TIMEOUT_LSB	0x73 /* watchdog timeout (LSB) */
 #define ITE_CONFIG_REG_WDT_TIMEOUT_MSB	0x74 /* watchdog timeout (MSB) */
+#define ITE_CONFIG_REG_APC_PME_CTL1	0xf2 /* APC_PME Control 1 */
+#define ITE_CONFIG_REG_APC_PME_CTL2	0xf4 /* APC_PME Control 2 */
 
 /* Helper procedure */
 static void ite_sio_write(pnp_devfn_t dev, u8 reg, u8 value)
@@ -74,6 +76,7 @@ void ite_enable_serial(pnp_devfn_t dev, u16 iobase)
  *
  * LDN 7, reg 0x2a - needed for S3, or memory power will be cut off
  * this was documented only in IT8712F_V0.9.2!
+ * Also documented in IT8728F_V0.4.2 and IT8772E_V0.4
  *
  * Enable 3VSBSW#. (For System Suspend-to-RAM)
  * 0: 3VSBSW# will be always inactive.
@@ -84,13 +87,16 @@ void ite_enable_serial(pnp_devfn_t dev, u16 iobase)
  * and pass: GPIO_DEV
  */
 
-void ite_enable_3vsbsw(pnp_devfn_t dev)
+void ite_set_3vsbsw(pnp_devfn_t dev, bool enable)
 {
 	u8 tmp;
 	pnp_enter_conf_state(dev);
 	pnp_set_logical_device(dev);
 	tmp = pnp_read_config(dev, ITE_CONFIG_REG_MFC);
-	tmp |= 0x80;
+	if (enable)
+		tmp |= 0x80;
+	else
+		tmp &= ~0x80;
 	pnp_write_config(dev, ITE_CONFIG_REG_MFC, tmp);
 	pnp_exit_conf_state(dev);
 }
@@ -134,5 +140,40 @@ void ite_kill_watchdog(pnp_devfn_t dev)
 	ite_sio_write(dev, ITE_CONFIG_REG_WATCHDOG, 0x00);
 	ite_sio_write(dev, ITE_CONFIG_REG_WDT_TIMEOUT_LSB, 0x00);
 	ite_sio_write(dev, ITE_CONFIG_REG_WDT_TIMEOUT_MSB, 0x00);
+	pnp_exit_conf_state(dev);
+}
+
+/*
+ * Disable PME# Output
+ * pass EC_DEV
+ */
+void ite_disable_pme_out(pnp_devfn_t dev)
+{
+	u8 tmp;
+	pnp_enter_conf_state(dev);
+	pnp_set_logical_device(dev);
+	tmp = pnp_read_config(dev, ITE_CONFIG_REG_APC_PME_CTL1);
+	tmp |= 0x40;
+	pnp_write_config(dev, ITE_CONFIG_REG_APC_PME_CTL1, tmp);
+	pnp_exit_conf_state(dev);
+}
+
+/*
+ * Set AC resume to be up to the Southbridge
+ * pass EC_DEV
+ */
+void ite_ac_resume_southbridge(pnp_devfn_t dev)
+{
+	u8 tmp;
+	pnp_enter_conf_state(dev);
+	pnp_set_logical_device(dev);
+	tmp = pnp_read_config(dev, ITE_CONFIG_REG_APC_PME_CTL2);
+	/*
+	 * Set both
+	 * 6: Gate Extra PWRON# Pulse
+	 * 5: PSON# state when 3VSB switched to on
+	 */
+	tmp |= 0x60;
+	pnp_write_config(dev, ITE_CONFIG_REG_APC_PME_CTL2, tmp);
 	pnp_exit_conf_state(dev);
 }

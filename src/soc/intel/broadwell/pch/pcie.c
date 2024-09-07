@@ -452,17 +452,17 @@ static void pch_pcie_early(struct device *dev)
 		break;
 	case 5:
 		/*
-		 * Bit 28 of b0d28f4 0x32c register correspond to
-		 * Root Ports 4:1.
+		 * Bit 28 of b0d28f4 0x32c register corresponds to
+		 * Root Port 5.
 		 */
 		do_aspm = !!(rpc.b0d28f4_32c & (1 << 28));
 		break;
 	case 6:
 		/*
-		 * Bit 28 of b0d28f5 0x32c register correspond to
-		 * Root Ports 4:1.
+		 * Bit 29 of b0d28f5 0x32c register corresponds to
+		 * Root Port 6.
 		 */
-		do_aspm = !!(rpc.b0d28f5_32c & (1 << 28));
+		do_aspm = !!(rpc.b0d28f5_32c & (1 << 29));
 		break;
 	}
 
@@ -522,7 +522,7 @@ static void pch_pcie_early(struct device *dev)
 	pci_update_config32(dev, 0x318, ~(0xffff << 16), (0x1414 << 16));
 
 	/* Set L1 exit latency in LCAP register. */
-	if (!do_aspm && (pci_read_config8(dev, 0xf5) & 0x1))
+	if ((pci_read_config8(dev, 0xf5) & 0x1) || do_aspm)
 		pci_update_config32(dev, 0x4c, ~(0x7 << 15), (0x4 << 15));
 	else
 		pci_update_config32(dev, 0x4c, ~(0x7 << 15), (0x2 << 15));

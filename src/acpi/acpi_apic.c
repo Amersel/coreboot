@@ -5,12 +5,13 @@
 #include <arch/smp/mpspec.h>
 #include <commonlib/sort.h>
 #include <cpu/cpu.h>
+#include <device/device.h>
 
 static int acpi_create_madt_lapic(acpi_madt_lapic_t *lapic, u8 cpu, u8 apic)
 {
 	lapic->type = LOCAL_APIC; /* Local APIC structure */
 	lapic->length = sizeof(acpi_madt_lapic_t);
-	lapic->flags = (1 << 0); /* Processor/LAPIC enabled */
+	lapic->flags = ACPI_MADT_LAPIC_ENABLED;
 	lapic->processor_id = cpu;
 	lapic->apic_id = apic;
 
@@ -22,7 +23,7 @@ static int acpi_create_madt_lx2apic(acpi_madt_lx2apic_t *lapic, u32 cpu, u32 api
 	lapic->type = LOCAL_X2APIC; /* Local APIC structure */
 	lapic->reserved = 0;
 	lapic->length = sizeof(acpi_madt_lx2apic_t);
-	lapic->flags = (1 << 0); /* Processor/LAPIC enabled */
+	lapic->flags = ACPI_MADT_LAPIC_ENABLED;
 	lapic->processor_id = cpu;
 	lapic->x2apic_id = apic;
 
@@ -99,8 +100,8 @@ int acpi_create_madt_ioapic_from_hw(acpi_madt_ioapic_t *ioapic, u32 addr)
 {
 	static u32 gsi_base;
 	u32 my_base;
-	u8 id = get_ioapic_id((void *)(uintptr_t)addr);
-	u8 count = ioapic_get_max_vectors((void *)(uintptr_t)addr);
+	u8 id = get_ioapic_id((uintptr_t)addr);
+	u8 count = ioapic_get_max_vectors((uintptr_t)addr);
 
 	my_base = gsi_base;
 	gsi_base += count;
@@ -126,17 +127,12 @@ static int acpi_create_madt_sci_override(acpi_madt_irqoverride_t *irqoverride)
 
 	ioapic_get_sci_pin(&gsi, &irq, &flags);
 
+	/* In systems without 8259, the SCI_INT field in the FADT contains the SCI GSI number
+	   instead of the 8259 IRQ number */
 	if (!CONFIG(ACPI_HAVE_PCAT_8259))
 		irq = gsi;
 
-	irqoverride->type = IRQ_SOURCE_OVERRIDE; /* Interrupt source override */
-	irqoverride->length = sizeof(acpi_madt_irqoverride_t);
-	irqoverride->bus = MP_BUS_ISA;
-	irqoverride->source = irq;
-	irqoverride->gsirq = gsi;
-	irqoverride->flags = flags;
-
-	return irqoverride->length;
+	return acpi_create_madt_irqoverride(irqoverride, MP_BUS_ISA, irq, gsi, flags);
 }
 
 static unsigned long acpi_create_madt_ioapic_gsi0_default(unsigned long current)
@@ -233,7 +229,7 @@ unsigned long acpi_arch_fill_madt(acpi_madt_t *madt, unsigned long current)
 	madt->lapic_addr = cpu_get_lapic_addr();
 
 	if (CONFIG(ACPI_HAVE_PCAT_8259))
-		madt->flags |= 1;
+		madt->flags |= ACPI_MADT_PCAT_COMPAT;
 
 	if (CONFIG(ACPI_COMMON_MADT_LAPIC))
 		current = acpi_create_madt_lapics_with_nmis(current);

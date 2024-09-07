@@ -9,7 +9,6 @@
 
 static void f81865f_init(struct device *dev)
 {
-
 	if (!dev->enabled)
 		return;
 
@@ -48,6 +47,6 @@ static void enable_dev(struct device *dev)
 }
 
 struct chip_operations superio_fintek_f81865f_ops = {
-	CHIP_NAME("Fintek F81865F Super I/O")
+	.name = "Fintek F81865F Super I/O",
 	.enable_dev = enable_dev
 };

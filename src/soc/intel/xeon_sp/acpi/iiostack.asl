@@ -1,78 +1,136 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#define MAKE_IIO_DEV(id,rt)						\
-	Device (PC##id)							\
-	{								\
-		Name (_HID, EisaId ("PNP0A08") /* PCI Express Bus */)	\
-		Name (_CID, EisaId ("PNP0A03") /* PCI Bus */)		\
-		Name (_UID, 0x##id)					\
-		Method (_PRT, 0, NotSerialized)				\
-		{							\
-			If (PICM)					\
-			{						\
-				Return (\_SB_.AR##rt)			\
-			}						\
-			Return (\_SB_.PR##rt)				\
-		}							\
-		External(\_SB.RT##id)					\
-		Method (_CRS, 0, NotSerialized)				\
-		{							\
-			Return (\_SB.RT##id)				\
-		}							\
-		Name (SUPP, 0x00)					\
-		Name (CTRL, 0x00)					\
-		Name (_PXM, 0x00)  /* _PXM: Device Proximity */		\
-		Method (_OSC, 4, NotSerialized)				\
-		{							\
-			CreateDWordField (Arg3, 0x00, CDW1)		\
-			If ((Arg0 == ToUUID ("33db4d5b-1ff7-401c-9657-7441c03dd766") /* PCI Host Bridge Device */))  \
-			{							\
-				If (Arg2 < 0x03)				\
-				{						\
-					CDW1 |= 0x02 /* Unknown failure */	\
-					Return (Arg3)				\
-				}						\
-				CreateDWordField (Arg3, 0x04, CDW2)		\
-				CreateDWordField (Arg3, 0x08, CDW3)		\
-				SUPP = CDW2					\
-				CTRL = CDW3					\
-				If ((AHPE || ((SUPP & 0x16) != 0x16)))		\
-				{						\
-					CTRL &= 0x1E				\
-				}						\
-				/* Never allow SHPC (no SHPC controller in system) */ \
-				CTRL &= 0x1D					\
-				/* Disable Native PCIe AER handling from OS */	\
-				CTRL &= 0x17					\
-				If ((Arg1 != 1)) /* unknown revision */	\
-				{						\
-					CDW1 |= 0x08				\
-				}						\
-				If ((CDW3 != CTRL)) /* capabilities bits were masked */ \
-				{						\
-					CDW1 |= 0x10				\
-				}						\
-				CDW3 = CTRL					\
-				Return (Arg3)					\
-			}							\
-			Else							\
-			{							\
-				/* indicate unrecognized UUID */		\
-				CDW1 |= 0x04					\
-				DBG0 = 0xEE					\
-				Return (Arg3)					\
-			}							\
-		}								\
+#define PCI_HOST_BRIDGE_OSC_UUID     "33db4d5b-1ff7-401c-9657-7441c03dd766"
+#define CXL_HOST_BRIDGE_OSC_UUID     "68f2d50b-c469-4d8a-bd3d-941a103fd3fc"
+
+#define OSC_RET_FAILURE              0x02
+#define OSC_RET_UNRECOGNIZED_UUID    0x04
+#define OSC_RET_UNRECOGNIZED_REV     0x08
+#define OSC_RET_CAPABILITIES_MASKED  0x10
+
+#define OSC_QUERY_SUPPORT_SET        0x01
+
+#define ASL_UUID_UNHANDLED           0x00
+#define ASL_UUID_HANDLED             0x01
+
+Scope (\_SB)
+{
+	/*
+	 * \_SB.POSC - OSC handler for PCIe _OSC calls
+	 *
+	 * Reference:
+	 * 6.2.11 in https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/06_Device_Configuration/Device_Configuration.html
+	 *
+	 * Note:
+	 * This call negotiate with OS on fixed firmware capabilities. It doesn't support to runtime
+	 * change firmware settings.
+	 *
+	 * Arguments: (7)
+	 * Arg0 - Map to _OSC Arg0. A Buffer containing a UUID
+	 * Arg1 - Map to _OSC Arg1. An Integer containing a Revision ID of the buffer format
+	 * Arg2 - Map to _OSC Arg2. An Integer containing a count of entries in Arg3
+	 * Arg3 - Map to _OSC Arg3. A Buffer containing a list of DWORD capabilities
+	 * Arg4 - GrantedPCIeFeatures
+	 * Arg5 - IsCxlDomain
+	 * Arg6 - GrantedCxlFeatures
+	 *
+	 * _OSC ASL Return Value:
+	 * A Buffer containing a list of capabilities
+	 *
+	 * Local Variables Assignment:
+	 * Local0 - Not used
+	 * Local1 - Not used
+	 * Local2 - Not used
+	 * Local3 - Not used
+	 * Local4 - Not used
+	 * Local5 - Not used
+	 * Local6 - Record whether the UUID is handled
+	 * Local7 - Backs up the input value of Arg3
+	 *
+	 * Field Definitions:
+	 * Name - Width	Source	Offset	Description
+	 * --------------------------------
+	 * RETE - DWord	Arg3	0x00	Returned errors
+	 * SUPP - Dword	Arg3	0x04	PCIe Features that OS supported
+	 * CTRL - Dword	Arg3	0x08	PCIe Features that firmware grant control to OS
+	 * OTRL - Dword	Local7	0x08	PCIe Features that OS requests for control
+	 * SUPC - Dword	Arg3	0x0C	CXL Features that OS supported
+	 * CTRC - Dword	Arg3	0x10	CXL Features that firmware grant control to OS
+	 * OTRC - Dword	Local7	0x10	CXL Features that OS requests for control
+	*/
+
+	Method (POSC, 7, NotSerialized)
+	{
+
+#define OscArg0              Arg0
+#define OscArg1              Arg1
+#define OscArg2              Arg2
+#define OscArg3              Arg3
+#define GrantedPCIeFeatures  Arg4
+#define IsCxlDomain          Arg5
+#define GrantedCxlFeatures   Arg6
+
+                Local7 = OscArg3
+                CreateDWordField (OscArg3, Zero, RETE)
+                RETE = 0x0
+                Local6 = ASL_UUID_UNHANDLED
+
+		If ((OscArg1 != 0x01))
+		{
+			RETE = OSC_RET_UNRECOGNIZED_REV
+			Return (OscArg3)
+		}
+
+		If ((OscArg2 < 0x03))
+		{
+			RETE = OSC_RET_FAILURE
+			Return (OscArg3)
+		}
+
+		If ((OscArg0 == ToUUID (PCI_HOST_BRIDGE_OSC_UUID)) ||
+			((IsCxlDomain != 0x00) &&
+			(OscArg0 == ToUUID (CXL_HOST_BRIDGE_OSC_UUID))))
+		{
+			CreateDWordField (OscArg3, 0x04, SUPP)
+			CreateDWordField (OscArg3, 0x08, CTRL)
+			CreateDWordField (Local7, 0x08, OTRL)
+
+			CTRL &= GrantedPCIeFeatures
+
+			/* TODO: further suppress CTRL bits per SUPP caps */
+
+			If ((CTRL != OTRL))
+			{
+				RETE = OSC_RET_CAPABILITIES_MASKED
+			}
+
+			Local6 = ASL_UUID_HANDLED
+		}
+
+		If ((IsCxlDomain != 0x00) &&
+			(OscArg0 == ToUUID (CXL_HOST_BRIDGE_OSC_UUID)))
+		{
+			CreateDWordField (OscArg3, 0x0C, SUPC)
+			CreateDWordField (OscArg3, 0x10, CTRC)
+			CreateDWordField (Local7, 0x10, OTRC)
+
+			CTRC &= GrantedCxlFeatures
+
+                        /* TODO: further suppress CTRC bits per SUPC caps */
+
+			If ((CTRC != OTRC))
+			{
+				RETE = OSC_RET_CAPABILITIES_MASKED
+			}
+
+			Local6 = ASL_UUID_HANDLED
+		}
+
+		If ((Local6 == ASL_UUID_UNHANDLED))
+		{
+			RETE = OSC_RET_UNRECOGNIZED_UUID
+		}
+
+		Return (OscArg3)
 	}
-
-MAKE_IIO_DEV(00, 00)
-MAKE_IIO_DEV(01, 10)
-MAKE_IIO_DEV(02, 20)
-MAKE_IIO_DEV(03, 28)
-
-#if (CONFIG_MAX_SOCKET > 1)
-MAKE_IIO_DEV(06, 40)
-MAKE_IIO_DEV(07, 50)
-MAKE_IIO_DEV(08, 60)
-MAKE_IIO_DEV(09, 68)
-#endif
+}

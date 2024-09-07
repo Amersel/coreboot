@@ -16,8 +16,10 @@
 #include <intelblocks/lpc_lib.h>
 #include <intelblocks/pmclib.h>
 #include <intelblocks/sgx.h>
+#include <intelblocks/tco.h>
 #include <intelblocks/uart.h>
 #include <soc/gpio.h>
+#include <soc/intel/common/tco.h>
 #include <soc/iomap.h>
 #include <soc/pm.h>
 
@@ -104,6 +106,16 @@ void acpi_fill_fadt(acpi_fadt_t *fadt)
 
 	/* GPE0 STS/EN pairs each 32 bits wide. */
 	fadt->gpe0_blk_len = 2 * GPE0_REG_MAX * sizeof(uint32_t);
+
+	fadt->gpe1_blk = GPE1_STS(0) ? (pmbase + GPE1_STS(0)) : 0;
+	if (fadt->gpe1_blk) {
+		fadt->gpe1_blk_len = 2 * GPE1_REG_MAX * sizeof(uint32_t);
+		/*
+		 * NOTE: gpe1 is after gpe0, which has _STS and _EN register sets.
+		 * gpe1_base is the starting bit offset for GPE1.
+		 */
+		fadt->gpe1_base = fadt->gpe0_blk_len / 2 * 8;
+	}
 
 	fill_fadt_extended_pm_io(fadt);
 
@@ -271,7 +283,6 @@ void generate_p_state_entries(int core, int cores_per_package)
 	/* Generate the remaining entries */
 	for (ratio = ratio_min + ((num_entries - 1) * ratio_step);
 	     ratio >= ratio_min; ratio -= ratio_step) {
-
 		/* Calculate power at this ratio */
 		power = common_calculate_power_ratio(power_max, ratio_max, ratio);
 		clock = (ratio * cpu_get_bus_clock()) / KHz;
@@ -388,4 +399,177 @@ void generate_cpu_entries(const struct device *device)
 
 	if (CONFIG(SOC_INTEL_COMMON_BLOCK_SGX_ENABLE))
 		sgx_fill_ssdt();
+}
+
+
+static bool fill_wdat_timeout_entry(acpi_wdat_entry_t *entry)
+{
+	uint16_t tcobase = tco_get_bar();
+
+	if (tcobase == 0)
+		return false;
+
+	memset((void *)entry, 0, sizeof(acpi_wdat_entry_t));
+
+	entry->action = ACPI_WDAT_SET_COUNTDOWN;
+	entry->instruction = ACPI_WDAT_WRITE_COUNTDOWN | ACPI_WDAT_PRESERVE_REGISTER;
+	entry->mask = TCO_TMR_MASK;
+	entry->register_region.space_id = ACPI_ADDRESS_SPACE_IO;
+	entry->register_region.addrl = tcobase + TCO_TMR;
+	entry->register_region.access_size = ACPI_WDAT_ACCESS_SIZE_WORD;
+
+	return true;
+}
+
+static bool fill_wdat_boot_status_entry(acpi_wdat_entry_t *entry, uint8_t action,
+					uint8_t instruction, uint32_t value)
+{
+	uint16_t tcobase = tco_get_bar();
+
+	if (tcobase == 0)
+		return false;
+
+	memset((void *)entry, 0, sizeof(acpi_wdat_entry_t));
+
+	entry->action = action;
+	entry->instruction = instruction;
+	entry->value = value;
+	entry->mask = TCO2_STS_SECOND_TO;
+	entry->register_region.space_id = ACPI_ADDRESS_SPACE_IO;
+	entry->register_region.addrl = tcobase + TCO_MESSAGE1;
+	entry->register_region.access_size = ACPI_WDAT_ACCESS_SIZE_BYTE;
+
+	return true;
+}
+
+static bool fill_wdat_run_state_entry(acpi_wdat_entry_t *entry, uint8_t action,
+				       uint8_t instruction, uint32_t value)
+{
+	uint16_t tcobase = tco_get_bar();
+
+	if (tcobase == 0)
+		return false;
+
+	memset((void *)entry, 0, sizeof(acpi_wdat_entry_t));
+
+	entry->action = action;
+	entry->instruction = instruction;
+	entry->value = value;
+	entry->mask = TCO1_TMR_HLT;
+	entry->register_region.space_id = ACPI_ADDRESS_SPACE_IO;
+	entry->register_region.addrl = tcobase + TCO1_CNT;
+	entry->register_region.access_size = ACPI_WDAT_ACCESS_SIZE_WORD;
+
+	return true;
+}
+
+static bool fill_wdat_ping_entry(acpi_wdat_entry_t *entry)
+{
+	uint16_t tcobase = tco_get_bar();
+
+	if (tcobase == 0)
+		return false;
+
+	memset((void *)entry, 0, sizeof(acpi_wdat_entry_t));
+
+	entry->action = ACPI_WDAT_RESET;
+	entry->instruction = ACPI_WDAT_WRITE_VALUE;
+	entry->value = 0x01;
+	entry->mask = 0x01;
+	entry->register_region.space_id = ACPI_ADDRESS_SPACE_IO;
+	entry->register_region.addrl = tcobase + TCO_RLD;
+	entry->register_region.access_size = ACPI_WDAT_ACCESS_SIZE_WORD;
+
+	return true;
+}
+
+unsigned long acpi_soc_fill_wdat(acpi_wdat_t *wdat, unsigned long current)
+{
+	if (!wdat)
+		return current;
+
+	uint16_t tcobase = tco_get_bar();
+
+	if (tcobase == 0)
+		goto out_err;
+
+	wdat->pci_segment = 0xff;
+	wdat->pci_bus = 0xff;
+	wdat->pci_device = 0xff;
+	wdat->pci_function = 0xff;
+
+	wdat->timer_period = tco_get_timer_period();
+	wdat->min_count = tco_get_timer_min_value();
+	wdat->max_count = tco_get_timer_max_value();
+	wdat->flags = ACPI_WDAT_FLAG_ENABLED;
+	wdat->entries = 0;
+
+	acpi_wdat_entry_t *entry = (acpi_wdat_entry_t *)current;
+
+	/* Write countdown */
+	if (!fill_wdat_timeout_entry(entry))
+		goto out_err;
+
+	entry++;
+
+	/* Get boot status */
+	if (!fill_wdat_boot_status_entry(entry, ACPI_WDAT_GET_STATUS,
+					 ACPI_WDAT_READ_VALUE, TCO2_STS_SECOND_TO))
+		goto out_err;
+
+	entry++;
+
+	/* Set boot status */
+	if (!fill_wdat_boot_status_entry(entry, ACPI_WDAT_SET_STATUS,
+					 ACPI_WDAT_WRITE_VALUE | ACPI_WDAT_PRESERVE_REGISTER,
+					 0))
+		goto out_err;
+
+	entry++;
+
+	/* Get running status */
+	if (!fill_wdat_run_state_entry(entry, ACPI_WDAT_GET_RUNNING_STATE,
+				       ACPI_WDAT_READ_VALUE, 0))
+		goto out_err;
+
+	entry++;
+
+	/* Start the watchdog */
+	if (!fill_wdat_run_state_entry(entry, ACPI_WDAT_SET_RUNNING_STATE,
+				       ACPI_WDAT_WRITE_VALUE | ACPI_WDAT_PRESERVE_REGISTER,
+				       0))
+		goto out_err;
+
+	entry++;
+
+	/* Get stopped status */
+	if (!fill_wdat_run_state_entry(entry, ACPI_WDAT_GET_STOPPED_STATE,
+				       ACPI_WDAT_READ_VALUE, TCO1_TMR_HLT))
+		goto out_err;
+
+	entry++;
+
+	/* Stop the watchdog */
+	if (!fill_wdat_run_state_entry(entry, ACPI_WDAT_SET_STOPPED_STATE,
+				       ACPI_WDAT_WRITE_VALUE | ACPI_WDAT_PRESERVE_REGISTER,
+				       TCO1_TMR_HLT))
+		goto out_err;
+
+	entry++;
+
+	/* Ping */
+	if (!fill_wdat_ping_entry(entry))
+		goto out_err;
+
+	entry++;
+
+	wdat->entries = ((unsigned long)entry - current) / sizeof(acpi_wdat_entry_t);
+
+	return (unsigned long)entry;
+
+out_err:
+	wdat->flags = ACPI_WDAT_FLAG_DISABLED;
+	printk(BIOS_ERR, "Fail to populate WDAT ACPI Table");
+
+	return current;
 }

@@ -8,6 +8,7 @@
 #include <acpi/acpi.h>
 #include <console/console.h>
 #include <types.h>
+#include <stdio.h>
 #include <string.h>
 
 struct superio_dev {
@@ -103,7 +104,6 @@ static void ldn_gen_resources(const struct device *dev)
 	}
 	if (irq)
 		acpigen_write_irq(irq);
-
 }
 
 /* Add resource base and size for additional SuperIO code */
@@ -161,7 +161,7 @@ static const char *name_from_hid(const char *hid)
 
 void superio_common_fill_ssdt_generator(const struct device *dev)
 {
-	if (!dev || !dev->bus || !dev->bus->dev) {
+	if (!dev || !dev->upstream || !dev->upstream->dev) {
 		printk(BIOS_CRIT, "BUG: Invalid argument in %s!\n", __func__);
 		return;
 	}
@@ -174,11 +174,11 @@ void superio_common_fill_ssdt_generator(const struct device *dev)
 
 	/* Validate devicetree settings */
 	bool bug = false;
-	if (dev->bus->dev->path.type != DEVICE_PATH_PNP) {
+	if (dev->upstream->dev->path.type != DEVICE_PATH_PNP) {
 		bug = true;
 		printk(BIOS_CRIT, "BUG: Parent of device %s is not a PNP device\n",
 			dev_path(dev));
-	} else if (dev->bus->dev->path.pnp.port != dev->path.pnp.port) {
+	} else if (dev->upstream->dev->path.pnp.port != dev->path.pnp.port) {
 		bug = true;
 		printk(BIOS_CRIT, "BUG: Parent of device %s has wrong I/O port\n",
 			dev_path(dev));
@@ -225,7 +225,6 @@ void superio_common_fill_ssdt_generator(const struct device *dev)
 
 		acpigen_emit_byte(RETURN_OP);
 		acpigen_emit_byte(LOCAL0_OP);
-
 	}
 	acpigen_pop_len(); /* Method */
 

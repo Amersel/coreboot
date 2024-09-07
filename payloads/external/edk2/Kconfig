@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 if PAYLOAD_EDK2
 
 config PAYLOAD_FILE
@@ -41,6 +43,7 @@ endchoice
 
 choice
 	prompt "Tianocore's EDK II payload"
+	default EDK2_REPO_CUSTOM if EDK2_UNIVERSAL_PAYLOAD
 	default EDK2_REPO_MRCHROMEBOX
 	help
 	  Select which type of payload edk2 will build (default is UefiPayload)
@@ -60,7 +63,9 @@ config EDK2_REPO_OFFICIAL
 	  Select this option if you want to use the official edk2 repository to build
 	  edk2.
 
-	  Please note, this option will not work on any SOC without modification.
+	  Please note, commit c4fdec0a83d6 ("UefiCpuPkg/MtrrLib: Improve MtrrDebugPrintAllMtrrsWorker"),
+	  and the preceding MTRR patches, must be in the branch used or edk2 will not boot due
+	  to trampling MTRRs set up by coreboot.
 
 config EDK2_REPO_CUSTOM
 	bool "Specify your own repository"
@@ -285,9 +290,36 @@ config EDK2_DISABLE_TPM
 	  Select this option to disable TPM support in edk2. This is necessary to avoid boot
 	  hangs on some boards with a CR50 TPM, particularly those with an AMD Zen SoC.
 
+config EDK2_UFS_ENABLE
+	bool "Enable UFS DXE driver in edk2"
+	depends on EDK2_REPO_MRCHROMEBOX
+	default n
+	help
+	  Select this option to enable the UFS DXE driver in MrChromebox's fork of edk2.
+	  It is needed for boards with UFS storage, but can cause issues with other boards,
+	  so should only be enabled when needed.
+
+config EDK2_PCO_MMIO_EMMC
+	bool "Enable MMIO eMMC driver for AMD Picasso boards in edk2"
+	depends on EDK2_REPO_MRCHROMEBOX
+	default n
+	help
+	  Select this option to enable the MMIO eMMC DXE driver in MrChromebox's fork of edk2.
+	  It is needed for AMD Picasso boards with eMMC storage, but will conflict with the
+	  PCI-based eMMC driver, so should only be enabled for AMD Picasso boards.
+
+config EDK2_USE_LAPIC_TIMER
+	bool "Use LAPIC timer instead of HPET"
+	default n
+	help
+	  Select this option to use the LAPIC timer instead of HPET in edk2. The LAPIC is closer
+	  to the CPU than the HPET (on the PCH), resulting in lower latency / higher resolution.
+	  This setting is at least needed for platforms with Core 2 processors, which are reported
+	  to have issues with HPET.
+
 config EDK2_CUSTOM_BUILD_PARAMS
 	string "edk2 additional custom build parameters"
-	default "-D VARIABLE_SUPPORT=SMMSTORE" if EDK2_REPO_MRCHROMEBOX && SMMSTORE_V2
+	default ""
 	help
 	  edk2 has build options that are not modified by coreboot, and these can be
 	  found in `UefiPayloadPkg/UefiPayloadPkg.dsc`. Forks may also support

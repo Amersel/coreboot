@@ -3,28 +3,10 @@
 #include <bootblock_common.h>
 #include <device/pci_ops.h>
 #include <northbridge/intel/sandybridge/sandybridge.h>
-#include <southbridge/intel/bd82x6x/pch.h>
 #include <superio/smsc/sch5545/sch5545.h>
 #include <superio/smsc/sch5545/sch5545_emi.h>
 
 #include <baseboard/sch5545_ec.h>
-
-const struct southbridge_usb_port mainboard_usb_ports[] = {
-	{ 1, 6, 0 },
-	{ 1, 6, 0 },
-	{ 1, 1, 1 },
-	{ 1, 1, 1 },
-	{ 1, 1, 2 },
-	{ 1, 1, 2 },
-	{ 1, 6, 3 },
-	{ 1, 6, 3 },
-	{ 1, 6, 4 },
-	{ 1, 6, 4 },
-	{ 1, 6, 5 },
-	{ 1, 1, 5 },
-	{ 1, 1, 6 },
-	{ 1, 6, 6 },
-};
 
 void bootblock_mainboard_early_init(void)
 {

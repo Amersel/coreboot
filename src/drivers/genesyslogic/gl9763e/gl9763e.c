@@ -4,7 +4,6 @@
 
 #include <console/console.h>
 #include <device/device.h>
-#include <device/path.h>
 #include <device/pci.h>
 #include <device/pci_ops.h>
 #include <device/pci_ids.h>
@@ -66,5 +65,5 @@ static const struct pci_driver genesyslogic_gl9763e __pci_driver = {
 };
 
 struct chip_operations drivers_generic_genesyslogic_ops = {
-	CHIP_NAME("Genesys Logic GL9763E")
+	.name = "Genesys Logic GL9763E",
 };

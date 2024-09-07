@@ -111,13 +111,12 @@ static void write_pci_config_irqs(void)
 	 */
 	printk(BIOS_DEBUG, "PCI_CFG IRQ: Write PIRQ assignments\n");
 	for (irq_dev = all_devices; irq_dev; irq_dev = irq_dev->next) {
-
 		if ((irq_dev->path.type != DEVICE_PATH_PCI) ||
 			(!irq_dev->enabled))
 			continue;
 
 		current_bdf = irq_dev->path.pci.devfn |
-			irq_dev->bus->secondary << 8;
+			irq_dev->upstream->secondary << 8;
 
 		/*
 		 * Step 1: Get the INT_PIN and device structure to look for
@@ -132,7 +131,7 @@ static void write_pci_config_irqs(void)
 		original_int_pin = pci_read_config8(irq_dev, PCI_INTERRUPT_PIN);
 
 		parent_bdf = targ_dev->path.pci.devfn
-			| targ_dev->bus->secondary << 8;
+			| targ_dev->upstream->secondary << 8;
 		device_num = PCI_SLOT(parent_bdf);
 
 		if (ir->pcidev[device_num] == 0) {
@@ -288,7 +287,6 @@ static void sc_init(struct device *dev)
 	setup_i8254();
 
 	sc_set_serial_irqs_mode(dev, config->serirq_mode);
-
 }
 
 /*

@@ -53,47 +53,47 @@ static const acpi_cstate_t cstate_map[NUM_C_STATES] = {
 		.resource = MWAIT_RES(0, 1),
 	},
 	[C_STATE_C6_SHORT_LAT] = {
-		.latency = C_STATE_LATENCY_FROM_LAT_REG(0),
+		.latency = C_STATE_LATENCY_FROM_LAT_REG(1),
 		.power = C6_POWER,
 		.resource = MWAIT_RES(2, 0),
 	},
 	[C_STATE_C6_LONG_LAT] = {
-		.latency = C_STATE_LATENCY_FROM_LAT_REG(0),
+		.latency = C_STATE_LATENCY_FROM_LAT_REG(2),
 		.power = C6_POWER,
 		.resource = MWAIT_RES(2, 1),
 	},
 	[C_STATE_C7_SHORT_LAT] = {
-		.latency = C_STATE_LATENCY_FROM_LAT_REG(0),
+		.latency = C_STATE_LATENCY_FROM_LAT_REG(1),
 		.power = C7_POWER,
 		.resource = MWAIT_RES(3, 0),
 	},
 	[C_STATE_C7_LONG_LAT] = {
-		.latency = C_STATE_LATENCY_FROM_LAT_REG(0),
+		.latency = C_STATE_LATENCY_FROM_LAT_REG(2),
 		.power = C7_POWER,
 		.resource = MWAIT_RES(3, 1),
 	},
 	[C_STATE_C7S_SHORT_LAT] = {
-		.latency = C_STATE_LATENCY_FROM_LAT_REG(0),
+		.latency = C_STATE_LATENCY_FROM_LAT_REG(1),
 		.power = C7_POWER,
 		.resource = MWAIT_RES(3, 2),
 	},
 	[C_STATE_C7S_LONG_LAT] = {
-		.latency = C_STATE_LATENCY_FROM_LAT_REG(0),
+		.latency = C_STATE_LATENCY_FROM_LAT_REG(2),
 		.power = C7_POWER,
 		.resource = MWAIT_RES(3, 3),
 	},
 	[C_STATE_C8] = {
-		.latency = C_STATE_LATENCY_FROM_LAT_REG(0),
+		.latency = C_STATE_LATENCY_FROM_LAT_REG(3),
 		.power = C8_POWER,
 		.resource = MWAIT_RES(4, 0),
 	},
 	[C_STATE_C9] = {
-		.latency = C_STATE_LATENCY_FROM_LAT_REG(0),
+		.latency = C_STATE_LATENCY_FROM_LAT_REG(4),
 		.power = C9_POWER,
 		.resource = MWAIT_RES(5, 0),
 	},
 	[C_STATE_C10] = {
-		.latency = C_STATE_LATENCY_FROM_LAT_REG(0),
+		.latency = C_STATE_LATENCY_FROM_LAT_REG(5),
 		.power = C10_POWER,
 		.resource = MWAIT_RES(6, 0),
 	},
@@ -160,6 +160,76 @@ void soc_fill_fadt(acpi_fadt_t *fadt)
 	if (config->s0ix_enable)
 		fadt->flags |= ACPI_FADT_LOW_PWR_IDLE_S0;
 }
+
+static struct min_sleep_state min_pci_sleep_states[] = {
+	{ SA_DEVFN_ROOT,	ACPI_DEVICE_SLEEP_D3 },
+	{ SA_DEVFN_PEG0,	ACPI_DEVICE_SLEEP_D3 },
+	{ SA_DEVFN_PEG1,	ACPI_DEVICE_SLEEP_D3 },
+	{ SA_DEVFN_PEG2,	ACPI_DEVICE_SLEEP_D3 },
+	{ SA_DEVFN_IGD,		ACPI_DEVICE_SLEEP_D3 },
+	{ SA_DEVFN_TS,		ACPI_DEVICE_SLEEP_D3 },
+	{ SA_DEVFN_IPU,		ACPI_DEVICE_SLEEP_D3 },
+	{ SA_DEVFN_GNA,		ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_UFS,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_GSPI2,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_ISH,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_XHCI,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_USBOTG,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_CNViWIFI,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_SDCARD,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_I2C0,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_I2C1,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_I2C2,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_I2C3,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_CSE,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_SATA,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_I2C4,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_I2C5,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_UART2,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_EMMC,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_PCIE1,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE2,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE3,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE4,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE5,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE6,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE7,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE8,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE9,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE10,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE11,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE12,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE13,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE14,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE15,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE16,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE17,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE18,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE19,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE20,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE21,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE22,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE23,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_PCIE24,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_UART0,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_UART1,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_GSPI0,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_GSPI1,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_LPC,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_P2SB,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_HDA,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_SMBUS,	ACPI_DEVICE_SLEEP_D0 },
+	{ PCH_DEVFN_SPI,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_GBE,	ACPI_DEVICE_SLEEP_D3 },
+	{ PCH_DEVFN_TRACEHUB,	ACPI_DEVICE_SLEEP_D3 },
+};
+
+struct min_sleep_state *soc_get_min_sleep_state_array(size_t *size)
+{
+	*size = ARRAY_SIZE(min_pci_sleep_states);
+	return min_pci_sleep_states;
+}
+
 uint32_t soc_read_sci_irq_select(void)
 {
 	return read32p(soc_read_pmc_base() + IRQ_REG);
@@ -185,27 +255,25 @@ int soc_madt_sci_irq_polarity(int sci)
 
 static unsigned long soc_fill_dmar(unsigned long current)
 {
-	struct device *const igfx_dev = pcidev_path_on_root(SA_DEVFN_IGD);
 	uint64_t gfxvtbar = MCHBAR64(GFXVTBAR) & VTBAR_MASK;
 	bool gfxvten = MCHBAR32(GFXVTBAR) & VTBAR_ENABLED;
-	const bool emit_igd = igfx_dev && igfx_dev->enabled && gfxvtbar && gfxvten;
+	const bool emit_igd = is_devfn_enabled(SA_DEVFN_IGD) && gfxvtbar && gfxvten;
 	if (emit_igd) {
 		unsigned long tmp = current;
 
-		current += acpi_create_dmar_drhd(current, 0, 0, gfxvtbar);
+		current += acpi_create_dmar_drhd_4k(current, 0, 0, gfxvtbar);
 		current += acpi_create_dmar_ds_pci(current, 0, 2, 0);
 
 		acpi_dmar_drhd_fixup(tmp, current);
 	}
 
-	struct device *const ipu_dev = pcidev_path_on_root(SA_DEVFN_IPU);
 	uint64_t ipuvtbar = MCHBAR64(IPUVTBAR) & VTBAR_MASK;
 	bool ipuvten = MCHBAR32(IPUVTBAR) & VTBAR_ENABLED;
 
-	if (ipu_dev && ipu_dev->enabled && ipuvtbar && ipuvten) {
+	if (is_devfn_enabled(SA_DEVFN_IPU) && ipuvtbar && ipuvten) {
 		unsigned long tmp = current;
 
-		current += acpi_create_dmar_drhd(current, 0, 0, ipuvtbar);
+		current += acpi_create_dmar_drhd_4k(current, 0, 0, ipuvtbar);
 		current += acpi_create_dmar_ds_pci(current, 0, 5, 0);
 
 		acpi_dmar_drhd_fixup(tmp, current);
@@ -217,7 +285,7 @@ static unsigned long soc_fill_dmar(unsigned long current)
 	if (vtvc0bar && vtvc0en) {
 		const unsigned long tmp = current;
 
-		current += acpi_create_dmar_drhd(current,
+		current += acpi_create_dmar_drhd_4k(current,
 				DRHD_INCLUDE_PCI_ALL, 0, vtvc0bar);
 		current += acpi_create_dmar_ds_ioapic_from_hw(current,
 				IO_APIC_ADDR, V_P2SB_CFG_IBDF_BUS, V_P2SB_CFG_IBDF_DEV,

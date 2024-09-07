@@ -1,10 +1,16 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 
+#include <acpi/acpigen.h>
+#include <acpi/acpigen_pci.h>
 #include <assert.h>
+#include <device/pci_ops.h>
 #include <intelblocks/acpi.h>
+#include <soc/chip_common.h>
 #include <soc/pci_devs.h>
 #include <soc/util.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "chip.h"
 
@@ -88,40 +94,102 @@ const acpi_cstate_t *soc_get_cstate_map(size_t *entries)
 	return map;
 }
 
-static uintptr_t xeonsp_ioapic_bases[CONFIG(XEON_SP_HAVE_IIO_IOAPIC) * 8 + 1];
-
-size_t soc_get_ioapic_info(const uintptr_t *ioapic_bases[])
+void iio_domain_set_acpi_name(struct device *dev, const char *prefix)
 {
-	int index = 0;
-	const IIO_UDS *hob = get_iio_uds();
+	const union xeon_domain_path dn = {
+		.domain_path = dev_get_domain_id(dev)
+	};
 
-	*ioapic_bases = xeonsp_ioapic_bases;
+	assert(dn.socket < CONFIG_MAX_SOCKET);
+	assert(dn.stack < 16);
+	assert(prefix != NULL && strlen(prefix) == 2);
 
-	for (int socket = 0, iio = 0; iio < hob->PlatformData.numofIIO; socket++) {
-		if (!soc_cpu_is_enabled(socket))
+	if (dn.socket >= CONFIG_MAX_SOCKET || dn.stack >= 16 ||
+	    !prefix || strlen(prefix) != 2)
+		return;
+
+	char *name = xmalloc(ACPI_NAME_BUFFER_SIZE);
+	snprintf(name, ACPI_NAME_BUFFER_SIZE, "%s%1X%1X", prefix, dn.socket, dn.stack);
+	dev->name = name;
+}
+
+const char *soc_acpi_name(const struct device *dev)
+{
+	if (dev->path.type == DEVICE_PATH_DOMAIN)
+		return dev->name;
+
+	/* FIXME: Add SoC specific device names here */
+
+	return NULL;
+}
+
+void acpigen_write_OSC_pci_domain_fixed_caps(const struct device *domain,
+				const uint32_t granted_pcie_features,
+				const bool is_cxl_domain,
+				const uint32_t granted_cxl_features)
+{
+	acpigen_write_method("_OSC", 4);
+
+	acpigen_write_return_namestr("\\_SB.POSC");
+	acpigen_emit_byte(ARG0_OP);
+	acpigen_emit_byte(ARG1_OP);
+	acpigen_emit_byte(ARG2_OP);
+	acpigen_emit_byte(ARG3_OP);
+	acpigen_write_integer(granted_pcie_features);
+	acpigen_write_integer(is_cxl_domain);
+	acpigen_write_integer(granted_cxl_features);
+
+	acpigen_pop_len();
+}
+
+static bool read_physical_slot_number(const struct device *dev, uint8_t *psn)
+{
+	if (!is_pci(dev))
+		return false;
+
+	const size_t pos = pci_find_capability(dev, PCI_CAP_ID_PCIE);
+	if (!pos)
+		return false;
+
+	u32 sltcap = pci_read_config32(dev, pos + PCI_EXP_SLTCAP);
+	*psn = ((sltcap >> 19) & 0x1FF);
+	return true;
+}
+
+static void acpigen_write_pci_root_port_devices(const struct device *rp)
+{
+	uint8_t psn;
+	bool have_psn = read_physical_slot_number(rp, &psn);
+
+	struct device *dev = NULL;
+	while ((dev = dev_bus_each_child(rp->downstream, dev))) {
+		if (!is_pci(dev))
 			continue;
-		iio++;
-		for (int stack = 0; stack < MAX_IIO_STACK; ++stack) {
-			const STACK_RES *ri =
-				&hob->PlatformData.IIO_resource[socket].StackRes[stack];
-			if (!is_iio_stack_res(ri))
-				continue;
-			uint32_t ioapic_base = ri->IoApicBase;
-			assert(index < ARRAY_SIZE(xeonsp_ioapic_bases));
-			xeonsp_ioapic_bases[index++] = ioapic_base;
-			if (!CONFIG(XEON_SP_HAVE_IIO_IOAPIC))
-				return index;
-			/*
-			 * Stack 0 has non-PCH IOAPIC and PCH IOAPIC.
-			 * The IIO IOAPIC is placed at 0x1000 from the reported base.
-			 */
-			if (socket == 0 && stack == 0) {
-				ioapic_base += 0x1000;
-				assert(index < ARRAY_SIZE(xeonsp_ioapic_bases));
-				xeonsp_ioapic_bases[index++] = ioapic_base;
-			}
-		}
+		const char *name = acpi_device_name(dev);
+		if (!name)
+			continue;
+		acpigen_write_device(name);
+		acpigen_write_ADR_pci_device(dev);
+		if (have_psn)
+			acpigen_write_name_integer("_SUN", psn);
+		acpigen_pop_len();
 	}
+}
 
-	return index;
+void acpigen_write_pci_root_port(const struct device *rp)
+{
+	const char *acpi_scope = acpi_device_scope(rp);
+	if (!acpi_scope)
+		return;
+	acpigen_write_scope(acpi_scope);
+
+	const char *acpi_name = acpi_device_name(rp);
+	if (!acpi_name)
+		return;
+	acpigen_write_device(acpi_name);
+	acpigen_write_ADR_pci_device(rp);
+	acpigen_write_pci_root_port_devices(rp);
+
+	acpigen_pop_len();
+	acpigen_pop_len();
 }

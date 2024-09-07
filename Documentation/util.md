@@ -144,7 +144,7 @@ from the local git repository for auditing or release `Bash`
 Does not show variants. `Shell`
 	* _ucode_h_to_bin.sh_ - Microcode conversion tool `Bash`
 	* _update_submodules_ - Check all submodules for updates `Bash`
-* __showdevicetree__ - Compile and dump the device tree `C`
+* __smmstoretool__ - Offline SMMSTORE variable modification tool `C`
 * __spdtool__ - Dumps SPD ROMs from a given blob to separate files
 using known patterns and reserved bits. Useful for analysing firmware
 that holds SPDs on boards that have soldered down DRAM. `python`
@@ -168,10 +168,15 @@ the documentation `Bash`
 * __xcompile__ - Cross compile setup `Bash`
 ## In depth documentation
 
-* [abuild](util/abuild/index.md)
-* [cbfstool](util/cbfstool/index.md)
-* [ifdtool](util/ifdtool/index.md)
-* [intelp2m](util/intelp2m/index.md)
+```{toctree}
+:maxdepth: 1
+
+abuild <util/abuild/index.md>
+cbfstool <util/cbfstool/index.md>
+ifdtool <util/ifdtool/index.md>
+intelp2m <util/intelp2m/index.md>
+smmstoretool <util/smmstoretool/index.md>
+```
 
 ## Generated documentation
 

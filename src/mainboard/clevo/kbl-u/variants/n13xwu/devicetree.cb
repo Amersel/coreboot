@@ -16,7 +16,7 @@ chip soc/intel/skylake
 	# FSP Configuration
 	register "SkipExtGfxScan" = "1"
 	register "SaGv" = "SaGv_Enabled"
-	register "eist_enable" = "1"
+	register "eist_enable" = "true"
 
 	register "PmConfigSlpS3MinAssert" = "2"		# 50ms
 	register "PmConfigSlpS4MinAssert" = "1"		# 1s
@@ -35,14 +35,12 @@ chip soc/intel/skylake
 		[PchSerialIoIndexUart2] = PchSerialIoSkipInit, // LPSS UART
 	}"
 
-	device cpu_cluster 0 on end
 	device domain 0 on
 		subsystemid 0x1558 0x1313 inherit
 		device ref system_agent	on	end
 		device ref igpu 	on	end
 		device ref sa_thermal	on	end
 		device ref south_xhci	on
-			register "SsicPortEnable" = "0"
 			# USB2
 			register "usb2_ports[0]" = "USB2_PORT_MID(OC_SKIP)"	# Type-A, right
 			register "usb2_ports[1]" = "USB2_PORT_FLEX(OC_SKIP)"	# 3G / LTE
@@ -60,7 +58,6 @@ chip soc/intel/skylake
 		device ref thermal	on	end
 		device ref heci1	on	end
 		device ref sata		on
-			register "SataSalpSupport" = "0"
 			# Ports
 			register "SataPortsEnable[0]" = "1"
 			register "SataPortsEnable[2]" = "1"

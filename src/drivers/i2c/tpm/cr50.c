@@ -34,7 +34,8 @@
 #define CR50_TIMEOUT_LONG_MS	2000	/* Long timeout while waiting for TPM */
 #define CR50_TIMEOUT_SHORT_MS	2	/* Short timeout during transactions */
 #define CR50_DID_VID		0x00281ae0L
-#define TI50_DID_VID		0x504a6666L
+#define TI50_DT_DID_VID		0x504a6666L
+#define TI50_OT_DID_VID		0x50666666L
 
 struct tpm_inf_dev {
 	int bus;
@@ -424,8 +425,11 @@ static void cr50_vendor_init(struct tpm_chip *chip)
 	chip->cancel = &cr50_i2c_tis_ready;
 }
 
-tpm_result_t tpm_vendor_probe(unsigned int bus, uint32_t addr)
+tpm_result_t tpm_vendor_probe(unsigned int bus, uint32_t addr, enum tpm_family *family)
 {
+	/* cr50 is TPM2 */
+	if (family != NULL)
+		*family = TPM_2;
 	return TPM_SUCCESS;
 }
 
@@ -443,11 +447,11 @@ static tpm_result_t cr50_i2c_probe(uint32_t *did_vid)
 	printk(BIOS_INFO, "Probing TPM I2C: ");
 
 	for (retries = 100; retries > 0; retries--) {
-
 		rc = cr50_i2c_read(TPM_DID_VID(0), (uint8_t *)did_vid, 4);
 
 		/* Exit once DID and VID verified */
-		if (!rc && (*did_vid == CR50_DID_VID || *did_vid == TI50_DID_VID)) {
+		if (!rc && (*did_vid == CR50_DID_VID || *did_vid == TI50_DT_DID_VID ||
+			    *did_vid == TI50_OT_DID_VID)) {
 			printk(BIOS_INFO, "done! DID_VID 0x%08x\n", *did_vid);
 			return TPM_SUCCESS;
 		}
@@ -496,7 +500,7 @@ tpm_result_t tpm_vendor_init(struct tpm_chip *chip, unsigned int bus, uint32_t d
 	if (rc)
 		return rc;
 
-	printk(BIOS_DEBUG, "cr50 TPM 2.0 (i2c %u:0x%02x id %#x)\n",
+	printk(BIOS_DEBUG, "GSC TPM 2.0 (i2c %u:0x%02x id %#x)\n",
 	       bus, dev_addr, did_vid >> 16);
 
 	if (tpm_first_access_this_boot()) {
@@ -505,7 +509,6 @@ tpm_result_t tpm_vendor_init(struct tpm_chip *chip, unsigned int bus, uint32_t d
                 cr50_set_board_cfg();
 	}
 
-	chip->is_open = 1;
 	return TPM_SUCCESS;
 }
 

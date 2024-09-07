@@ -4,10 +4,10 @@
 #include <acpi/acpigen.h>
 #include <console/console.h>
 #include <device/device.h>
-#include <device/path.h>
 #include <device/spi.h>
 #include <spi-generic.h>
-#include <string.h>
+#include <stdio.h>
+
 #include "chip.h"
 
 static int spi_acpi_get_bus(const struct device *dev)
@@ -15,10 +15,10 @@ static int spi_acpi_get_bus(const struct device *dev)
 	struct device *spi_dev;
 	struct device_operations *ops;
 
-	if (!dev->bus || !dev->bus->dev)
+	if (!dev->upstream || !dev->upstream->dev)
 		return -1;
 
-	spi_dev = dev->bus->dev;
+	spi_dev = dev->upstream->dev;
 	ops = spi_dev->ops;
 
 	if (ops && ops->ops_spi_bus && ops->ops_spi_bus->dev_to_bus)
@@ -133,6 +133,6 @@ static void nxb_uwb_enable(struct device *dev)
 }
 
 struct chip_operations drivers_nxp_uwb_ops = {
-	CHIP_NAME("NXP UWB Device")
+	.name = "NXP UWB Device",
 	.enable_dev = nxb_uwb_enable
 };

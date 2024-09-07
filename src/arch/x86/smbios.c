@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <string.h>
 #include <smbios.h>
 #include <console/console.h>
 #include <arch/cpu.h>
 #include <cpu/x86/name.h>
+#include <stdio.h>
 
 static int smbios_cpu_vendor(u8 *start)
 {
@@ -52,23 +52,23 @@ static int get_socket_type(void)
 		return PROCESSOR_UPGRADE_SOCKET_MPGA604;
 	if (CONFIG(CPU_INTEL_SOCKET_LGA775))
 		return PROCESSOR_UPGRADE_SOCKET_LGA775;
-	if (CONFIG(SOC_INTEL_ALDERLAKE))
+	if (CONFIG(CPU_INTEL_SOCKET_LGA1700))
 		return PROCESSOR_UPGRADE_SOCKET_LGA1700;
-	if (CONFIG(SOC_INTEL_METEORLAKE))
-		return PROCESSOR_UPGRADE_OTHER;
-	if (CONFIG(SOC_INTEL_SKYLAKE_SP))
-		return PROCESSOR_UPGRADE_SOCKET_LGA3647_1;
-	if (CONFIG(SOC_INTEL_COOPERLAKE_SP))
+	if (CONFIG(CPU_INTEL_SOCKET_LGA4189))
 		return PROCESSOR_UPGRADE_SOCKET_LGA4189;
-	if (CONFIG(SOC_INTEL_SAPPHIRERAPIDS_SP))
+	if (CONFIG(CPU_INTEL_SOCKET_LGA4677))
 		return PROCESSOR_UPGRADE_SOCKET_LGA4677;
+	if (CONFIG(CPU_INTEL_SOCKET_LGA3647_1))
+		return PROCESSOR_UPGRADE_SOCKET_LGA3647_1;
+	if (CONFIG(CPU_INTEL_SOCKET_OTHER))
+		return PROCESSOR_UPGRADE_OTHER;
 
 	return PROCESSOR_UPGRADE_UNKNOWN;
 }
 
 unsigned int __weak smbios_processor_family(struct cpuid_result res)
 {
-	return (res.eax > 0) ? 0x0c : 0x6;
+	return (res.eax > 0) ? SMBIOS_PROCESSOR_FAMILY_PENTIUM_PRO : SMBIOS_PROCESSOR_FAMILY_INTEL486;
 }
 
 static size_t get_number_of_caches(size_t max_logical_cpus_sharing_cache)
@@ -126,7 +126,7 @@ int smbios_write_type4(unsigned long *current, int handle)
 	t->processor_manufacturer = smbios_cpu_vendor(t->eos);
 	t->processor_version = smbios_processor_name(t->eos);
 	t->processor_family = smbios_processor_family(res);
-	t->processor_type = 3; /* System Processor */
+	t->processor_type = SMBIOS_PROCESSOR_TYPE_CENTRAL;
 	/*
 	 * If CPUID leaf 11 is available, calculate "core count" by dividing
 	 * SMT_ID (logical processors in a core) by Core_ID (number of cores).

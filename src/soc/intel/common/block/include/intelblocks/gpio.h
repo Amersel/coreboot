@@ -110,6 +110,12 @@ struct vw_entries {
 	gpio_t last_pad;
 };
 
+/* virtual-wire mapping base and the starting bit position for a group */
+struct vw_map {
+	uint8_t base;
+	uint8_t start_pos;
+};
+
 /* This structure will be used to describe a community or each group within a
  * community when multiple groups exist inside a community
  */
@@ -121,7 +127,8 @@ struct pad_community {
 	Number of pads bit mapped in each GPI status/en and Host Own Reg */
 	gpio_t		first_pad;   /* first pad in community */
 	gpio_t		last_pad;    /* last pad in community */
-	uint16_t	host_own_reg_0; /* offset to Host Ownership Reg 0 */
+	uint16_t	pad_own_reg_0; /* offset to Pad Ownership (host or CSME) Reg 0 */
+	uint16_t	host_own_reg_0; /* offset to Host Ownership (ACPI or driver) Reg 0 */
 	uint16_t	gpi_int_sts_reg_0; /* offset to GPI Int STS Reg 0 */
 	uint16_t	gpi_int_en_reg_0; /* offset to GPI Int Enable Reg 0 */
 	uint16_t	gpi_smi_sts_reg_0; /* offset to GPI SMI STS Reg 0 */
@@ -135,7 +142,11 @@ struct pad_community {
 	uint8_t		gpi_status_offset;  /* specifies offset in struct
 						gpi_status */
 	uint8_t		port;	/* PCR Port ID */
-	uint8_t		cpu_port; /* CPU Port ID */
+#if CONFIG(SOC_INTEL_COMMON_BLOCK_GPIO_16BIT_CPU_PORTID)
+	uint16_t	cpu_port; /* Use 16-bit CPU Port ID */
+#else
+	uint8_t	cpu_port; /* Use 8-bit CPU Port ID */
+#endif
 	const struct reset_mapping	*reset_map; /* PADRSTCFG logical to
 			chipset mapping */
 	size_t		num_reset_vals;
@@ -147,6 +158,7 @@ struct pad_community {
 	 * which they map to VW indexes (beginning with VW base)
 	 */
 	const struct vw_entries	*vw_entries;
+	const struct vw_map *vw_map;
 	size_t		num_vw_entries;
 };
 

@@ -5,19 +5,35 @@ chip northbridge/intel/sandybridge
 		subsystemid 0x1043 0x84ca inherit
 		chip southbridge/intel/bd82x6x # Intel Series 7 Panther Point PCH
 			register "gen1_dec" = "0x000c0291"
+			register "usb_port_config" = "{
+				{1, 8, 0}, /* Port 0: USB3 front internal header, top */
+				{1, 8, 0}, /* Port 1: USB3 front internal header, bottom */
+				{1, 2, 1}, /* Port 2: USB3 rear, top */
+				{1, 2, 1}, /* Port 3: USB3 rear, bottom */
+				{1, 2, 2}, /* Port 4: USB2 rear PS2, top */
+				{1, 2, 2}, /* Port 5: USB2 rear PS2, bottom */
+				{1, 2, 3}, /* Port 6: USB2 rear LAN, top */
+				{1, 2, 3}, /* Port 7: USB2 rear LAN, bottom */
+				{1, 9, 4}, /* Port 8: USB2 internal header USB910, top */
+				{1, 9, 4}, /* Port 9: USB2 internal header USB910, bottom */
+				{1, 2, 6}, /* Port 10: USB2 internal header USB1112, top */
+				{1, 2, 5}, /* Port 11: USB2 internal header USB1112, bottom */
+				{1, 2, 5}, /* Port 12: USB2 internal header USB1314, top */
+				{1, 2, 6}  /* Port 13: USB2 internal header USB1314, bottom */
+			}"
 
-			device pci 1c.0 on  end	# PCIe Port #1 (PCIe x4 slot)
-			device pci 1c.1 off end # PCIe Port #2
-			device pci 1c.2 off end # PCIe Port #3
-			device pci 1c.3 off end # PCIe Port #4
-			device pci 1c.4 on  end	# PCIe Port #5 (PCIe x1 slot)
-			device pci 1c.5 on      # PCIe Port #6 (RTL8111F GbE NIC)
+			device ref pcie_rp1 on  end	# PCIe x4 slot
+			device ref pcie_rp2 off end
+			device ref pcie_rp3 off end
+			device ref pcie_rp4 off end
+			device ref pcie_rp5 on  end	# PCIe x1 slot
+			device ref pcie_rp6 on		# RTL8111F GbE NIC
 				subsystemid 0x1849 0x1e1a
 				device pci 00.0 on end  # make onboard
 			end
-			device pci 1c.6 on  end	# PCIe Port #7 (PCI slot via ASM1083)
-			device pci 1c.7 off end # PCIe Port #8
-			device pci 1f.0 on # LPC bridge
+			device ref pcie_rp7 on  end	# PCI slot via ASM1083
+			device ref pcie_rp8 off end
+			device ref lpc on
 				chip superio/nuvoton/nct6779d
 					device pnp 2e.1 off end		# Parallel
 					device pnp 2e.2 on		# UART A
@@ -42,11 +58,12 @@ chip northbridge/intel/sandybridge
 						drq 0x22 = 0xd7		# Power down UART B and LPT
 					end
 					device pnp 2e.6 off end		# CIR
-					device pnp 2e.8 on		# WDT1
-						drq 0xe0 = 0x7f		# GP07 output
-						drq 0xe1 = 0x80		# GP07 high
+					device pnp 2e.8 off end		# WDT1
+					device pnp 2e.108 on		# GPIO 0
+						drq 0xe1 = 0x80		# GP07 high turns DRAM_LED off
 					end
 					device pnp 2e.a on		# ACPI
+						drq 0xe4 = 0x10 	# Enable 3VSBSW#, needed for S3 suspend
 						drq 0xe7 = 0x11		# HWM reset by LRESET#, 0.5s S3 delay for compatibility
 						drq 0xf2 = 0x5d		# Enable RSTOUT[0-2]# and PME
 					end
@@ -55,6 +72,7 @@ chip northbridge/intel/sandybridge
 						io 0x62 = 0		# SB-TSI address (not used)
 						drq 0xe4 = 0xf9		# GP50, GP52, PWROK#
 						drq 0xf0 = 0x3e		# Enable all fan input debouncers
+						irq 0x70 = 0
 					end
 					device pnp 2e.e off end		# CIR wake-up
 					device pnp 2e.f on		# GPIO PP/OD select
@@ -63,7 +81,6 @@ chip northbridge/intel/sandybridge
 					end
 					device pnp 2e.9 off end		# GPIO 8
 					device pnp 2e.308 on end	# GPIO by I/O
-					device pnp 2e.108 on end	# GPIO 0
 					device pnp 2e.109 on end	# GPIO 1
 					device pnp 2e.209 on		# GPIO 2
 						drq 0xe0 = 0xbf		# GP26 output
@@ -77,6 +94,8 @@ chip northbridge/intel/sandybridge
 					end
 					device pnp 2e.609 off end	# GPIO 6
 					device pnp 2e.709 off end	# GPIO 7
+					device pnp 2e.14 on end		# Port 80 UART
+					device pnp 2e.16 off end	# Deep sleep
 				end
 				chip drivers/pc80/tpm
 					device pnp 4e.0 on end	# TPM

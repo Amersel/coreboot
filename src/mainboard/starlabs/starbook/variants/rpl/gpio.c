@@ -53,7 +53,7 @@ const struct pad_config gpio_table[] = {
 	/* A6:		Not Connected					*/
 	PAD_NC(GPP_A6, NONE),
 	/* A7:		Embedded Controller SCI				*/
-	PAD_CFG_GPI_SCI_LOW(GPP_A7, NONE, PLTRST, LEVEL),
+	PAD_NC(GPP_A7, NONE),
 	/* A8:		Not Connected					*/
 	PAD_NC(GPP_A8, NONE),
 	/* A9:		ESPI Clock					*/
@@ -63,7 +63,7 @@ const struct pad_config gpio_table[] = {
 	/* A12:		PCH M.2 SSD PEDET				*/
 	PAD_NC(GPP_A12, NONE),
 	/* A13:		BlueTooth RF Kill				*/
-	PAD_CFG_GPO(GPP_A13, 1, DEEP),
+	PAD_NC(GPP_A13, NONE),
 	/* A14:		Test Point 45					*/
 	PAD_NC(GPP_A14, NONE),
 	/* A15:		Test Point 52					*/
@@ -206,7 +206,7 @@ const struct pad_config gpio_table[] = {
 	PAD_NC(GPP_D3, NONE),
 	/* D4:		Not Connected					*/
 	PAD_NC(GPP_D4, NONE),
-	/* D5:		Not Connected					*/
+	/* D5:		Clock Request 0					*/
 	PAD_NC(GPP_D5, NONE),
 	/* D6:		Clock Request 1		PCH M.2 SSD		*/
 	PAD_NC(GPP_D6, NONE),
@@ -244,7 +244,7 @@ const struct pad_config gpio_table[] = {
 	/* E2:		Not Connected					*/
 	PAD_CFG_GPO(GPP_E2, 1, PLTRST),
 	/* E3:		WiFi RF Kill					*/
-	PAD_CFG_GPO(GPP_E3, 1, DEEP),
+	PAD_NC(GPP_E3, NONE),
 	/* E4:		Retimer Force Power				*/
 	PAD_CFG_GPO(GPP_E4, 0, PLTRST),
 	/* E5:		Not Connected					*/
@@ -254,7 +254,7 @@ const struct pad_config gpio_table[] = {
 				High:	Enabled				*/
 	PAD_CFG_GPO(GPP_E6, 0, DEEP),
 	/* E7:		Embedded Controller SMI				*/
-	PAD_CFG_GPI_SMI_LOW(GPP_E7, NONE, DEEP, EDGE_SINGLE),
+	PAD_NC(GPP_E7, NONE),
 	/* E8:		DRAM Sleep					*/
 	PAD_CFG_NF(GPP_E8, NONE, DEEP, NF1),
 	/* E9:		USB OverCurrent 0				*/
@@ -274,11 +274,11 @@ const struct pad_config gpio_table[] = {
 	/* E16:		Not Connected					*/
 	PAD_NC(GPP_E16, NONE),
 	/* E17:		Not Connected					*/
-	PAD_CFG_GPO(GPP_E17, 1, PLTRST),
+	PAD_NC(GPP_E17, NONE),
 	/* E18:		Thunderbolt LSX TXD				*/
-	PAD_NC(GPP_E18, NATIVE),
+	PAD_NC(GPP_E18, NONE),
 	/* E19:		Thunderbolt LSX RXD				*/
-	PAD_NC(GPP_E19, NATIVE),
+	PAD_NC(GPP_E19, NONE),
 	/* E20:		Not Connected					*/
 	PAD_NC(GPP_E20, NONE),
 	/* E21:		Not Connected					*/
@@ -309,11 +309,11 @@ const struct pad_config gpio_table[] = {
 	/* F8:		Not Connected					*/
 	PAD_NC(GPP_F8, NONE),
 	/* F9:		EC Sleep S0					*/
-	PAD_CFG_GPO(GPP_F9, 1, PLTRST),
+	PAD_NC(GPP_F9, NONE),
 	/* F10:		Weak Internal PD 20K				*/
 	PAD_CFG_GPO(GPP_F10, 1, PLTRST),
 	/* F11:		TPM ID						*/
-	PAD_CFG_GPI_TRIG_OWN(GPP_F11, NONE, DEEP, OFF, ACPI),
+	PAD_NC(GPP_F11, NONE),
 	/* F12:		Not Connected					*/
 	PAD_NC(GPP_F12, NONE),
 	/* F13:		Not Connected					*/
@@ -323,7 +323,7 @@ const struct pad_config gpio_table[] = {
 	/* F15:		Not used		Accelerometer Interrupt 2*/
 	PAD_NC(GPP_F15, NONE),
 	/* F16:		Not Connected					*/
-	PAD_CFG_GPO(GPP_F16, 1, RSMRST),
+	PAD_NC(GPP_F16, NONE),
 	/* F17:		Not used		Touch Panel Reset	*/
 	PAD_NC(GPP_F17, NONE),
 	/* F18:		Not used		Touch Panel Interrupt	*/
@@ -381,7 +381,7 @@ const struct pad_config gpio_table[] = {
 	PAD_NC(GPP_H21, NONE),
 	/* H22:		Not Connected					*/
 	PAD_NC(GPP_H22, NONE),
-	/* H23:		Not Connected					*/
+	/* H23:		Clock Request 5					*/
 	PAD_NC(GPP_H23, NONE),
 
 	/* S0:		Not Connected					*/

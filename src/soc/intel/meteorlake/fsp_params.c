@@ -63,7 +63,9 @@ static const struct slot_irq_constraints irq_constraints[] = {
 	{
 		.slot = PCI_DEV_SLOT_DPTF,
 		.fns = {
-			ANY_PIRQ(PCI_DEVFN_DPTF),
+			/* Dynamic Tuning Technology (DTT) device IRQ is not
+			   programmable and is INT_A/PIRQ_A (IRQ 16) */
+			FIXED_INT_PIRQ(PCI_DEVFN_DPTF, PCI_INT_A, PIRQ_A),
 		},
 	},
 	{
@@ -474,6 +476,8 @@ static void fill_fsps_xhci_params(FSP_S_CONFIG *s_cfg,
 			s_cfg->Usb2OverCurrentPin[i] = config->usb2_ports[i].ocpin;
 		else
 			s_cfg->Usb2OverCurrentPin[i] = OC_SKIP;
+
+		s_cfg->PortResetMessageEnable[i] = config->usb2_ports[i].type_c;
 	}
 
 	max_port = get_max_usb30_port();
@@ -701,18 +705,27 @@ static void fill_fsps_irq_params(FSP_S_CONFIG *s_cfg,
 	printk(BIOS_INFO, "IRQ: Using dynamically assigned PCI IO-APIC IRQs\n");
 }
 
-static void arch_silicon_init_params(FSPS_ARCH_UPD *s_arch_cfg)
+static void arch_silicon_init_params(FSPS_ARCHx_UPD *s_arch_cfg)
 {
+
+#if !CONFIG(PLATFORM_USES_FSP2_4)
 	/*
 	 * EnableMultiPhaseSiliconInit for running MultiPhaseSiInit
 	 */
 	s_arch_cfg->EnableMultiPhaseSiliconInit = 1;
+#endif
 
 	/* Assign FspEventHandler arch Upd to use coreboot debug event handler */
 	if (CONFIG(FSP_USES_CB_DEBUG_EVENT_HANDLER) && CONFIG(CONSOLE_SERIAL) &&
 			 CONFIG(FSP_ENABLE_SERIAL_DEBUG))
+
+#if CONFIG(PLATFORM_USES_FSP2_X86_32)
 		s_arch_cfg->FspEventHandler = (FSP_EVENT_HANDLER)
 				fsp_debug_event_handler;
+#else
+		s_arch_cfg->FspEventHandler = (EFI_PHYSICAL_ADDRESS)
+				fsp_debug_event_handler;
+#endif
 }
 
 static void evaluate_ssid(const struct device *dev, uint16_t *svid, uint16_t *ssid)
@@ -758,7 +771,7 @@ static void fill_fsps_pci_ssid_params(FSP_S_CONFIG *s_cfg,
 
 	for (dev = all_devices; dev; dev = dev->next) {
 		if (!(is_dev_enabled(dev) && dev->path.type == DEVICE_PATH_PCI &&
-		    dev->bus->secondary == 0))
+		    dev->upstream->secondary == 0))
 			continue;
 
 		if (dev->path.pci.devfn == PCI_DEVFN_ROOT) {
@@ -820,7 +833,7 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 {
 	struct soc_intel_meteorlake_config *config;
 	FSP_S_CONFIG *s_cfg = &supd->FspsConfig;
-	FSPS_ARCH_UPD *s_arch_cfg = &supd->FspsArchUpd;
+	FSPS_ARCHx_UPD *s_arch_cfg = &supd->FspsArchUpd;
 
 	config = config_of_soc();
 	arch_silicon_init_params(s_arch_cfg);
@@ -836,7 +849,7 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
  *   1     |  After TCSS initialization completed             |  for TCSS specific init
  *   2     |  Before BIOS Reset CPL is set by FSP-S           |  for CPU specific init
  */
-void platform_fsp_multi_phase_init_cb(uint32_t phase_index)
+void platform_fsp_silicon_multi_phase_init_cb(uint32_t phase_index)
 {
 	switch (phase_index) {
 	case 1:

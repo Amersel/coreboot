@@ -39,6 +39,7 @@ enum ich_chipset {
 	CHIPSET_500_600_SERIES_TIGER_ALDER_POINT, /* 11th-12th gen Core i/o (LP)
 						   * variants onwards */
 	CHIPSET_800_SERIES_METEOR_LAKE, /* 14th gen Core i/o (LP) variants onwards */
+	CHIPSET_900_SERIES_PANTHER_LAKE, /* 16th gen Core i/o (LP) variants onwards */
 	CHIPSET_C620_SERIES_LEWISBURG,
 	CHIPSET_DENVERTON,
 };
@@ -57,6 +58,7 @@ enum platform {
 	PLATFORM_IFD2,
 	PLATFORM_DNV,
 	PLATFORM_MTL,
+	PLATFORM_PTL,
 	PLATFORM_WBG
 };
 
@@ -207,4 +209,23 @@ struct region_name {
 	const char *terse;
 	const char *filename;
 	const char *fmapname;
+};
+
+struct cse_fpt {
+	const char signature[4];
+	uint32_t count;
+	uint8_t header_version;
+	uint8_t entry_version;
+	uint8_t length;
+	uint8_t crc;
+	uint8_t reserved[20];
+};
+
+struct cse_fpt_sub_part {
+	const char signature[4];
+	uint32_t reserved_1;
+	uint32_t offset;
+	uint32_t length;
+	uint8_t reserved_2[12];
+	uint32_t flags;
 };

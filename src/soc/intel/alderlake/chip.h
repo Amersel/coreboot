@@ -153,6 +153,7 @@ static const struct {
 	{ PCI_DID_INTEL_ADL_N_ID_2, ADL_N_041_6W_CORE, TDP_6W },
 	{ PCI_DID_INTEL_ADL_N_ID_3, ADL_N_041_6W_CORE, TDP_6W },
 	{ PCI_DID_INTEL_ADL_N_ID_4, ADL_N_021_6W_CORE, TDP_6W },
+	{ PCI_DID_INTEL_ADL_N_ID_5, ADL_N_041_6W_CORE, TDP_6W },
 	{ PCI_DID_INTEL_ADL_S_ID_1, ADL_S_882_35W_CORE, TDP_35W },
 	{ PCI_DID_INTEL_ADL_S_ID_1, ADL_S_882_65W_CORE, TDP_65W },
 	{ PCI_DID_INTEL_ADL_S_ID_1, ADL_S_882_125W_CORE, TDP_125W },
@@ -175,6 +176,9 @@ static const struct {
 	{ PCI_DID_INTEL_RPL_P_ID_3, RPL_P_282_242_142_15W_CORE, TDP_15W },
 	{ PCI_DID_INTEL_RPL_P_ID_4, RPL_P_282_242_142_15W_CORE, TDP_15W },
 	{ PCI_DID_INTEL_RPL_P_ID_5, RPL_P_282_242_142_15W_CORE, TDP_15W },
+	{ PCI_DID_INTEL_RPL_P_ID_6, RPL_P_682_642_482_45W_CORE, TDP_45W },
+	{ PCI_DID_INTEL_RPL_P_ID_7, RPL_P_682_642_482_45W_CORE, TDP_45W },
+	{ PCI_DID_INTEL_RPL_P_ID_8, RPL_P_682_642_482_45W_CORE, TDP_45W },
 	{ PCI_DID_INTEL_RPL_S_ID_1, RPL_S_8161_35W_CORE, TDP_35W },
 	{ PCI_DID_INTEL_RPL_S_ID_1, RPL_S_8161_65W_CORE, TDP_65W },
 	{ PCI_DID_INTEL_RPL_S_ID_1, RPL_S_8161_95W_CORE, TDP_95W },
@@ -319,7 +323,6 @@ enum slew_rate {
 };
 
 struct soc_intel_alderlake_config {
-
 	/* Common struct containing soc config data required by common code */
 	struct soc_intel_common_config common_soc_config;
 
@@ -463,11 +466,7 @@ struct soc_intel_alderlake_config {
 	} igd_dvmt50_pre_alloc;
 
 	bool skip_ext_gfx_scan;
-
-	/* Enable/Disable EIST. 1b:Enabled, 0b:Disabled */
 	bool eist_enable;
-
-	/* Enable C6 DRAM */
 	bool enable_c6dram;
 
 	/*
@@ -736,6 +735,9 @@ struct soc_intel_alderlake_config {
 	 */
 	bool disable_package_c_state_demotion;
 
+	/* Enable Enhanced C States */
+	bool enable_c1e;
+
 	/* i915 struct for GMA backlight control */
 	struct i915_gpu_controller_info gfx;
 
@@ -771,6 +773,16 @@ struct soc_intel_alderlake_config {
 	 * Set this to 0 in order to disable hwp scalability tracking.
 	 */
 	bool enable_hwp_scalability_tracking;
+
+	/*
+	 * (ADL-N/TWL only) Vccin Aux Imon Iccmax
+	 * Defaults to 27000 (27A), the value has to align with HW design.
+	 * Recommended value: 25000 (PD_TIER_PREMIUM) or 27000 (PD_TIER_VOLUME)
+	 */
+	enum {
+		PD_TIER_PREMIUM = 25000,
+		PD_TIER_VOLUME  = 27000
+	} vccin_aux_imon_iccmax;
 };
 
 typedef struct soc_intel_alderlake_config config_t;

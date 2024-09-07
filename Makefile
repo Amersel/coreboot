@@ -23,27 +23,34 @@ COREBOOT_EXPORTS += top src srck obj objutil objk
 DOTCONFIG ?= $(top)/.config
 KCONFIG_CONFIG = $(DOTCONFIG)
 KCONFIG_AUTOADS := $(obj)/cb-config.ads
+KCONFIG_RUSTCCFG := $(obj)/cb-config.rustcfg
 KCONFIG_AUTOHEADER := $(obj)/config.h
 KCONFIG_AUTOCONFIG := $(obj)/auto.conf
 KCONFIG_DEPENDENCIES := $(obj)/auto.conf.cmd
 KCONFIG_SPLITCONFIG := $(obj)/config/
 KCONFIG_TRISTATE := $(obj)/tristate.conf
 KCONFIG_NEGATIVES := 1
-KCONFIG_STRICT := 1
+KCONFIG_WERROR := 1
+KCONFIG_WARN_UNKNOWN_SYMBOLS := 1
 KCONFIG_PACKAGE := CB.Config
 KCONFIG_MAKEFILE_REAL ?= $(objk)/Makefile.real
 
 COREBOOT_EXPORTS += KCONFIG_CONFIG KCONFIG_AUTOHEADER KCONFIG_AUTOCONFIG
 COREBOOT_EXPORTS += KCONFIG_DEPENDENCIES KCONFIG_SPLITCONFIG KCONFIG_TRISTATE
-COREBOOT_EXPORTS += KCONFIG_NEGATIVES KCONFIG_STRICT
+COREBOOT_EXPORTS += KCONFIG_NEGATIVES
+ifeq ($(filter %config,$(MAKECMDGOALS)),)
+COREBOOT_EXPORTS += KCONFIG_WERROR
+endif
+COREBOOT_EXPORTS += KCONFIG_WARN_UNKNOWN_SYMBOLS
 COREBOOT_EXPORTS += KCONFIG_AUTOADS KCONFIG_PACKAGE
+COREBOOT_EXPORTS += KCONFIG_RUSTCCFG
 
 # Make does not offer a recursive wildcard function, so here's one:
 rwildcard=$(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))
 SYMLINK_LIST = $(call rwildcard,site-local/,symlink.txt)
 
 
-# directory containing the toplevel Makefile.inc
+# Directory containing the toplevel Makefile.mk
 TOPLEVEL := .
 
 CONFIG_SHELL := sh
@@ -87,15 +94,20 @@ help_coreboot help::
 	@echo  '  sphinx                - Build sphinx documentation for coreboot'
 	@echo  '  sphinx-lint           - Build sphinx documentation for coreboot with warnings as errors'
 	@echo  '  filelist              - Show files used in current build'
-	@echo  '  printall              - print makefile info for debugging'
-	@echo  '  gitconfig             - set up git to submit patches to coreboot'
-	@echo  '  ctags / ctags-project - make ctags file for all of coreboot or current board'
-	@echo  '  cscope / cscope-project - make cscope.out file for coreboot or current board'
+	@echo  '  printall              - Print makefile info for debugging'
+	@echo  '  gitconfig             - Set up git to submit patches to coreboot'
+	@echo  '  ctags / ctags-project - Make ctags file for all of coreboot or current board'
+	@echo  '  cscope / cscope-project - Make cscope.out file for coreboot or current board'
+	@echo
+	@echo  '*** site-local related targets ***'
+	@echo  '  symlink               - Create symbolic links from site-local into coreboot tree'
+	@echo  '  clean-symlink         - Remove symbolic links created by "make symlink"'
+	@echo  '  cleanall-symlink      - Remove all symbolic links in the coreboot tree'
 	@echo
 
 # This include must come _before_ the pattern rules below!
 # Order _does_ matter for pattern rules.
-include $(srck)/Makefile.inc
+include $(srck)/Makefile.mk
 
 # The cases where we don't need fully populated $(obj) lists:
 # 1. when no .config exists
@@ -134,6 +146,12 @@ NOCOMPILE:=
 endif
 endif
 
+# When building the "tools" target, the BUILD_ALL_TOOLS variable needs
+# to be set before reading the tools' Makefiles
+ifneq ($(filter tools, $(MAKECMDGOALS)), )
+BUILD_ALL_TOOLS:=1
+endif
+
 $(xcompile): util/xcompile/xcompile
 	rm -f $@
 	$< $(XGCCPATH) > $@.tmp
@@ -146,11 +164,12 @@ ifeq ($(NOCOMPILE),1)
 HOSTCC ?= $(if $(shell type gcc 2>/dev/null),gcc,cc)
 HOSTCXX ?= g++
 
-include $(TOPLEVEL)/Makefile.inc
-include $(TOPLEVEL)/payloads/Makefile.inc
-include $(TOPLEVEL)/util/testing/Makefile.inc
+include $(TOPLEVEL)/Makefile.mk
+include $(TOPLEVEL)/payloads/Makefile.mk
+include $(TOPLEVEL)/util/testing/Makefile.mk
+-include $(TOPLEVEL)/site-local/Makefile.mk
 -include $(TOPLEVEL)/site-local/Makefile.inc
-include $(TOPLEVEL)/tests/Makefile.inc
+include $(TOPLEVEL)/tests/Makefile.mk
 printall real-all:
 	@echo "Error: Trying to build, but NOCOMPILE is set." >&2
 	@echo "  Please file a bug with the following information:"
@@ -191,7 +210,7 @@ endif
 export LANG LC_ALL TZ SOURCE_DATE_EPOCH
 
 ifneq ($(UNIT_TEST),1)
-include toolchain.inc
+include toolchain.mk
 endif
 
 strip_quotes = $(strip $(subst ",,$(subst \",,$(1))))
@@ -203,8 +222,7 @@ endif
 
 # The primary target needs to be here before we include the
 # other files
-
-real-all: real-target
+real-all: site-local-target real-target
 
 # must come rather early
 .SECONDARY:
@@ -269,7 +287,7 @@ src-to-ali=\
 	$(subst .$(1),,\
 	$(filter %.ads %.adb,$(2)))))))))
 
-# Clean -y variables, include Makefile.inc
+# Clean -y variables, include Makefile.mk & Makefile.inc
 # Add paths to files in X-y to X-srcs
 # Add subdirs-y to subdirs
 includemakefiles= \
@@ -288,9 +306,12 @@ includemakefiles= \
 
 # For each path in $(subdirs) call includemakefiles
 # Repeat until subdirs is empty
+# TODO: Remove Makefile.inc support
 evaluate_subdirs= \
 	$(eval cursubdirs:=$(subdirs)) \
 	$(eval subdirs:=) \
+	$(foreach dir,$(cursubdirs), \
+		$(eval $(call includemakefiles,$(dir)/Makefile.mk))) \
 	$(foreach dir,$(cursubdirs), \
 		$(eval $(call includemakefiles,$(dir)/Makefile.inc))) \
 	$(if $(subdirs),$(eval $(call evaluate_subdirs)))
@@ -299,11 +320,11 @@ evaluate_subdirs= \
 subdirs:=$(TOPLEVEL)
 postinclude-hooks :=
 
-# Don't iterate through Makefile.incs under src/ when building tests
+# Don't iterate through Makefiles under src/ when building tests
 ifneq ($(UNIT_TEST),1)
 $(eval $(call evaluate_subdirs))
 else
-include $(TOPLEVEL)/tests/Makefile.inc
+include $(TOPLEVEL)/tests/Makefile.mk
 endif
 
 ifeq ($(FAILBUILD),1)
@@ -345,9 +366,6 @@ $(foreach class,$(classes),$(eval $(class)-alis:=$(call src-to-ali,$(class),$($(
 
 # For Ada includes
 $(foreach class,$(classes),$(eval $(class)-ada-dirs:=$(sort $(dir $(filter %.ads %.adb,$($(class)-srcs)) $($(class)-extra-specs)))))
-
-# Save all objs before processing them (for dependency inclusion)
-originalobjs:=$(foreach var, $(addsuffix -objs,$(classes)), $($(var)))
 
 # Call post-processors if they're defined
 $(foreach class,$(classes),\
@@ -473,27 +491,77 @@ sphinx:
 sphinx-lint:
 	$(MAKE) SPHINXOPTS=-W -C Documentation sphinx
 
+# Look at all of the files in the SYMLINK_LIST and create the symbolic links
+# into the coreboot tree. Each symlink.txt file in site-local should be in the
+# directory linked from and have a single line with the path to the location to
+# link to. The path must be relative to the top of the coreboot directory.
 symlink:
-	@echo "Creating Symbolic Links.."; \
+	if [ -z "$(SYMLINK_LIST)" ]; then \
+		echo "No site-local symbolic links to create."; \
+		exit 0; \
+	fi; \
+	echo "Creating symbolic links.."; \
 	for link in $(SYMLINK_LIST); do \
-		SYMLINK=`cat $$link`; \
-		REALPATH=`realpath $$link`; \
-		if [ -L "$$SYMLINK" ]; then \
+		LINKTO="$(top)/$$(head -n 1 "$${link}")"; \
+		LINKFROM=$$(dirname "$$(realpath "$${link}")"); \
+		if [ -L "$${LINKTO}" ]; then \
+			echo "  $${LINKTO} exists - skipping"; \
 			continue; \
-		elif [ ! -e "$$SYMLINK" ]; then \
-			echo -e "\tLINK $$SYMLINK -> $$(dirname $$REALPATH)"; \
-			ln -s $$(dirname $$REALPATH) $$SYMLINK; \
+		fi; \
+		LINKTO="$$(realpath -m "$${LINKTO}")" 2>/dev/null; \
+		if [ "$${LINKTO}" = "$$(echo "$${LINKTO}" | sed "s|^$(top)||" )" ]; then \
+			echo "  FAILED: $${LINKTO} is outside of current directory." >&2; \
+			continue; \
+		fi; \
+		if [ ! -e "$${LINKTO}" ]; then \
+			echo "  LINK $${LINKTO} -> $${LINKFROM}"; \
+			ln -s "$${LINKFROM}" "$${LINKTO}" || \
+				echo "FAILED: Could not create link." >&2; \
 		else \
-			echo -e "\tFAILED: $$SYMLINK exists"; \
-		fi \
+			echo  "  FAILED: $${LINKTO} exists as a file or directory." >&2; \
+		fi; \
 	done
 
 clean-symlink:
-	@echo "Deleting symbolic link";\
-	EXISTING_SYMLINKS=`find -L ./src -xtype l | grep -v 3rdparty`; \
-	for link in $$EXISTING_SYMLINKS; do \
-		echo -e "\tUNLINK $$link"; \
-		rm "$$link"; \
+	if [ -z "$(SYMLINK_LIST)" ]; then \
+		echo "No site-local symbolic links to clean."; \
+		exit 0; \
+	fi; \
+	echo "Removing site-local symbolic links from tree.."; \
+	for link in $(SYMLINK_LIST); do \
+		SYMLINK="$(top)/$$(head -n 1 "$${link}")"; \
+		if [ "$${SYMLINK}" = "$$(echo "$${SYMLINK}" | sed "s|^$(top)||")" ]; then \
+			echo "  FAILED: $${SYMLINK} is outside of current directory." >&2; \
+			continue; \
+		elif [ ! -L "$${SYMLINK}" ]; then \
+			echo "  $${SYMLINK} does not exist - skipping"; \
+			continue; \
+		fi; \
+		if [ -L "$${SYMLINK}" ]; then \
+			REALDIR="$$(realpath "$${link}")"; \
+			echo "  UNLINK $${link} (linked from $${REALDIR})"; \
+			rm "$${SYMLINK}"; \
+		fi; \
+	done; \
+	EXISTING_SYMLINKS="$$(find $(top) -type l | grep -v "3rdparty\|crossgcc" )"; \
+	if [ -z "$${EXISTING_SYMLINKS}" ]; then \
+		echo "  No remaining symbolic links found in tree."; \
+	else \
+		echo "  Remaining symbolic links found:"; \
+		for link in $${EXISTING_SYMLINKS}; do \
+			echo "    $${link}"; \
+		done; \
+	fi
+
+cleanall-symlink:
+	echo "Deleting all symbolic links in the coreboot tree (excluding 3rdparty & crossgcc)"; \
+	EXISTING_SYMLINKS="$$(find $(top) -type l | grep -v "3rdparty\|crossgcc" )"; \
+	for link in $${EXISTING_SYMLINKS}; do \
+		if [ -L "$${link}" ]; then \
+			REALDIR="$$(realpath "$${link}")"; \
+			echo "  UNLINK $${link} (linked from $${REALDIR})"; \
+			rm "$${link}"; \
+		fi; \
 	done
 
 clean-for-update:
@@ -523,4 +591,5 @@ distclean: clean clean-ctags clean-cscope distclean-payloads distclean-utils
 	rm -f abuild*.xml junit.xml* util/lint/junit.xml
 
 .PHONY: $(PHONY) clean clean-for-update clean-cscope cscope distclean sphinx sphinx-lint
-.PHONY: ctags-project cscope-project clean-ctags symlink clean-symlink
+.PHONY: ctags-project cscope-project clean-ctags
+.PHONY: symlink clean-symlink cleanall-symlink

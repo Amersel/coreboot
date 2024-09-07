@@ -452,10 +452,6 @@ Scope (\_SB.PCI0)
 				/* DMA0 is not in D3Cold now. */
 				\_SB.PCI0.TDM0.D3CE()  /* Enable DMA RTD3 */
 
-				If (\_SB.PCI0.TDM0.IF30 != 1) {
-					Return
-				}
-
 				Printf("Push TBT RPs to D3Cold together")
 				If (\_SB.PCI0.TRP0.VDID != 0xFFFFFFFF) {
 					/* Put RP0 to D3 cold. */
@@ -510,10 +506,6 @@ Scope (\_SB.PCI0)
 			If (\_SB.PCI0.TDM1.STAT == 1) {
 				/* DMA1 is not in D3Cold now */
 				\_SB.PCI0.TDM1.D3CE()  /* Enable DMA RTD3. */
-
-				If (\_SB.PCI0.TDM1.IF30 != 1) {
-					Return
-				}
 
 				Printf("Push TBT RPs to D3Cold together")
 				If (\_SB.PCI0.TRP2.VDID != 0xFFFFFFFF) {
@@ -726,7 +718,7 @@ Scope (\_SB.PCI0)
 
 		Method (_STA, 0x0, NotSerialized)
 		{
-			If (TRE0 == 1) {
+			If (VDID != 0xFFFFFFFF) {
 				Return (0x0F)
 			} Else {
 				Return (0x0)
@@ -756,7 +748,7 @@ Scope (\_SB.PCI0)
 
 		Method (_STA, 0x0, NotSerialized)
 		{
-			If (TRE1 == 1) {
+			If (VDID != 0xFFFFFFFF) {
 				Return (0x0F)
 			} Else {
 				Return (0x0)
@@ -786,7 +778,7 @@ Scope (\_SB.PCI0)
 
 		Method (_STA, 0x0, NotSerialized)
 		{
-			If (TRE2 == 1) {
+			If (VDID != 0xFFFFFFFF) {
 				Return (0x0F)
 			} Else {
 				Return (0x0)
@@ -816,7 +808,7 @@ Scope (\_SB.PCI0)
 
 		Method (_STA, 0x0, NotSerialized)
 		{
-			If (TRE3 == 1) {
+			If (VDID != 0xFFFFFFFF) {
 				Return (0x0F)
 			} Else {
 				Return (0x0)

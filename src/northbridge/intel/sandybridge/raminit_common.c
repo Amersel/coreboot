@@ -11,7 +11,6 @@
 #include <delay.h>
 #include <types.h>
 
-#include "raminit_native.h"
 #include "raminit_common.h"
 #include "raminit_tables.h"
 #include "sandybridge.h"
@@ -65,7 +64,6 @@ void dram_find_common_params(ramctr_timing *ctrl)
 	valid_dimms = 0;
 
 	FOR_ALL_CHANNELS for (slot = 0; slot < 2; slot++) {
-
 		const struct dimm_attr_ddr3_st *dimm = &dimms->dimm[channel][slot];
 		if (dimm->dram_type != SPD_MEMORY_TYPE_SDRAM_DDR3)
 			continue;
@@ -173,7 +171,7 @@ void dram_timing_regs(ramctr_timing *ctrl)
 		.tXPDLL  = MIN(ctrl->tXPDLL, 31),
 		.tXP     = MIN(ctrl->tXP, 7),
 		.tAONPD  = ctrl->tAONPD,
-		.tCPDED  = 2,
+		.tCPDED  = 1,
 		.tPRPDEN = 1,
 	};
 
@@ -668,13 +666,19 @@ static void write_mrreg(ramctr_timing *ctrl, int channel, int slotrank, int reg,
 }
 
 /* Obtain optimal power down mode for current configuration */
-static enum power_down_mode get_power_down_mode(ramctr_timing *ctrl)
+static enum power_down_mode get_power_down_mode(ramctr_timing *ctrl, int channel)
 {
+	int slotrank;
+
 	if (ctrl->tXP > 8)
 		return PDM_NONE;
 
 	if (ctrl->tXPDLL > 32)
 		return PDM_PPD;
+
+	FOR_ALL_POPULATED_RANKS
+		if (!ctrl->info.dimm[channel][slotrank >> 1].flags.dll_off_mode)
+			return PDM_APD_PPD;
 
 	if (CONFIG(RAMINIT_ALWAYS_ALLOW_DLL_OFF) || get_platform_type() == PLATFORM_MOBILE)
 		return PDM_DLL_OFF;
@@ -682,12 +686,12 @@ static enum power_down_mode get_power_down_mode(ramctr_timing *ctrl)
 	return PDM_APD_PPD;
 }
 
-static u32 make_mr0(ramctr_timing *ctrl, u8 rank)
+static u32 make_mr0(ramctr_timing *ctrl, int channel, u8 rank)
 {
 	u16 mr0reg, mch_cas, mch_wr;
 	static const u8 mch_wr_t[12] = { 1, 2, 3, 4, 0, 5, 0, 6, 0, 7, 0, 0 };
 
-	const enum power_down_mode power_down = get_power_down_mode(ctrl);
+	const enum power_down_mode power_down = get_power_down_mode(ctrl, channel);
 
 	const bool slow_exit = power_down == PDM_DLL_OFF || power_down == PDM_APD_DLL_OFF;
 
@@ -716,7 +720,7 @@ static u32 make_mr0(ramctr_timing *ctrl, u8 rank)
 
 static void dram_mr0(ramctr_timing *ctrl, u8 rank, int channel)
 {
-	write_mrreg(ctrl, channel, rank, 0, make_mr0(ctrl, rank));
+	write_mrreg(ctrl, channel, rank, 0, make_mr0(ctrl, channel, rank));
 }
 
 static odtmap get_ODT(ramctr_timing *ctrl, int channel)
@@ -1133,7 +1137,6 @@ static void fine_tune_rcven_pi(ramctr_timing *ctrl, int channel, int slotrank, i
 	int lane, i;
 
 	for (rcven_delta = -25; rcven_delta <= 25; rcven_delta++) {
-
 		FOR_ALL_LANES {
 			ctrl->timings[channel][slotrank].lanes[lane].rcven
 				= upperA[lane] + rcven_delta + QCLK_PI;
@@ -1353,7 +1356,6 @@ int receive_enable_calibration(ramctr_timing *ctrl)
 			FOR_ALL_LANES {
 				ctrl->timings[channel][slotrank].lanes[lane].rcven -= QCLK_PI;
 				upperA[lane] -= QCLK_PI;
-
 			}
 		} else if (some_high) {
 			ctrl->timings[channel][slotrank].roundtrip_latency++;
@@ -1652,7 +1654,6 @@ static void train_write_flyby(ramctr_timing *ctrl)
 		fill_pattern1(ctrl, channel);
 	}
 	FOR_ALL_POPULATED_CHANNELS FOR_ALL_POPULATED_RANKS {
-
 		/* Reset read and write WDB pointers */
 		mchbar_write32(IOSAV_DATA_CTL_ch(channel), 0x10001);
 
@@ -2496,7 +2497,6 @@ int aggressive_write_training(ramctr_timing *ctrl)
 						upper[channel][slotrank][lane] =
 							MIN(rn.end - ctrl->tx_dq_offset[i],
 							    upper[channel][slotrank][lane]);
-
 					}
 				}
 			}
@@ -2616,7 +2616,6 @@ void channel_scrub(ramctr_timing *ctrl)
 		rowsize = 1 << ctrl->info.dimm[channel][slotrank >> 1].row_bits;
 		for (bank = 0; bank < 8; bank++) {
 			for (row = 0; row < rowsize; row += 16) {
-
 				u8 gap = MAX((ctrl->tFAW >> 2) + 1, ctrl->tRRD);
 				const struct iosav_ssq sequence[] = {
 					/*
@@ -2810,25 +2809,31 @@ void final_registers(ramctr_timing *ctrl)
 	int t3_ns;
 	u32 r32;
 
-	/* FIXME: This register only exists on Ivy Bridge */
-	mchbar_write32(WMM_READ_CONFIG, 0x46);
+	if (IS_IVY_CPU(ctrl->cpu))
+		mchbar_write32(WMM_READ_CONFIG, 0x46);
 
 	FOR_ALL_CHANNELS {
 		union tc_othp_reg tc_othp = {
 			.raw = mchbar_read32(TC_OTHP_ch(channel)),
 		};
-		tc_othp.tCPDED = 1;
+		if (IS_SANDY_CPU(ctrl->cpu) && (ctrl->cpu & 0xf) < SNB_STEP_D0)
+			tc_othp.tCPDED = 2;
+		else
+			tc_othp.tCPDED = 1;
 		mchbar_write32(TC_OTHP_ch(channel), tc_othp.raw);
+
+		/* 64 DCLKs until idle, decision per rank */
+		r32 = get_power_down_mode(ctrl, channel) << 8 | 64;
+		mchbar_write32(PM_PDWN_CONFIG_ch(channel), r32);
+
+		mchbar_write32(PM_TRML_M_CONFIG_ch(channel), 0x00000aaa);
 	}
 
-	/* 64 DCLKs until idle, decision per rank */
-	mchbar_write32(PM_PDWN_CONFIG, get_power_down_mode(ctrl) << 8 | 64);
-
-	FOR_ALL_CHANNELS
-		mchbar_write32(PM_TRML_M_CONFIG_ch(channel), 0x00000aaa);
-
 	mchbar_write32(PM_BW_LIMIT_CONFIG, 0x5f7003ff);
-	mchbar_write32(PM_DLL_CONFIG, 0x00073000 | ctrl->mdll_wake_delay);
+	if (IS_SANDY_CPU(ctrl->cpu))
+		mchbar_write32(PM_DLL_CONFIG, 0x000330f0);
+	else
+		mchbar_write32(PM_DLL_CONFIG, 0x00073000 | ctrl->mdll_wake_delay);
 
 	FOR_ALL_CHANNELS {
 		switch (ctrl->rankmap[channel]) {
@@ -2863,7 +2868,6 @@ void final_registers(ramctr_timing *ctrl)
 
 	mchbar_setbits32(MC_INIT_STATE_G, 1 << 0);
 	mchbar_setbits32(MC_INIT_STATE_G, 1 << 7);
-	mchbar_write32(BANDTIMERS_SNB, 0xfa);
 
 	/* Find a populated channel */
 	FOR_ALL_POPULATED_CHANNELS

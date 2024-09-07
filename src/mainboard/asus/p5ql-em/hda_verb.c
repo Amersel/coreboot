@@ -20,8 +20,8 @@ const u32 cim_verb_data[] = {
 	AZALIA_PIN_CFG(0, 0x1b, 0x02214c20),
 	AZALIA_PIN_CFG(0, 0x1c, 0x593301f0),
 	AZALIA_PIN_CFG(0, 0x1d, 0x4015e601),
-	AZALIA_PIN_CFG(0, 0x1e, 0x411111f0),
-	AZALIA_PIN_CFG(0, 0x1f, 0x411111f0),
+	AZALIA_PIN_CFG(0, 0x1e, AZALIA_PIN_CFG_NC(0)),
+	AZALIA_PIN_CFG(0, 0x1f, AZALIA_PIN_CFG_NC(0)),
 
 	/* HDMI audio */
 	0x80862803,
@@ -33,5 +33,4 @@ const u32 cim_verb_data[] = {
 
 const u32 pc_beep_verbs[0] = {};
 
-const u32 pc_beep_verbs_size = ARRAY_SIZE(pc_beep_verbs);
-const u32 cim_verb_data_size = ARRAY_SIZE(cim_verb_data);
+AZALIA_ARRAY_SIZES;

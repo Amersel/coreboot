@@ -9,6 +9,7 @@ config NORTHBRIDGE_INTEL_I945
 	select INTEL_EDID
 	select HAVE_VGA_TEXT_FRAMEBUFFER if MAINBOARD_DO_NATIVE_VGA_INIT
 	select USE_DDR2
+	select NEED_SMALL_2MB_PAGE_TABLES
 
 if NORTHBRIDGE_INTEL_I945
 
@@ -39,6 +40,10 @@ config ECAM_MMCONF_BASE_ADDRESS
 config ECAM_MMCONF_BUS_NUMBER
 	int
 	default 64
+
+# This number must be equal or lower than what's reported in ACPI PCI _CRS
+config DOMAIN_RESOURCE_32BIT_LIMIT
+	default 0xfec00000
 
 config OVERRIDE_CLOCK_DISABLE
 	bool

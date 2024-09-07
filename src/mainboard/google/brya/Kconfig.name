@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 comment "Brya"
 
 config BOARD_GOOGLE_AGAH
@@ -8,6 +10,9 @@ config BOARD_GOOGLE_ANAHERA
 
 config BOARD_GOOGLE_ANAHERA4ES
 	bool "->  Anahera4ES"
+
+config BOARD_GOOGLE_ANRAGGAR
+	bool "->  Anraggar"
 
 config BOARD_GOOGLE_AURASH
 	bool "->  Aurash"
@@ -33,6 +38,12 @@ config BOARD_GOOGLE_CONSTITUTION
 config BOARD_GOOGLE_CROTA
 	bool "->  Crota"
 
+config BOARD_GOOGLE_DOCHI
+	bool "->  Dochi"
+
+config BOARD_GOOGLE_DOMIKA
+	bool "->  Domika"
+
 config BOARD_GOOGLE_FELWINTER
 	bool "->  Felwinter"
 
@@ -47,6 +58,9 @@ config BOARD_GOOGLE_GIMBLE4ES
 
 config BOARD_GOOGLE_GLADIOS
 	bool "->  Gladios"
+
+config BOARD_GOOGLE_GLASSWAY
+	bool "->  Glassway"
 
 config BOARD_GOOGLE_GOTHRAX
 	bool "->  Gothrax"
@@ -84,6 +98,9 @@ config BOARD_GOOGLE_NIVVIKS
 config BOARD_GOOGLE_NEREID
 	bool "->  Nereid"
 
+config BOARD_GOOGLE_NOKRIS
+	bool "->  Nokris"
+
 config BOARD_GOOGLE_OMNIGUL
 	bool "->  Omnigul"
 
@@ -96,9 +113,6 @@ config BOARD_GOOGLE_PIRRHA
 config BOARD_GOOGLE_PRIMUS
 	bool "->  Primus"
 
-config BOARD_GOOGLE_PRIMUS4ES
-	bool "->  Primus4ES"
-
 config BOARD_GOOGLE_PUJJO
 	bool "->  Pujjo"
 
@@ -110,6 +124,9 @@ config BOARD_GOOGLE_REDRIX
 
 config BOARD_GOOGLE_REDRIX4ES
 	bool "->  Redrix4ES"
+
+config BOARD_GOOGLE_RIVEN
+	bool "->  Riven"
 
 config BOARD_GOOGLE_SKOLAS
 	bool "->  Skolas"
@@ -125,6 +142,18 @@ config BOARD_GOOGLE_TAEKO4ES
 
 config BOARD_GOOGLE_TANIKS
 	bool "->  Taniks"
+
+config BOARD_GOOGLE_TELIKS
+	bool "->  Teliks"
+
+config BOARD_GOOGLE_TEREID
+	bool "->  Tereid"
+
+config BOARD_GOOGLE_TIVVIKS
+	bool "-> Tivviks"
+
+config BOARD_GOOGLE_TRULO
+	bool "->  Trulo"
 
 config BOARD_GOOGLE_ULDREN
 	bool "->  Uldren"
@@ -147,12 +176,23 @@ config BOARD_GOOGLE_YAVILLA
 config BOARD_GOOGLE_ZYDRON
 	bool "->  Zydron"
 
-config BOARD_GOOGLE_NOKRIS
-	bool "->  Nokris"
+config BOARD_GOOGLE_XOL
+	bool "->  Xol"
 
-config BOARD_GOOGLE_DOCHI
-	bool "->  Dochi"
+config BOARD_GOOGLE_NOVA
+	bool "->  Nova"
 
-config BOARD_GOOGLE_ANRAGGAR
-	bool "->  Anraggar"
-	select BOARD_GOOGLE_BASEBOARD_NISSA
+config BOARD_GOOGLE_BUJIA
+	bool "->  Bujia"
+
+config BOARD_GOOGLE_YAVISTA
+	bool "->  Yavista"
+
+config BOARD_GOOGLE_SUNDANCE
+	bool "->  Sundance"
+
+config BOARD_GOOGLE_PUJJOGA
+	bool "->  Pujjoga"
+
+config BOARD_GOOGLE_ORISA
+	bool "->  Orisa"

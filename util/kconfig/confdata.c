@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2002 Roman Zippel <zippel@linux-m68k.org>
  */
@@ -155,6 +155,13 @@ static void conf_message(const char *fmt, ...)
 static const char *conf_filename;
 static int conf_lineno, conf_warnings;
 
+bool conf_errors(void)
+{
+	if (conf_warnings)
+		return getenv("KCONFIG_WERROR");
+	return false;
+}
+
 #ifdef __MINGW32__
 #define mkdir(_n,_p) mkdir((_n))
 #endif
@@ -230,6 +237,13 @@ static const char *conf_get_autoheader_name(void)
 	return name ? name : "include/generated/autoconf.h";
 }
 
+static const char *conf_get_rustccfg_name(void)
+{
+	char *name = getenv("KCONFIG_RUSTCCFG");
+
+	return name ? name : "include/generated/rustc_cfg";
+}
+
 static const char *conf_get_autobase_name(void)
 {
 	char *name = getenv("KCONFIG_SPLITCONFIG");
@@ -303,16 +317,12 @@ static int conf_set_sym_val(struct symbol *sym, int def, int def_flags, char *p)
 #define LINE_GROWTH 16
 static int add_byte(int c, char **lineptr, size_t slen, size_t *n)
 {
-	char *nline;
 	size_t new_size = slen + 1;
+
 	if (new_size > *n) {
 		new_size += LINE_GROWTH - 1;
 		new_size *= 2;
-		nline = xrealloc(*lineptr, new_size);
-		if (!nline)
-			return -1;
-
-		*lineptr = nline;
+		*lineptr = xrealloc(*lineptr, new_size);
 		*n = new_size;
 	}
 
@@ -355,15 +365,37 @@ e_out:
 	return -1;
 }
 
+/* like getline(), but the newline character is stripped away */
+static ssize_t getline_stripped(char **lineptr, size_t *n, FILE *stream)
+{
+	ssize_t len;
+
+	len = compat_getline(lineptr, n, stream);
+
+	if (len > 0 && (*lineptr)[len - 1] == '\n') {
+		len--;
+		(*lineptr)[len] = '\0';
+
+		if (len > 0 && (*lineptr)[len - 1] == '\r') {
+			len--;
+			(*lineptr)[len] = '\0';
+		}
+	}
+
+	return len;
+}
+
 int conf_read_simple(const char *name, int def)
 {
 	FILE *in = NULL;
 	char   *line = NULL;
 	size_t  line_asize = 0;
-	char *p, *p2;
+	char *p, *val;
 	struct symbol *sym;
 	int i, def_flags;
+	const char *warn_unknown, *sym_name;
 
+	warn_unknown = getenv("KCONFIG_WARN_UNKNOWN_SYMBOLS");
 	if (name) {
 		in = zconf_fopen(name);
 	} else {
@@ -427,8 +459,7 @@ load:
 		case S_INT:
 		case S_HEX:
 		case S_STRING:
-			if (sym->def[def].val)
-				free(sym->def[def].val);
+			free(sym->def[def].val);
 			/* fall through */
 		default:
 			sym->def[def].val = NULL;
@@ -436,83 +467,67 @@ load:
 		}
 	}
 
-	while (compat_getline(&line, &line_asize, in) != -1) {
+	while (getline_stripped(&line, &line_asize, in) != -1) {
 		conf_lineno++;
-		sym = NULL;
+
+		if (!line[0]) /* blank line */
+			continue;
+
 		if (line[0] == '#') {
-			if (memcmp(line + 2, CONFIG_, strlen(CONFIG_)))
+			if (line[1] != ' ')
 				continue;
-			p = strchr(line + 2 + strlen(CONFIG_), ' ');
+			p = line + 2;
+			if (memcmp(p, CONFIG_, strlen(CONFIG_)))
+				continue;
+			sym_name = p + strlen(CONFIG_);
+			p = strchr(sym_name, ' ');
 			if (!p)
 				continue;
 			*p++ = 0;
-			if (strncmp(p, "is not set", 10))
+			if (strcmp(p, "is not set"))
 				continue;
-			if (def == S_DEF_USER) {
-				sym = sym_find(line + 2 + strlen(CONFIG_));
-				if (!sym) {
-					conf_message(
-						"ignoring nonexistent symbol %s",
-						line + 2 + strlen(CONFIG_));
-					conf_set_changed(true);
-					continue;
-				}
-			} else {
-				sym = sym_lookup(line + 2 + strlen(CONFIG_), 0);
-				if (sym->type == S_UNKNOWN)
-					sym->type = S_BOOLEAN;
-			}
-			if (sym->flags & def_flags) {
-				conf_notice("override: reassigning to symbol %s", sym->name);
-			}
-			switch (sym->type) {
-			case S_BOOLEAN:
-			case S_TRISTATE:
-				sym->def[def].tri = no;
-				sym->flags |= def_flags;
-				break;
-			default:
-				;
-			}
-		} else if (memcmp(line, CONFIG_, strlen(CONFIG_)) == 0) {
-			p = strchr(line + strlen(CONFIG_), '=');
-			if (!p)
-				continue;
-			*p++ = 0;
-			p2 = strchr(p, '\n');
-			if (p2) {
-				*p2-- = 0;
-				if (*p2 == '\r')
-					*p2 = 0;
-			}
 
-			sym = sym_find(line + strlen(CONFIG_));
-			if (!sym) {
-				if (def == S_DEF_AUTO)
-					/*
-					 * Reading from include/config/auto.conf
-					 * If CONFIG_FOO previously existed in
-					 * auto.conf but it is missing now,
-					 * include/config/FOO must be touched.
-					 */
-					conf_touch_dep(line + strlen(CONFIG_));
-				else
-					conf_set_changed(true);
-				continue;
-			}
-
-			if (sym->flags & def_flags) {
-				conf_notice("override: reassigning to symbol %s", sym->name);
-			}
-			if (conf_set_sym_val(sym, def, def_flags, p))
-				continue;
+			val = "n";
 		} else {
-			if (line[0] != '\r' && line[0] != '\n')
-				conf_warning("unexpected data: %.*s",
-					     (int)strcspn(line, "\r\n"), line);
+			if (memcmp(line, CONFIG_, strlen(CONFIG_))) {
+				conf_warning("unexpected data: %s", line);
+				continue;
+			}
 
+			sym_name = line + strlen(CONFIG_);
+			p = strchr(sym_name, '=');
+			if (!p) {
+				conf_warning("unexpected data: %s", line);
+				continue;
+			}
+			*p = 0;
+			val = p + 1;
+		}
+
+		sym = sym_find(sym_name);
+		if (!sym) {
+			if (def == S_DEF_AUTO) {
+				/*
+				 * Reading from include/config/auto.conf.
+				 * If CONFIG_FOO previously existed in auto.conf
+				 * but it is missing now, include/config/FOO
+				 * must be touched.
+				 */
+				conf_touch_dep(sym_name);
+			} else {
+				if (warn_unknown)
+					conf_warning("unknown symbol: %s", sym_name);
+
+				conf_set_changed(true);
+			}
 			continue;
 		}
+
+		if (sym->flags & def_flags)
+			conf_notice("override: reassigning to symbol %s", sym->name);
+
+		if (conf_set_sym_val(sym, def, def_flags, val))
+			continue;
 
 		if (sym && sym_is_choice_value(sym)) {
 			struct symbol *cs = prop_get_symbol(sym_get_choice_prop(sym));
@@ -536,8 +551,6 @@ load:
 	}
 	free(line);
 	fclose(in);
-
-	kconfig_warnings += conf_warnings;
 
 	return 0;
 }
@@ -597,7 +610,7 @@ int conf_read(const char *name)
 				/* Reset a string value if it's out of range */
 				if (sym_string_within_range(sym, sym->def[S_DEF_USER].val))
 					break;
-				sym->flags &= ~(SYMBOL_VALID|SYMBOL_DEF_USER);
+				sym->flags &= ~SYMBOL_VALID;
 				conf_unsaved++;
 				break;
 			default:
@@ -632,6 +645,9 @@ static const struct comment_style comment_style_c = {
 
 static void conf_write_heading(FILE *fp, const struct comment_style *cs)
 {
+	if (!cs)
+		return;
+
 	fprintf(fp, "%s\n", cs->prefix);
 
 	fprintf(fp, "%s Automatically generated file; DO NOT EDIT.\n",
@@ -785,6 +801,65 @@ static void print_symbol_for_c(FILE *fp, struct symbol *sym)
 		val_prefix, val);
 
 	free(escaped);
+}
+
+static void print_symbol_for_rustccfg(FILE *fp, struct symbol *sym)
+{
+	const char *val;
+	const char *val_prefix = "";
+	char *val_prefixed = NULL;
+	size_t val_prefixed_len;
+	char *escaped = NULL;
+
+	if (sym->type == S_UNKNOWN)
+		return;
+
+	val = sym_get_string_value(sym);
+
+	switch (sym->type) {
+	case S_BOOLEAN:
+	case S_TRISTATE:
+		/*
+		 * We do not care about disabled ones, i.e. no need for
+		 * what otherwise are "comments" in other printers.
+		 */
+		if (*val == 'n')
+			return;
+
+		/*
+		 * To have similar functionality to the C macro `IS_ENABLED()`
+		 * we provide an empty `--cfg CONFIG_X` here in both `y`
+		 * and `m` cases.
+		 *
+		 * Then, the common `fprintf()` below will also give us
+		 * a `--cfg CONFIG_X="y"` or `--cfg CONFIG_X="m"`, which can
+		 * be used as the equivalent of `IS_BUILTIN()`/`IS_MODULE()`.
+		 */
+		fprintf(fp, "--cfg=%s%s\n", CONFIG_, sym->name);
+		break;
+	case S_HEX:
+		if (val[0] != '0' || (val[1] != 'x' && val[1] != 'X'))
+			val_prefix = "0x";
+		break;
+	default:
+		break;
+	}
+
+	if (strlen(val_prefix) > 0) {
+		val_prefixed_len = strlen(val) + strlen(val_prefix) + 1;
+		val_prefixed = xmalloc(val_prefixed_len);
+		snprintf(val_prefixed, val_prefixed_len, "%s%s", val_prefix, val);
+		val = val_prefixed;
+	}
+
+	/* All values get escaped: the `--cfg` option only takes strings */
+	escaped = escape_string_value(val);
+	val = escaped;
+
+	fprintf(fp, "--cfg=%s%s=%s\n", CONFIG_, sym->name, val);
+
+	free(escaped);
+	free(val_prefixed);
 }
 
 /*
@@ -1175,6 +1250,12 @@ int conf_write_autoconf(int overwrite)
 	if (ret)
 		return ret;
 
+	ret = __conf_write_autoconf(conf_get_rustccfg_name(),
+				    print_symbol_for_rustccfg,
+				    NULL);
+	if (ret)
+		return ret;
+
 	/*
 	 * Create include/config/auto.conf. This must be the last step because
 	 * Kbuild has a dependency on auto.conf and this marks the successful
@@ -1194,10 +1275,12 @@ static void (*conf_changed_callback)(void);
 
 void conf_set_changed(bool val)
 {
-	if (conf_changed_callback && conf_changed != val)
-		conf_changed_callback();
+	bool changed = conf_changed != val;
 
 	conf_changed = val;
+
+	if (conf_changed_callback && changed)
+		conf_changed_callback();
 }
 
 bool conf_get_changed(void)

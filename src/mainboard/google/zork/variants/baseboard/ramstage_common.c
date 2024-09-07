@@ -57,7 +57,6 @@ static void update_dmic_gpio(void)
 		gpio->pins[0] = GPIO_13;
 	else
 		gpio->pins[0] = GPIO_6;
-
 }
 
 void variant_audio_update(void)
@@ -73,7 +72,6 @@ void variant_audio_update(void)
  */
 static void remove_usb_device_reset_gpio(const struct device *usb_dev)
 {
-
 	struct drivers_usb_acpi_config *usb_cfg;
 	/* config_of dies on failure, so a NULL check is not required */
 	usb_cfg = config_of(usb_dev);
@@ -115,7 +113,7 @@ void variant_touchscreen_update(void)
 	if (variant_uses_v3_6_schematics())
 		return;
 
-	while ((child = dev_bus_each_child(mmio_dev->link_list, child)) != NULL) {
+	while ((child = dev_bus_each_child(mmio_dev->downstream, child)) != NULL) {
 		struct drivers_i2c_generic_config *cfg;
 
 		if (child->chip_ops == &drivers_i2c_generic_ops) {

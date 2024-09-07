@@ -76,6 +76,11 @@ enum spi100_speed {
 #define SPI_FIFO_LAST_BYTE		0xc6 /* 0xc7 for Cezanne */
 #define SPI_FIFO_DEPTH			(SPI_FIFO_LAST_BYTE - SPI_FIFO + 1)
 
+#define SPI_MISC_CNTRL			0xfc
+/* AMD has re-purposed this unused SPI controller register bit as a semaphore to synchronize
+   access to the SPI controller between SMM and non-SMM software/OS driver. */
+#define   SPI_SEMAPHORE_DRIVER_LOCKED	BIT(4)
+
 struct spi_config {
 	/*
 	 * Default values if not overridden by mainboard:

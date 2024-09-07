@@ -297,10 +297,6 @@ config YABEL_DIRECTHW
 	  they can still access all devices in the system.
 	  Enable this option for a good compromise between security and speed.
 
-config MULTIPLE_VGA_ADAPTERS
-	bool
-	default n
-
 menu "Display"
 	depends on HAVE_VGA_TEXT_FRAMEBUFFER || HAVE_LINEAR_FRAMEBUFFER
 
@@ -529,6 +525,12 @@ config PCI
 	bool
 	default n
 
+config PCI_IOBASE
+	hex
+	help
+	  The memory address of a memory-mapped translator that lets the
+	  CPU communicate with peripheral devices over PCI I/O space.
+
 if PCI
 
 config DOMAIN_RESOURCE_32BIT_LIMIT
@@ -564,18 +566,14 @@ config CARDBUS_PLUGIN_SUPPORT
 	bool
 	default y
 
-config AZALIA_PLUGIN_SUPPORT
+config AZALIA_HDA_CODEC_SUPPORT
 	bool
 	default n
-
-config AZALIA_LOCK_DOWN_R_WO_GCAP
-	def_bool n
-	depends on AZALIA_PLUGIN_SUPPORT
 	help
-	  The GCAP register is implemented as R/WO (Read / Write Once) on some
-	  HD Audio controllers, such as Intel 6-series PCHs. Select this option
-	  to lock down the GCAP register after deasserting the controller reset
-	  bit. Locking is done by reading GCAP and writing back the read value.
+	  Select this option to include the code to initialize Azalia HD audio
+	  codec chips. This will also add the hda_verb.c file from the
+	  mainboard directory to the build which contain the board-specific HD
+	  audio codec configuration.
 
 config PCIEXP_PLUGIN_SUPPORT
 	bool
@@ -588,13 +586,23 @@ config ECAM_MMCONF_BASE_ADDRESS
 config ECAM_MMCONF_BUS_NUMBER
 	int
 	depends on ECAM_MMCONF_SUPPORT
+	help
+	  Total number of PCI buses in the system across all segment groups.
+	  The number needs to be a power of 2. For values <= 256,
+	  PCI_BUSES_PER_SEGMENT_GROUP is CONFIG_ECAM_MMCONF_BUS_NUMBER and
+	  PCI_SEGMENT_GROUP_COUNT is 1. For values > 256,
+	  PCI_BUSES_PER_SEGMENT_GROUP is 256 and PCI_SEGMENT_GROUP_COUNT is
+	  CONFIG_ECAM_MMCONF_BUS_NUMBER / 256.
 
 config ECAM_MMCONF_LENGTH
 	hex
 	depends on ECAM_MMCONF_SUPPORT
+	default 0x02000000 if ECAM_MMCONF_BUS_NUMBER = 32
 	default 0x04000000 if ECAM_MMCONF_BUS_NUMBER = 64
 	default 0x08000000 if ECAM_MMCONF_BUS_NUMBER = 128
 	default 0x10000000 if ECAM_MMCONF_BUS_NUMBER = 256
+	default 0x20000000 if ECAM_MMCONF_BUS_NUMBER = 512
+	default 0x80000000 if ECAM_MMCONF_BUS_NUMBER = 1024
 	default 0x0
 
 config PCI_ALLOW_BUS_MASTER
@@ -762,36 +770,6 @@ endif # PCIEXP_HOTPLUG
 
 endif # PCIEXP_PLUGIN_SUPPORT
 
-config DEFAULT_SOFTWARE_CONNECTION_MANAGER
-	bool
-	help
-	  select to default to using the Software Connection Manager
-
-choice
-	prompt "Connection Manager"
-	default SOFTWARE_CONNECTION_MANAGER if DEFAULT_SOFTWARE_CONNECTION_MANAGER
-	default FIRMWARE_CONNECTION_MANAGER
-	help
-	  Software Connection Manager doesn't work with Linux 5.13 or later,
-	  resulting in TBT ports timing out. Firmware Connection Manager works
-	  correctly.
-
-	  Linux patch:
-	    torvalds/linux@c6da62a
-	    c6da62a219d028de10f2e22e93a34c7ee2b88d03
-
-config FIRMWARE_CONNECTION_MANAGER
-	bool "Firmware Connection Manager"
-	help
-	  Disable SCM so that FCM can be used
-
-config SOFTWARE_CONNECTION_MANAGER
-	bool "Software Connection Manager"
-	help
-	  Enable SCM so it's used instead of FCM.
-
-endchoice
-
 config EARLY_PCI_BRIDGE
 	bool "Early PCI bridge"
 	depends on PCI
@@ -865,18 +843,18 @@ config VGA_BIOS_ID
 	depends on VGA_BIOS
 	default "1106,3230"
 	help
-	  The comma-separated PCI vendor and device ID with optional revision if that
-	  feature is enabled that would associate your vBIOS to your video card.
+	  The comma-separated PCI vendor and device ID that would associate
+	  your vBIOS to your video card.
 
-	  Example: 1106,3230 or 1106,3230,a3
+	  Example: 1106,3230
 
 	  In the above example 1106 is the PCI vendor ID (in hex, but without
 	  the "0x" prefix) and 3230 specifies the PCI device ID of the
-	  video card (also in hex, without "0x" prefix). a3 specifies the revision.
+	  video card (also in hex, without "0x" prefix).
 
 	  This ID needs to match the PCI VID and DID in the VGA BIOS file's
 	  header and also needs to match the value returned by map_oprom_vendev
-	  or map_oprom_vendev_rev if the remapping feature is used.
+	  if the remapping feature is used.
 
 	  Under GNU/Linux you can run `lspci -nn` to list the IDs of your PCI devices.
 
@@ -898,22 +876,16 @@ config VGA_BIOS_SECOND_ID
 	string "Graphics device PCI IDs"
 	depends on VGA_BIOS_SECOND
 	help
-	  The comma-separated PCI vendor and device ID with optional revision if that
-	  feature is enabled that would associate your vBIOS to your video card.
+	  The comma-separated PCI vendor and device ID that would associate
+	  your vBIOS to your video card.
 
-	  Example: 1106,3230 or 1106,3230,a3
+	  Example: 1106,3230
 
 	  In the above example 1106 is the PCI vendor ID (in hex, but without
 	  the "0x" prefix) and 3230 specifies the PCI device ID of the
-	  video card (also in hex, without "0x" prefix). a3 specifies the revision.
+	  video card (also in hex, without "0x" prefix).
 
 	  Under GNU/Linux you can run `lspci -nn` to list the IDs of your PCI devices.
-
-config CHECK_REV_IN_OPROM_NAME
-	def_bool n
-	help
-	  Select this in the platform BIOS or chipset if the option rom has a revision
-	  that needs to be checked when searching CBFS.
 
 config VGA_BIOS_DGPU
 	bool "Add a discrete VGA BIOS image"
@@ -1003,6 +975,13 @@ config RESOURCE_ALLOCATION_TOP_DOWN
 	  platforms, it might make a difference because of conflicts with
 	  undeclared resources. EDK2 is currently reported to also have
 	  problems on some platforms, at least with Intel's IGD.
+
+config ALWAYS_ALLOW_ABOVE_4G_ALLOCATION
+	bool
+	default n if ARCH_X86
+	default y
+	help
+	  Don't limit mem resources to 4G, but to their actual limit.
 
 config XHCI_UTILS
 	def_bool n

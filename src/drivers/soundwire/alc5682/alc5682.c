@@ -4,7 +4,6 @@
 #include <acpi/acpi_device.h>
 #include <acpi/acpi_soundwire.h>
 #include <device/device.h>
-#include <device/path.h>
 #include <device/soundwire.h>
 #include <mipi/ids.h>
 #include <stdio.h>
@@ -174,6 +173,6 @@ static void soundwire_alc5682_enable(struct device *dev)
 }
 
 struct chip_operations drivers_soundwire_alc5682_ops = {
-	CHIP_NAME("Realtek ALC5682 SoundWire Codec")
+	.name = "Realtek ALC5682 SoundWire Codec",
 	.enable_dev = soundwire_alc5682_enable
 };

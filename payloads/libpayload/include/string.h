@@ -29,6 +29,7 @@
 #ifndef _STRING_H
 #define _STRING_H
 
+#include <commonlib/bsd/string.h>
 #include <stddef.h>
 
 /**
@@ -46,16 +47,12 @@ int memcmp(const void *s1, const void *s2, size_t len);
  * @defgroup string String functions
  * @{
  */
-size_t strnlen(const char *str, size_t maxlen);
-size_t strlen(const char *str);
 int strcmp(const char *s1, const char *s2);
 int strncmp(const char *s1, const char *s2, size_t maxlen);
 int strcasecmp(const char *s1, const char *s2);
 int strncasecmp(const char *s1, const char *s2, size_t maxlen);
 char *strncpy(char *d, const char *s, size_t n);
 char *strcpy(char *d, const char *s);
-char *strncat(char *d, const char *s, size_t n);
-char *strcat(char *d, const char *s);
 char *strchr(const char *s, int c);
 char *strrchr(const char *s, int c);
 char *strdup(const char *s);

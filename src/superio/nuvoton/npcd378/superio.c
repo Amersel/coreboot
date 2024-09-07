@@ -10,7 +10,6 @@
 #include <acpi/acpi.h>
 #include <acpi/acpigen.h>
 #include <superio/common/ssdt.h>
-#include <stdlib.h>
 
 #include "npcd378.h"
 
@@ -150,7 +149,6 @@ static void npcd378_ssdt_pwr(const struct device *dev)
 {
 	const char *name = acpi_device_path(dev);
 	const char *scope = acpi_device_scope(dev);
-	char *tmp_name;
 
 	/* Scope */
 	acpigen_write_scope(name);
@@ -337,9 +335,7 @@ static void npcd378_ssdt_pwr(const struct device *dev)
 	/* Method (SIOW, 1, NotSerialized) */
 	acpigen_write_method("SIOW", 1);
 	acpigen_emit_byte(RETURN_OP);
-	tmp_name = strconcat(name, ".SIOW");
-	acpigen_emit_namestring(tmp_name);
-	free(tmp_name);
+	acpigen_emit_namestring(acpi_device_path_join(dev, "SIOW"));
 
 	acpigen_emit_byte(ARG0_OP);
 	acpigen_pop_len();
@@ -348,9 +344,7 @@ static void npcd378_ssdt_pwr(const struct device *dev)
 	/* Method (SIOS, 1, NotSerialized) */
 	acpigen_write_method("SIOS", 1);
 	acpigen_emit_byte(RETURN_OP);
-	tmp_name = strconcat(name, ".SIOS");
-	acpigen_emit_namestring(tmp_name);
-	free(tmp_name);
+	acpigen_emit_namestring(acpi_device_path_join(dev, "SIOS"));
 	acpigen_emit_byte(ARG0_OP);
 	acpigen_pop_len();		/* Pop Method */
 
@@ -361,9 +355,7 @@ static void npcd378_ssdt_pwr(const struct device *dev)
 	/* Method (SIOH, 0, NotSerialized) */
 	acpigen_write_method("_L08", 0);
 	acpigen_emit_byte(AND_OP);
-	tmp_name = strconcat(scope, ".PMFG");
-	acpigen_emit_namestring(tmp_name);
-	free(tmp_name);
+	acpigen_emit_namestring(acpi_device_path_join(dev->upstream->dev, "PMFG"));
 	acpigen_write_integer(0xE8);
 	acpigen_emit_byte(LOCAL0_OP);
 
@@ -373,17 +365,13 @@ static void npcd378_ssdt_pwr(const struct device *dev)
 	acpigen_emit_byte(ZERO_OP);
 
 	acpigen_emit_byte(NOTIFY_OP);
-	tmp_name = strconcat(scope, ".L060");
-	acpigen_emit_namestring(tmp_name);
-	free(tmp_name);
+	acpigen_emit_namestring(acpi_device_path_join(dev->upstream->dev, "L060"));
 	acpigen_write_integer(2);
 
 	acpigen_pop_len();		/* Pop If */
 
 	acpigen_emit_byte(AND_OP);
-	tmp_name = strconcat(scope, ".PMFG");
-	acpigen_emit_namestring(tmp_name);
-	free(tmp_name);
+	acpigen_emit_namestring(acpi_device_path_join(dev->upstream->dev, "PMFG"));
 	acpigen_write_integer(0x10);
 	acpigen_emit_byte(LOCAL0_OP);
 
@@ -393,9 +381,7 @@ static void npcd378_ssdt_pwr(const struct device *dev)
 	acpigen_emit_byte(ZERO_OP);
 
 	acpigen_emit_byte(NOTIFY_OP);
-	tmp_name = strconcat(scope, ".L050");
-	acpigen_emit_namestring(tmp_name);
-	free(tmp_name);
+	acpigen_emit_namestring(acpi_device_path_join(dev->upstream->dev, "L050"));
 	acpigen_write_integer(2);
 	acpigen_pop_len();		/* Pop If */
 
@@ -473,6 +459,6 @@ static void enable_dev(struct device *dev)
 }
 
 struct chip_operations superio_nuvoton_npcd378_ops = {
-	CHIP_NAME("NUVOTON NPCD378 Super I/O")
+	.name = "NUVOTON NPCD378 Super I/O",
 	.enable_dev = enable_dev,
 };

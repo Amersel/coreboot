@@ -202,7 +202,7 @@ const char *soc_acpi_name(const struct device *dev)
 static struct device_operations pci_domain_ops = {
 	.read_resources = pci_domain_read_resources,
 	.set_resources = pci_domain_set_resources,
-	.scan_bus = pci_domain_scan_bus,
+	.scan_bus = pci_host_bridge_scan_bus,
 	.acpi_name = &soc_acpi_name,
 	.acpi_fill_ssdt = ssdt_set_above_4g_pci,
 };
@@ -478,7 +478,7 @@ static void parse_devicetree(FSP_S_CONFIG *silconfig)
 		return;
 	}
 	/* Only disable bus 0 devices. */
-	for (dev = dev->bus->children; dev; dev = dev->sibling) {
+	for (dev = dev->upstream->children; dev; dev = dev->sibling) {
 		if (!dev->enabled)
 			disable_dev(dev, silconfig);
 	}
@@ -759,7 +759,7 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *silupd)
 }
 
 struct chip_operations soc_intel_apollolake_ops = {
-	CHIP_NAME("Intel Apollolake SOC")
+	.name = "Intel Apollolake SOC",
 	.enable_dev = &enable_dev,
 	.init = &soc_init,
 	.final = &soc_final
@@ -846,7 +846,6 @@ static void disable_xhci_lfps_pm(void)
 void platform_fsp_notify_status(enum fsp_notify_phase phase)
 {
 	if (phase == END_OF_FIRMWARE) {
-
 		/*
 		 * Before hiding P2SB device and dropping privilege level,
 		 * dump CSE status and disable HECI1 interface.
@@ -916,7 +915,9 @@ void mainboard_silicon_init_params(FSP_S_CONFIG *silconfig)
 /* Handle FSP logo params */
 void soc_load_logo(FSPS_UPD *supd)
 {
-	bmp_load_logo(&supd->FspsConfig.LogoPtr, &supd->FspsConfig.LogoSize);
+	size_t logo_size;
+	supd->FspsConfig.LogoPtr = (uint32_t)(uintptr_t)bmp_load_logo(&logo_size);
+	supd->FspsConfig.LogoSize = (uint32_t)logo_size;
 }
 
 BOOT_STATE_INIT_ENTRY(BS_PRE_DEVICE, BS_ON_ENTRY, spi_flash_init_cb, NULL);

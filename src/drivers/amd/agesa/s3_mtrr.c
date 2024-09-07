@@ -6,7 +6,6 @@
 #include <cpu/x86/mtrr.h>
 #include <cpu/amd/mtrr.h>
 #include <cpu/x86/cache.h>
-#include <string.h>
 #include <northbridge/amd/agesa/agesa_helper.h>
 
 /* TODO: Do we want MTRR_DEF_TYPE_MSR too? */
@@ -39,8 +38,8 @@ static const uint32_t msr_backup[] = {
 	MTRR_PHYS_BASE(7),
 	MTRR_PHYS_MASK(7),
 	SYSCFG_MSR,
-	TOP_MEM,
-	TOP_MEM2,
+	TOP_MEM_MSR,
+	TOP_MEM2_MSR,
 };
 
 void backup_mtrr(void)

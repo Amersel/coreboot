@@ -12,15 +12,10 @@
 #include <intelblocks/systemagent.h>
 #include <intelblocks/xdci.h>
 #include <soc/intel/common/vbt.h>
-#include <soc/itss.h>
 #include <soc/pci_devs.h>
+#include <soc/pcie.h>
 #include <soc/ramstage.h>
 #include <soc/soc_chip.h>
-
-static const struct pcie_rp_group pch_rp_groups[] = {
-	{ .slot = PCH_DEV_SLOT_PCIE,    .count = 8, .lcap_port_base = 1 },
-	{ 0 }
-};
 
 #if CONFIG(HAVE_ACPI_TABLES)
 const char *soc_acpi_name(const struct device *dev)
@@ -139,7 +134,7 @@ void soc_init_pre_device(void *chip_info)
 static struct device_operations pci_domain_ops = {
 	.read_resources   = &pci_domain_read_resources,
 	.set_resources    = &pci_domain_set_resources,
-	.scan_bus         = &pci_domain_scan_bus,
+	.scan_bus         = &pci_host_bridge_scan_bus,
 #if CONFIG(HAVE_ACPI_TABLES)
 	.acpi_name        = &soc_acpi_name,
 	.acpi_fill_ssdt   = ssdt_set_above_4g_pci,
@@ -170,7 +165,7 @@ static void soc_enable(struct device *dev)
 }
 
 struct chip_operations soc_intel_jasperlake_ops = {
-	CHIP_NAME("Intel Jasperlake")
+	.name = "Intel Jasperlake",
 	.enable_dev	= &soc_enable,
 	.init		= &soc_init_pre_device,
 };

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2002 Roman Zippel <zippel@linux-m68k.org>
  *
@@ -21,10 +21,7 @@
 
 #include "lkc.h"
 #include "lxdialog/dialog.h"
-
-#define JUMP_NB			9
-
-int kconfig_warnings = 0;
+#include "mnconf-common.h"
 
 static const char mconf_readme[] =
 "Overview\n"
@@ -163,6 +160,12 @@ static const char mconf_readme[] =
 "(especially with a larger number of unrolled categories) than the\n"
 "default mode.\n"
 "\n"
+
+"Search\n"
+"-------\n"
+"Pressing the forward-slash (/) anywhere brings up a search dialog box.\n"
+"\n"
+
 "Different color themes available\n"
 "--------------------------------\n"
 "It is possible to select different color themes using the variable\n"
@@ -245,7 +248,7 @@ search_help[] =
 	"      -> PCI support (PCI [=y])\n"
 	"(1)     -> PCI access mode (<choice> [=y])\n"
 	"  Defined at drivers/pci/Kconfig:47\n"
-	"  Depends on: X86_LOCAL_APIC && X86_IO_APIC || IA64\n"
+	"  Depends on: X86_LOCAL_APIC && X86_IO_APIC\n"
 	"  Selects: LIBCRC32\n"
 	"  Selected by: BAR [=n]\n"
 	"-----------------------------------------------------------------\n"
@@ -286,16 +289,6 @@ static int save_and_exit;
 static int silent;
 
 static void conf(struct menu *menu, struct menu *active_menu);
-static void conf_choice(struct menu *menu);
-static void conf_string(struct menu *menu);
-static void conf_load(void);
-static void conf_save(void);
-static int show_textbox_ext(const char *title, char *text, int r, int c,
-			    int *keys, int *vscroll, int *hscroll,
-			    update_text_fn update_text, void *data);
-static void show_textbox(const char *title, const char *text, int r, int c);
-static void show_helptext(const char *title, const char *text);
-static void show_help(struct menu *menu);
 
 static char filename[PATH_MAX+1];
 static void set_config_filename(const char *config_filename)
@@ -354,37 +347,35 @@ static void reset_subtitle(void)
 	set_dialog_subtitles(subtitles);
 }
 
-struct search_data {
-	struct list_head *head;
-	struct menu **targets;
-	int *keys;
-};
-
-static void update_text(char *buf, size_t start, size_t end, void *_data)
+static int show_textbox_ext(const char *title, const char *text, int r, int c,
+			    int *vscroll, int *hscroll,
+			    int (*extra_key_cb)(int, size_t, size_t, void *),
+			    void *data)
 {
-	struct search_data *data = _data;
-	struct jump_key *pos;
-	int k = 0;
+	dialog_clear();
+	return dialog_textbox(title, text, r, c, vscroll, hscroll,
+			      extra_key_cb, data);
+}
 
-	list_for_each_entry(pos, data->head, entries) {
-		if (pos->offset >= start && pos->offset < end) {
-			char header[4];
+static void show_textbox(const char *title, const char *text, int r, int c)
+{
+	show_textbox_ext(title, text, r, c, NULL, NULL, NULL, NULL);
+}
 
-			if (k < JUMP_NB) {
-				int key = '0' + (pos->index % JUMP_NB) + 1;
+static void show_helptext(const char *title, const char *text)
+{
+	show_textbox(title, text, 0, 0);
+}
 
-				sprintf(header, "(%c)", key);
-				data->keys[k] = key;
-				data->targets[k] = pos->target;
-				k++;
-			} else {
-				sprintf(header, "   ");
-			}
+static void show_help(struct menu *menu)
+{
+	struct gstr help = str_new();
 
-			memcpy(buf + pos->offset, header, sizeof(header) - 1);
-		}
-	}
-	data->keys[k] = 0;
+	help.max_width = getmaxx(stdscr) - 10;
+	menu_get_ext_help(menu, &help);
+
+	show_helptext(menu_get_prompt(menu), str_get(&help));
+	str_free(&help);
 }
 
 static void search_conf(void)
@@ -431,27 +422,23 @@ again:
 	sym_arr = sym_re_search(dialog_input);
 	do {
 		LIST_HEAD(head);
-		struct menu *targets[JUMP_NB];
-		int keys[JUMP_NB + 1], i;
 		struct search_data data = {
 			.head = &head,
-			.targets = targets,
-			.keys = keys,
 		};
 		struct jump_key *pos, *tmp;
 
+		jump_key_char = 0;
 		res = get_relations_str(sym_arr, &head);
 		set_subtitle();
-		dres = show_textbox_ext("Search Results", (char *)
-					str_get(&res), 0, 0, keys, &vscroll,
-					&hscroll, &update_text, (void *)
-					&data);
+		dres = show_textbox_ext("Search Results", str_get(&res), 0, 0,
+					&vscroll, &hscroll,
+					handle_search_keys, &data);
 		again = false;
-		for (i = 0; i < JUMP_NB && keys[i]; i++)
-			if (dres == keys[i]) {
-				conf(targets[i]->parent, targets[i]);
-				again = true;
-			}
+		if (dres >= '1' && dres <= '9') {
+			assert(data.target != NULL);
+			conf(data.target->parent, data.target);
+			again = true;
+		}
 		str_free(&res);
 		list_for_each_entry_safe(pos, tmp, &head, entries)
 			free(pos);
@@ -640,158 +627,6 @@ conf_childs:
 	indent -= doint;
 }
 
-static void conf(struct menu *menu, struct menu *active_menu)
-{
-	struct menu *submenu;
-	const char *prompt = menu_get_prompt(menu);
-	struct subtitle_part stpart;
-	struct symbol *sym;
-	int res;
-	int s_scroll = 0;
-
-	if (menu != &rootmenu)
-		stpart.text = menu_get_prompt(menu);
-	else
-		stpart.text = NULL;
-	list_add_tail(&stpart.entries, &trail);
-
-	while (1) {
-		item_reset();
-		current_menu = menu;
-		build_conf(menu);
-		if (!child_count)
-			break;
-		set_subtitle();
-		dialog_clear();
-		res = dialog_menu(prompt ? prompt : "Main Menu",
-				  menu_instructions,
-				  active_menu, &s_scroll);
-		if (res == 1 || res == KEY_ESC || res == -ERRDISPLAYTOOSMALL)
-			break;
-		if (item_count() != 0) {
-			if (!item_activate_selected())
-				continue;
-			if (!item_tag())
-				continue;
-		}
-		submenu = item_data();
-		active_menu = item_data();
-		if (submenu)
-			sym = submenu->sym;
-		else
-			sym = NULL;
-
-		switch (res) {
-		case 0:
-			switch (item_tag()) {
-			case 'm':
-				if (single_menu_mode)
-					submenu->data = (void *) (long) !submenu->data;
-				else
-					conf(submenu, NULL);
-				break;
-			case 't':
-				if (sym_is_choice(sym) && sym_get_tristate_value(sym) == yes)
-					conf_choice(submenu);
-				else if (submenu->prompt->type == P_MENU)
-					conf(submenu, NULL);
-				break;
-			case 's':
-				conf_string(submenu);
-				break;
-			}
-			break;
-		case 2:
-			if (sym)
-				show_help(submenu);
-			else {
-				reset_subtitle();
-				show_helptext("README", mconf_readme);
-			}
-			break;
-		case 3:
-			reset_subtitle();
-			conf_save();
-			break;
-		case 4:
-			reset_subtitle();
-			conf_load();
-			break;
-		case 5:
-			if (item_is_tag('t')) {
-				if (sym_set_tristate_value(sym, yes))
-					break;
-				if (sym_set_tristate_value(sym, mod))
-					show_textbox(NULL, setmod_text, 6, 74);
-			}
-			break;
-		case 6:
-			if (item_is_tag('t'))
-				sym_set_tristate_value(sym, no);
-			break;
-		case 7:
-			if (item_is_tag('t'))
-				sym_set_tristate_value(sym, mod);
-			break;
-		case 8:
-			if (item_is_tag('t'))
-				sym_toggle_tristate_value(sym);
-			else if (item_is_tag('m'))
-				conf(submenu, NULL);
-			break;
-		case 9:
-			search_conf();
-			break;
-		case 10:
-			show_all_options = !show_all_options;
-			break;
-		}
-	}
-
-	list_del(trail.prev);
-}
-
-static int show_textbox_ext(const char *title, char *text, int r, int c, int
-			    *keys, int *vscroll, int *hscroll, update_text_fn
-			    update_text, void *data)
-{
-	dialog_clear();
-	return dialog_textbox(title, text, r, c, keys, vscroll, hscroll,
-			      update_text, data);
-}
-
-static void show_textbox(const char *title, const char *text, int r, int c)
-{
-	show_textbox_ext(title, (char *) text, r, c, (int []) {0}, NULL, NULL,
-			 NULL, NULL);
-}
-
-static void show_helptext(const char *title, const char *text)
-{
-	show_textbox(title, text, 0, 0);
-}
-
-static void conf_message_callback(const char *s)
-{
-	if (save_and_exit) {
-		if (!silent)
-			printf("%s", s);
-	} else {
-		show_textbox(NULL, s, 6, 60);
-	}
-}
-
-static void show_help(struct menu *menu)
-{
-	struct gstr help = str_new();
-
-	help.max_width = getmaxx(stdscr) - 10;
-	menu_get_ext_help(menu, &help);
-
-	show_helptext(menu_get_prompt(menu), str_get(&help));
-	str_free(&help);
-}
-
 static void conf_choice(struct menu *menu)
 {
 	const char *prompt = menu_get_prompt(menu);
@@ -947,10 +782,130 @@ static void conf_save(void)
 	}
 }
 
+static void conf(struct menu *menu, struct menu *active_menu)
+{
+	struct menu *submenu;
+	const char *prompt = menu_get_prompt(menu);
+	struct subtitle_part stpart;
+	struct symbol *sym;
+	int res;
+	int s_scroll = 0;
+
+	if (menu != &rootmenu)
+		stpart.text = menu_get_prompt(menu);
+	else
+		stpart.text = NULL;
+	list_add_tail(&stpart.entries, &trail);
+
+	while (1) {
+		item_reset();
+		current_menu = menu;
+		build_conf(menu);
+		if (!child_count)
+			break;
+		set_subtitle();
+		dialog_clear();
+		res = dialog_menu(prompt ? prompt : "Main Menu",
+				  menu_instructions,
+				  active_menu, &s_scroll);
+		if (res == 1 || res == KEY_ESC || res == -ERRDISPLAYTOOSMALL)
+			break;
+		if (item_count() != 0) {
+			if (!item_activate_selected())
+				continue;
+			if (!item_tag())
+				continue;
+		}
+		submenu = item_data();
+		active_menu = item_data();
+		if (submenu)
+			sym = submenu->sym;
+		else
+			sym = NULL;
+
+		switch (res) {
+		case 0:
+			switch (item_tag()) {
+			case 'm':
+				if (single_menu_mode)
+					submenu->data = (void *) (long) !submenu->data;
+				else
+					conf(submenu, NULL);
+				break;
+			case 't':
+				if (sym_is_choice(sym) && sym_get_tristate_value(sym) == yes)
+					conf_choice(submenu);
+				else if (submenu->prompt->type == P_MENU)
+					conf(submenu, NULL);
+				break;
+			case 's':
+				conf_string(submenu);
+				break;
+			}
+			break;
+		case 2:
+			if (sym)
+				show_help(submenu);
+			else {
+				reset_subtitle();
+				show_helptext("README", mconf_readme);
+			}
+			break;
+		case 3:
+			reset_subtitle();
+			conf_save();
+			break;
+		case 4:
+			reset_subtitle();
+			conf_load();
+			break;
+		case 5:
+			if (item_is_tag('t')) {
+				if (sym_set_tristate_value(sym, yes))
+					break;
+				if (sym_set_tristate_value(sym, mod))
+					show_textbox(NULL, setmod_text, 6, 74);
+			}
+			break;
+		case 6:
+			if (item_is_tag('t'))
+				sym_set_tristate_value(sym, no);
+			break;
+		case 7:
+			if (item_is_tag('t'))
+				sym_set_tristate_value(sym, mod);
+			break;
+		case 8:
+			if (item_is_tag('t'))
+				sym_toggle_tristate_value(sym);
+			else if (item_is_tag('m'))
+				conf(submenu, NULL);
+			break;
+		case 9:
+			search_conf();
+			break;
+		case 10:
+			show_all_options = !show_all_options;
+			break;
+		}
+	}
+
+	list_del(trail.prev);
+}
+
+static void conf_message_callback(const char *s)
+{
+	if (save_and_exit) {
+		if (!silent)
+			printf("%s", s);
+	} else {
+		show_textbox(NULL, s, 6, 60);
+	}
+}
+
 static int handle_exit(void)
 {
 	int res;
-	char *env;
 
 	save_and_exit = 1;
 	reset_subtitle();
@@ -964,13 +919,6 @@ static int handle_exit(void)
 		res = -1;
 
 	end_dialog(saved_x, saved_y);
-
-	env = getenv("KCONFIG_STRICT");
-	if (env && *env && kconfig_warnings) {
-		fprintf(stderr, "\n*** ERROR: %d warnings encountered, and "
-			"warnings are errors.\n\n", kconfig_warnings);
-		res = 2;
-	}
 
 	switch (res) {
 	case 0:

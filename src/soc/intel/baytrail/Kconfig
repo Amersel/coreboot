@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 config SOC_INTEL_BAYTRAIL
 	bool
 	select ACPI_COMMON_MADT_IOAPIC
@@ -31,6 +33,7 @@ config SOC_INTEL_BAYTRAIL
 	select CPU_HAS_L2_ENABLE_MSR
 	select TCO_SPACE_NOT_YET_SPLIT
 	select USE_DDR3
+	select NEED_SMALL_2MB_PAGE_TABLES
 	help
 	  Bay Trail M/D part support.
 
@@ -109,6 +112,9 @@ config DCACHE_RAM_SIZE
 	  The size of the cache-as-ram region required during bootblock
 	  and/or romstage. Note DCACHE_RAM_SIZE and DCACHE_RAM_MRC_VAR_SIZE
 	  must add up to a power of 2.
+
+config PRERAM_CBFS_CACHE_SIZE
+	default 0x0
 
 config DCACHE_RAM_MRC_VAR_SIZE
 	hex

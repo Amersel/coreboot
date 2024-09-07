@@ -11,10 +11,18 @@
  */
 int pmp_entries_num(void);
 
+void print_pmp_regions(void);
+
 /* reset PMP setting */
 void reset_pmp(void);
 
-/* set up PMP record */
-void setup_pmp(uintptr_t base, uintptr_t size, uintptr_t flags);
+/*
+ * set up PMP record
+ * reminder: base and size are 34-bits on RV32.
+ */
+void setup_pmp(u64 base, u64 size, u8 flags);
+
+/* write the last PMP record, i.e. the "default" case. */
+void close_pmp(void);
 
 #endif /* __RISCV_PMP_H__ */

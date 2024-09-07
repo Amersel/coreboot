@@ -55,18 +55,8 @@ are permitted provided that the following conditions are met:
 #define MAX_SAD_RULES                     24
 #define MAX_DRAM_CLUSTERS                 1
 #define MAX_IMC_PER_SOCKET                2
-#define MAX_SRAT_MEM_ENTRIES_PER_IMC      8
-#define MAX_ACPI_MEMORY_AFFINITY_COUNT ( \
-	MAX_SOCKET * MAX_IMC_PER_SOCKET * MAX_SRAT_MEM_ENTRIES_PER_IMC \
-	)
-
-/* ACPI SRAT Memory Flags */
-#define SRAT_ACPI_MEMORY_ENABLED               (1 << 0)
-#define SRAT_ACPI_MEMORY_HOT_REMOVE_SUPPORTED  (1 << 1)
-#define SRAT_ACPI_MEMORY_NONVOLATILE           (1 << 2)
 
 #define MEM_TYPE_RESERVED (1 << 8)
-#define MEM_ADDR_64MB_SHIFT_BITS 26
 
 #define NGN_MAX_SERIALNUMBER_STRLEN 4
 #define NGN_MAX_PARTNUMBER_STRLEN 20

@@ -260,8 +260,7 @@ static AGESA_STATUS amd_init_late(AMD_LATE_PARAMS *LateParams)
 {
 	AGESA_STATUS Status;
 
-	const struct device *dev = pcidev_path_on_root(IOMMU_DEVFN);
-	if (dev && dev->enabled) {
+	if (is_dev_enabled(DEV_PTR(iommu))) {
 		LateParams->GnbLateConfiguration.GnbIoapicId = GNB_IOAPIC_ID;
 		LateParams->GnbLateConfiguration.FchIoapicId = FCH_IOAPIC_ID;
 	}
@@ -388,7 +387,6 @@ static AGESA_STATUS ramstage_dispatch(AMD_CONFIG_PARAMS *StdHeader)
 	default:
 		return AGESA_UNSUPPORTED;
 	}
-
 }
 
 AGESA_STATUS agesa_execute_state(AGESA_STRUCT_NAME func)

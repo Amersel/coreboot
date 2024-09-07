@@ -1,8 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <bootblock_common.h>
-#include <northbridge/intel/sandybridge/raminit_native.h>
-#include <southbridge/intel/bd82x6x/pch.h>
 #include <superio/ite/common/ite.h>
 #include <superio/ite/it8728f/it8728f.h>
 
@@ -39,30 +37,4 @@ void bootblock_mainboard_early_init(void)
 	ite_reg_write(IT8728F_EC, 0x62, 0x0a);
 	ite_reg_write(IT8728F_EC, 0x63, 0x20);
 	ite_reg_write(IT8728F_EC, 0x30, 0x01);
-}
-
-const struct southbridge_usb_port mainboard_usb_ports[] = {
-	{ 1, 5, 0 },
-	{ 1, 5, 0 },
-	{ 1, 5, 1 },
-	{ 1, 5, 1 },
-	{ 1, 5, 2 },
-	{ 1, 5, 2 },
-	{ 1, 5, 3 },
-	{ 1, 5, 3 },
-	{ 1, 5, 4 },
-	{ 1, 5, 4 },
-	{ 1, 5, 6 },
-	{ 1, 5, 5 },
-	{ 1, 5, 5 },
-	{ 1, 5, 6 },
-};
-
-/* FIXME: The GA-B75M-D3V only has two DIMM slots! */
-void mainboard_get_spd(spd_raw_data *spd, bool id_only)
-{
-	read_spd(&spd[0], 0x50, id_only);
-	read_spd(&spd[1], 0x51, id_only);
-	read_spd(&spd[2], 0x52, id_only);
-	read_spd(&spd[3], 0x53, id_only);
 }

@@ -24,12 +24,15 @@ func TemplateGet() int {
 }
 
 const (
-	SunriseType   uint8  = 0
-	LewisburgType uint8  = 1
-	ApolloType    uint8  = 2
-	CannonType    uint8  = 3
-	AlderType     uint8  = 4
-	JasperType    uint8  = 5
+	SunriseType    uint8  = 0
+	LewisburgType  uint8  = 1
+	ApolloType     uint8  = 2
+	CannonType     uint8  = 3
+	TigerType      uint8  = 4
+	AlderType      uint8  = 5
+	JasperType     uint8  = 6
+	MeteorType     uint8  = 7
+	EmmitsburgType uint8  = 8
 )
 
 var key uint8 = SunriseType
@@ -39,8 +42,11 @@ var platform = map[string]uint8{
 	"lbg": LewisburgType,
 	"apl": ApolloType,
 	"cnl": CannonType,
+	"tgl": TigerType,
 	"adl": AlderType,
 	"jsl": JasperType,
+	"mtl": MeteorType,
+	"ebg": EmmitsburgType,
 }
 func PlatformSet(name string) int {
 	if platformType, valid := platform[name]; valid {
@@ -67,8 +73,17 @@ func IsPlatformLewisburg() bool {
 func IsPlatformCannonLake() bool {
 	return IsPlatform(CannonType)
 }
+func IsPlatformTigerLake() bool {
+	return IsPlatform(TigerType)
+}
 func IsPlatformAlderLakeH() bool {
 	return IsPlatform(AlderType)
+}
+func IsPlatformMeteorLake() bool {
+	return IsPlatform(MeteorType)
+}
+func IsPlatformEmmitsburg() bool {
+	return IsPlatform(EmmitsburgType)
 }
 
 var InputRegDumpFile *os.File = nil

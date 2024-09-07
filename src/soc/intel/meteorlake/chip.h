@@ -16,15 +16,35 @@
 #include <soc/pmc.h>
 #include <soc/serialio.h>
 #include <soc/usb.h>
+#include <stdbool.h>
 #include <stdint.h>
+
+/* Define config parameters for In-Band ECC (IBECC). */
+#define MAX_IBECC_REGIONS 8
 
 #define MAX_SAGV_POINTS 4
 #define MAX_HD_AUDIO_SDI_LINKS 2
 
+/* In-Band ECC Operation Mode */
+enum ibecc_mode {
+	IBECC_MODE_PER_REGION,
+	IBECC_MODE_NONE,
+	IBECC_MODE_ALL
+};
+
+struct ibecc_config {
+	bool enable;
+	bool parity_en;
+	enum ibecc_mode mode;
+	bool region_enable[MAX_IBECC_REGIONS];
+	uint16_t region_base[MAX_IBECC_REGIONS];
+	uint16_t region_mask[MAX_IBECC_REGIONS];
+};
+
 /* Types of different SKUs */
 enum soc_intel_meteorlake_power_limits {
-	MTL_P_282_CORE,
-	MTL_P_682_CORE,
+	MTL_P_282_242_CORE,
+	MTL_P_682_482_CORE,
 	MTL_POWER_LIMITS_COUNT
 };
 
@@ -40,8 +60,10 @@ static const struct {
 	enum soc_intel_meteorlake_power_limits limits;
 	enum soc_intel_meteorlake_cpu_tdps cpu_tdp;
 } cpuid_to_mtl[] = {
-	{ PCI_DID_INTEL_MTL_P_ID_2, MTL_P_282_CORE, TDP_15W },
-	{ PCI_DID_INTEL_MTL_P_ID_1, MTL_P_682_CORE, TDP_28W },
+	{ PCI_DID_INTEL_MTL_P_ID_5, MTL_P_282_242_CORE, TDP_15W },
+	{ PCI_DID_INTEL_MTL_P_ID_2, MTL_P_282_242_CORE, TDP_15W },
+	{ PCI_DID_INTEL_MTL_P_ID_3, MTL_P_682_482_CORE, TDP_28W },
+	{ PCI_DID_INTEL_MTL_P_ID_1, MTL_P_682_482_CORE, TDP_28W },
 };
 
 /* Types of display ports */
@@ -108,8 +130,23 @@ enum vr_domain {
 	NUM_VR_DOMAINS
 };
 
-struct soc_intel_meteorlake_config {
+/*
+ * Slew Rate configuration for Deep Package C States for VR domain.
+ * They are fast time divided by 2.
+ * 0 - Fast/2
+ * 1 - Fast/4
+ * 2 - Fast/8
+ * 3 - Fast/16
+ */
+enum slew_rate {
+	SLEW_FAST_2,
+	SLEW_FAST_4,
+	SLEW_FAST_8,
+	SLEW_FAST_16,
+	SLEW_IGNORE = 0xff,
+};
 
+struct soc_intel_meteorlake_config {
 	/* Common struct containing soc config data required by common code */
 	struct soc_intel_common_config common_soc_config;
 
@@ -129,17 +166,17 @@ struct soc_intel_meteorlake_config {
 	uint32_t gen4_dec;
 
 	/* Enable S0iX support */
-	int s0ix_enable;
+	bool s0ix_enable;
 	/* Support for TCSS xhci, xdci, TBT PCIe root ports and DMA controllers */
-	uint8_t tcss_d3_hot_disable;
+	bool tcss_d3_hot_disable;
 	/* Enable DPTF support */
-	int dptf_enable;
+	bool dptf_enable;
 
 	/* Deep SX enable for both AC and DC */
-	int deep_s3_enable_ac;
-	int deep_s3_enable_dc;
-	int deep_s5_enable_ac;
-	int deep_s5_enable_dc;
+	bool deep_s3_enable_ac;
+	bool deep_s3_enable_dc;
+	bool deep_s5_enable_ac;
+	bool deep_s5_enable_dc;
 
 	/* Deep Sx Configuration
 	 *  DSX_EN_WAKE_PIN       - Enable WAKE# pin
@@ -149,6 +186,9 @@ struct soc_intel_meteorlake_config {
 
 	/* TCC activation offset */
 	uint32_t tcc_offset;
+
+	/* In-Band ECC (IBECC) configuration */
+	struct ibecc_config ibecc;
 
 	/* System Agent dynamic frequency support. Only effects ULX/ULT CPUs.
 	 * When enabled memory will be training at two different frequencies.
@@ -169,8 +209,8 @@ struct soc_intel_meteorlake_config {
 		SAGV_POINTS_0_1_2_3 = 0x0f,
 	} sagv_wp_bitmap;
 
-	/* Rank Margin Tool. 1:Enable, 0:Disable */
-	uint8_t rmt;
+	/* Rank Margin Tool. */
+	bool rmt;
 
 	/* USB related */
 	struct usb2_port_config usb2_ports[CONFIG_SOC_INTEL_USB2_DEV_MAX];
@@ -186,21 +226,21 @@ struct soc_intel_meteorlake_config {
 
 	/* SATA related */
 	uint8_t sata_mode;
-	uint8_t sata_salp_support;
-	uint8_t sata_ports_enable[8];
-	uint8_t sata_ports_dev_slp[8];
+	bool sata_salp_support;
+	bool sata_ports_enable[8];
+	bool sata_ports_dev_slp[8];
 
 	/*
-	 * Enable(0)/Disable(1) SATA Power Optimizer on PCH side.
-	 * Default 0. Setting this to 1 disables the SATA Power Optimizer.
+	 * Enable(false)/Disable(true) SATA Power Optimizer on PCH side.
+	 * Default false. Setting this to true disables the SATA Power Optimizer.
 	 */
-	uint8_t sata_pwr_optimize_disable;
+	bool sata_pwr_optimize_disable;
 
 	/*
 	 * SATA Port Enable Dito Config.
 	 * Enable DEVSLP Idle Timeout settings (DmVal, DitoVal).
 	 */
-	uint8_t sata_ports_enable_dito_config[8];
+	bool sata_ports_enable_dito_config[8];
 
 	/* SataPortsDmVal is the DITO multiplier. Default is 15. */
 	uint8_t sata_ports_dm_val[8];
@@ -208,7 +248,8 @@ struct soc_intel_meteorlake_config {
 	uint16_t sata_ports_dito_val[8];
 
 	/* Audio related */
-	uint8_t pch_hda_dsp_enable;
+	bool pch_hda_audio_link_hda_enable;
+	bool pch_hda_dsp_enable;
 
 	bool pch_hda_sdi_enable[MAX_HD_AUDIO_SDI_LINKS];
 
@@ -254,10 +295,9 @@ struct soc_intel_meteorlake_config {
 		IGD_SM_56MB = 0xFD,
 		IGD_SM_60MB = 0xFE,
 	} igd_dvmt50_pre_alloc;
-	uint8_t skip_ext_gfx_scan;
 
-	/* Enable/Disable EIST. 1b:Enabled, 0b:Disabled */
-	uint8_t eist_enable;
+	bool skip_ext_gfx_scan;
+	bool eist_enable;
 
 	/*
 	 * When enabled, this feature makes the SoC throttle when the power
@@ -282,7 +322,30 @@ struct soc_intel_meteorlake_config {
 	 */
 	uint16_t fast_vmode_i_trip[NUM_VR_DOMAINS];
 
-	uint8_t PmTimerDisabled;
+	/*
+	 * Power state current threshold 1.
+	 * Defined in 1/4 A increments. A value of 400 = 100A. Range 0-512,
+	 * which translates to 0-128A. 0 = AUTO. [0] for IA, [1] for GT, [2] for
+	 * SA, [3] through [5] are Reserved.
+	 */
+	uint16_t ps_cur_1_threshold[NUM_VR_DOMAINS];
+
+	/*
+	 * Power state current threshold 2.
+	 * Defined in 1/4 A increments. A value of 400 = 100A. Range 0-512,
+	 * which translates to 0-128A. 0 = AUTO. [0] for IA, [1] for GT, [2] for
+	 * SA, [3] through [5] are Reserved.
+	 */
+	uint16_t ps_cur_2_threshold[NUM_VR_DOMAINS];
+
+	/*
+	 * Power state current threshold 3.
+	 * Defined in 1/4 A increments. A value of 400 = 100A. Range 0-512,
+	 * which translates to 0-128A. 0 = AUTO. [0] for IA, [1] for GT, [2] for
+	 * SA, [3] through [5] are Reserved.
+	 */
+	uint16_t ps_cur_3_threshold[NUM_VR_DOMAINS];
+
 	/*
 	 * SerialIO device mode selection:
 	 * PchSerialIoDisabled,
@@ -382,16 +445,16 @@ struct soc_intel_meteorlake_config {
 	uint8_t cpu_ratio_override;
 
 	/*
-	 * Enable(0)/Disable(1) DMI Power Optimizer on PCH side.
-	 * Default 0. Setting this to 1 disables the DMI Power Optimizer.
+	 * Enable(true)/Disable(false) DMI Power Optimizer on PCH side.
+	 * Default false. Setting this to true disables the DMI Power Optimizer.
 	 */
-	uint8_t dmi_pwr_optimize_disable;
+	bool dmi_pwr_optimize_disable;
 
 	/*
-	 * Enable(1)/Disable(0) CPU Replacement check.
-	 * Default 0. Setting this to 1 to check CPU replacement.
+	 * Enable(true)/Disable(false) CPU Replacement check.
+	 * Default false. Setting this to true to check CPU replacement.
 	 */
-	uint8_t cpu_replacement_check;
+	bool cpu_replacement_check;
 
 	/* ISA Serial Base selection. */
 	enum {
@@ -409,7 +472,8 @@ struct soc_intel_meteorlake_config {
 	 * Enable or Disable C1 C-state Auto Demotion & un-demotion
 	 * The algorithm looks at the behavior of the wake up tracker, how
 	 * often it is waking up, and based on that it demote the c-state.
-	 * Default 0. Set this to 1 in order to disable C1-state auto demotion.
+	 * Default false. Set this to true in order to disable C1-state auto
+	 * demotion.
 	 * NOTE: Un-Demotion from Demoted C1 needs to be disabled when
 	 *       C1 C-state Auto Demotion is disabled.
 	 */
@@ -417,8 +481,8 @@ struct soc_intel_meteorlake_config {
 
 	/*
 	 * Enable or Disable Package C-state Demotion.
-	 * Default is set to 0.
-	 * Set this to 1 in order to disable Package C-state demotion.
+	 * Default is set to false.
+	 * Set this to true in order to disable Package C-state demotion.
 	 * NOTE: Un-Demotion from demoted Package C-state needs to be disabled
 	 *       when auto demotion is disabled.
 	 */
@@ -444,10 +508,26 @@ struct soc_intel_meteorlake_config {
 
 	/*
 	 * Enable or Disable Reduced BasicMemoryTest size.
-	 * Default is set to 0.
-	 * Set this to 1 in order to reduce BasicMemoryTest size
+	 * Default is set to false.
+	 * Set this to true in order to reduce BasicMemoryTest size
 	 */
 	bool lower_basic_mem_test_size;
+
+	/* Platform Power Pmax in Watts. Zero means automatic. */
+	uint16_t psys_pmax_watts;
+
+	/* Platform Power Limit 2 in Watts. */
+	uint16_t psys_pl2_watts;
+
+	/* Enable or Disable Acoustic Noise Mitigation feature */
+	bool enable_acoustic_noise_mitigation;
+	/* Disable Fast Slew Rate for Deep Package C States for VR domains */
+	bool disable_fast_pkgc_ramp[NUM_VR_DOMAINS];
+	/*
+	 * Slew Rate configuration for Deep Package C States for VR domains
+	 * as per `enum slew_rate` data type.
+	 */
+	uint8_t slow_slew_rate_config[NUM_VR_DOMAINS];
 };
 
 typedef struct soc_intel_meteorlake_config config_t;

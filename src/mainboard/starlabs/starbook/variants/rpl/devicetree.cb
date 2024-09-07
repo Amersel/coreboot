@@ -1,39 +1,32 @@
 chip soc/intel/alderlake
-	# FSP Memory
-	register "enable_c6dram"		= "1"
-	register "sagv"				= "SaGv_Enabled"
-
-	# FSP Silicon
-	register "eist_enable"			= "1"
-
-	register "cnvi_bt_core"			= "1"
-	register "cnvi_bt_audio_offload"	= "1"
-
-	register "disable_dynamic_tccold_handshake" = "1"
+	# FSP UPDs
+	register "disable_dynamic_tccold_handshake"	= "true"
+	register "eist_enable"				= "true"
+	register "enable_c1e"				= "true"
+	register "enable_c6dram"			= "true"
+	register "sagv"					= "SaGv_Enabled"
 
 	# Serial I/O
 	register "serial_io_i2c_mode" = "{
-		[PchSerialIoIndexI2C0]		= PchSerialIoPci,
+		[PchSerialIoIndexI2C0]			= PchSerialIoPci,
 	}"
 
 	register "serial_io_uart_mode" = "{
-		[PchSerialIoIndexUART0]		= PchSerialIoSkipInit,
+		[PchSerialIoIndexUART0]			= PchSerialIoSkipInit,
 	}"
 
 	# Power
-	register "pch_slp_s3_min_assertion_width"	= "2"			# 50ms
-	register "pch_slp_s4_min_assertion_width"	= "3"			# 1s
-	register "pch_slp_sus_min_assertion_width"	= "3"			# 500ms
-	register "pch_slp_a_min_assertion_width"	= "3"			# 2s
+	register "pch_slp_s3_min_assertion_width"	= "2"		# 50ms
+	register "pch_slp_s4_min_assertion_width"	= "3"		# 1s
+	register "pch_slp_sus_min_assertion_width"	= "3"		# 500ms
+	register "pch_slp_a_min_assertion_width"	= "3"		# 2s
 
 	# PM Util
-	register "pmc_gpe0_dw0"			= "GPP_B"
-	register "pmc_gpe0_dw1"			= "GPP_C"
-	register "pmc_gpe0_dw2"			= "GPP_E"
+	register "pmc_gpe0_dw0"				= "GPP_B"
+	register "pmc_gpe0_dw1"				= "GPP_C"
+	register "pmc_gpe0_dw2"				= "GPP_E"
 
 	# Device Tree
-	device cpu_cluster 0 on end
-
 	device domain 0 on
 		device ref igpu		on
 			register "ddi_portA_config"		= "1"
@@ -62,7 +55,15 @@ chip soc/intel/alderlake
 		end
 		device ref tbt_pcie_rp0	on  end
 		device ref tcss_xhci	on
-			register "tcss_aux_ori"			= "0"
+			chip drivers/usb/acpi
+				device ref tcss_root_hub on
+					chip drivers/usb/acpi
+						register "desc" = ""USB Type-C""
+						register "type" = "UPC_TYPE_C_USB2_SS_SWITCH"
+						device ref tcss_usb3_port1 on end
+					end
+				end
+			end
 		end
 		device ref tcss_dma0	on
 			chip drivers/intel/usb4/retimer
@@ -96,6 +97,56 @@ chip soc/intel/alderlake
 
 			# Internal Bluetooth
 			register "usb2_ports[9]"		= "USB2_PORT_MID(OC_SKIP)"
+			chip drivers/usb/acpi
+				device ref xhci_root_hub on
+					chip drivers/usb/acpi
+						register "desc"		= ""USB Type-C""
+						register "type"		= "UPC_TYPE_C_USB2_SS_SWITCH"
+						device ref usb2_port1 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""Left USB Type-A""
+						register "type"		= "UPC_TYPE_USB3_A"
+						device ref usb2_port3 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""Left USB Type-A""
+						register "type"		= "UPC_TYPE_USB3_A"
+						device ref usb3_port1 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""Right USB Type-A""
+						register "type"		= "UPC_TYPE_USB3_A"
+						device ref usb2_port7 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""Right USB Type-A""
+						register "type"		= "UPC_TYPE_USB3_A"
+						device ref usb3_port2 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""Internal Webcam""
+						register "type"		= "UPC_TYPE_INTERNAL"
+						device ref usb2_port5 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""Fingerprint Reader""
+						register "type"		= "UPC_TYPE_INTERNAL"
+						device ref usb2_port6 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""MicroSD Card Reader""
+						register "type"		= "UPC_TYPE_INTERNAL"
+						device ref usb2_port4 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""Internal Bluetooth""
+						register "type"		= "UPC_TYPE_INTERNAL"
+						device ref usb2_port10 on end
+					end
+				end
+			end
+
 		end
 		device ref i2c0		on
 			chip drivers/i2c/hid
@@ -107,12 +158,6 @@ chip soc/intel/alderlake
 			end
 		end
 		device ref shared_sram	on  end
-		device ref cnvi_wifi	on
-			chip drivers/wifi/generic
-				register "wake"			= "GPE0_PME_B0"
-				device generic 0 on end
-			end
-		end
 		device ref pcie_rp5	on				# WiFi
 			chip drivers/wifi/generic
 				register "wake"			= "GPE0_PME_B0"
@@ -168,8 +213,20 @@ chip soc/intel/alderlake
 				device pnp 4e.19 off end			# Power Management Channel 5
 			end
 		end
+		device ref pmc		hidden
+			chip drivers/intel/pmc_mux
+				device generic 0 on
+					chip drivers/intel/pmc_mux/conn
+						use usb2_port1 as usb2_port
+						use tcss_usb3_port1 as usb3_port
+						device generic 0 alias conn0 on end
+					end
+				end
+			end
+		end
 		device ref hda		on
-			register "pch_hda_sdi_enable[0]"		= "1"
+			subsystemid 0x1e50 0x7007
+			register "pch_hda_sdi_enable[0]"		= "true"
 			register "pch_hda_audio_link_hda_enable"	= "1"
 			register "pch_hda_idisp_codec_enable"		= "1"
 			register "pch_hda_idisp_link_frequency"		= "HDA_LINKFREQ_96MHZ"

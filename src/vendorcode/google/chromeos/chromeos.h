@@ -17,6 +17,8 @@ static inline void mark_watchdog_tombstone(void) { return; }
 static inline void reboot_from_watchdog(void) { return; }
 #endif /* CONFIG_CHROMEOS */
 
+#define UNDEFINED_FACTORY_CONFIG	~((uint64_t)0)
+
 /**
  * Perform any platform specific actions required prior to resetting the Cr50.
  * Defined as weak function in cr50_enable_update.c
@@ -26,6 +28,35 @@ void mainboard_prepare_cr50_reset(void);
 void cbmem_add_vpd_calibration_data(void);
 void chromeos_set_me_hash(u32*, int);
 void chromeos_set_ramoops(void *ram_oops, size_t size);
+/*
+ * The factory config space is a one-time programmable info page.
+ * For the unprovisioned one, the read will be 0x0.
+ * Return "UNDEFINED_FACTORY_CONFIG" in case of error.
+ */
+uint64_t chromeos_get_factory_config(void);
+/*
+ * Determines whether a ChromeOS device is branded as a Chromebook-Plus
+ * based on specific bit flags:
+ *
+ * - Bit 4 (0x10): Indicates whether the device chassis has the
+ *                 "chromebook-plus" branding.
+ * - Bits 3-0 (0x1): Must be 0x1 to signify compliance with Chromebook-Plus
+ *                   hardware specifications.
+ *
+ * To be considered a Chromebook-Plus, both of these conditions need to be met.
+ */
+bool chromeos_device_branded_plus_hard(void);
+
+/*
+ * Determines whether a ChromeOS device is soft-branded as a Chromebook-Plus
+ * after meeting below conditions:
+ *
+ * - Device is compliant to the Chromebook-Plus Hardware Specification.
+ * - Business decision makes this device qualified as Chromebook-Plus.
+ *
+ * To be considered a soft-branded Chromebook-Plus, both of these conditions need to be met.
+ */
+bool chromeos_device_branded_plus_soft(void);
 
 /*
  * Declaration for mainboards to use to generate ACPI-specific ChromeOS needs.

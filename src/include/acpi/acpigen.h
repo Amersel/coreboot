@@ -436,6 +436,7 @@ void acpigen_write_PRW(u32 wake, u32 level);
 void acpigen_write_STA(uint8_t status);
 void acpigen_write_STA_ext(const char *namestring);
 void acpigen_write_BBN(uint8_t base_bus_number);
+void acpigen_write_SEG(uint8_t segment_group_number);
 void acpigen_write_TPC(const char *gnvs_tpc_limit);
 void acpigen_write_PSS_package(u32 coreFreq, u32 power, u32 transLat,
 			u32 busmLat, u32 control, u32 status);
@@ -691,6 +692,7 @@ void acpigen_resource_qword(u16 res_type, u16 gen_flags, u16 type_flags,
 void acpigen_resource_producer_bus_number(u16 bus_base, u16 bus_limit);
 void acpigen_resource_producer_io(u16 io_base, u16 io_limit);
 void acpigen_resource_producer_mmio(u64 mmio_base, u64 mmio_limit, u16 type_flags);
+void acpigen_resource_consumer_mmio(u64 mmio_base, u64 mmio_limit, u16 type_flags);
 
 /* Emits Notify(namestr, value) */
 void acpigen_notify(const char *namestr, int value);

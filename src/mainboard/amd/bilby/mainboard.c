@@ -2,10 +2,10 @@
 
 #include <console/console.h>
 #include <device/device.h>
+#include <amdblocks/acpi.h>
 #include <amdblocks/amd_pci_util.h>
 #include <FspsUpd.h>
 #include <gpio.h>
-#include <soc/acpi.h>
 #include <soc/cpu.h>
 #include <soc/southbridge.h>
 #include <soc/pci_devs.h>
@@ -66,7 +66,6 @@ static void program_display_sel_gpios(void)
 		else if (port_type == DP)
 			gpio_output(display_sel[idx], 1);
 	}
-
 }
 
 static void mainboard_init(void *chip_info)

@@ -19,7 +19,7 @@
 #include <soc/mtcmos.h>
 #include <soc/spm.h>
 #include <soc/usb.h>
-#include <string.h>
+#include <stdio.h>
 
 #include "gpio.h"
 #include "panel.h"

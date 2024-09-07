@@ -13,7 +13,7 @@
 static struct device_operations pci_domain_ops = {
 	.read_resources   = pci_domain_read_resources,
 	.set_resources    = pci_domain_set_resources,
-	.scan_bus         = pci_domain_scan_bus,
+	.scan_bus         = pci_host_bridge_scan_bus,
 };
 
 static struct device_operations cpu_bus_ops = {
@@ -79,7 +79,7 @@ void soc_silicon_init_params(SILICON_INIT_UPD *params)
 	params->AzaliaConfigPtr			= 0;
 	params->PunitPwrConfigDisable		= config->PunitPwrConfigDisable;
 	params->ChvSvidConfig			= config->ChvSvidConfig;
-	params->DptfDisable			= config->DptfDisable;
+	params->DptfDisable			= !is_devfn_enabled(PCI_DEVFN(PUNIT_DEV, 0));
 	params->PcdEmmcMode			= config->PcdEmmcMode;
 	params->PcdUsb3ClkSsc			= 1;
 	params->PcdDispClkSsc			= 1;
@@ -294,7 +294,7 @@ static void soc_init(void *chip_info)
 }
 
 struct chip_operations soc_intel_braswell_ops = {
-	CHIP_NAME("Intel Braswell SoC")
+	.name = "Intel Braswell SoC",
 	.enable_dev = enable_dev,
 	.init       = soc_init,
 };

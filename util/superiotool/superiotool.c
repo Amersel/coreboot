@@ -84,6 +84,28 @@ const char *get_superio_name(const struct superio_registers reg_table[],
 	return "<unknown>";
 }
 
+static void set_extra_selector(uint16_t port, const struct extra_selector *esel)
+{
+	if (esel->idx == 0) /* entry without extra selector */
+		return;
+
+	uint8_t reg_val = regval(port, esel->idx);
+	reg_val &= ~esel->mask;
+	reg_val |= esel->val;
+	regwrite(port, esel->idx, reg_val);
+
+	reg_val = regval(port, esel->idx) & esel->mask;
+
+	printf(" -- ESEL[%02xh] 0x%02x", esel->idx, reg_val);
+	if (esel->name != NULL)
+		printf(" (%s)", esel->name);
+	printf(" --");
+
+	if (verbose)
+		printf(" config: idx=%02xh, mask=%02xh, val=%02xh --", esel->idx, esel->mask,
+			esel->val);
+}
+
 static void dump_regs(const struct superio_registers reg_table[],
 		      int i, int j, uint16_t port, uint8_t ldn_sel)
 {
@@ -102,30 +124,39 @@ static void dump_regs(const struct superio_registers reg_table[],
 			printf("(%s)", reg_table[i].ldn[j].name);
 	}
 
+	set_extra_selector(port, &reg_table[i].ldn[j].esel);
+
 	idx = reg_table[i].ldn[j].idx;
 	def = reg_table[i].ldn[j].def;
 
 	if (alternate_dump) {
 		int skip_def = 0;
+		int val;
 
-		printf("\nidx   val    def\n");
+		printf("\nidx    def    val\n");
 
 		for (k = 0; idx[k] != EOT; k++) {
-			printf("0x%02x: 0x%02x", idx[k], regval(port, idx[k]));
-
 			if (skip_def || def[k] == EOT) {
 				skip_def = 1;
 				printf("\n");
 				continue;
 			}
+
+			printf("0x%02x:  ", idx[k]);
+			val = regval(port, idx[k]);
+
 			if (def[k] == NANA)
-				printf("   (NA)\n");
+				printf("(NA)   0x%02x\n", val);
 			else if (def[k] == RSVD)
-				printf("   (RR)\n");
+				printf("(RR)   0x%02x\n", val);
 			else if (def[k] == MISC)
-				printf("   (MM)\n");
-			else
-				printf("   (0x%02x)\n", def[k]);
+				printf("(MM)   0x%02x\n", val);
+			else {
+				if (def[k] == val)
+					printf("0x%02x   0x%02x\n", def[k], val);
+				else
+					printf("0x%02x  [0x%02x]\n", def[k], val);
+			}
 		}
 	} else {
 		printf("\nidx");

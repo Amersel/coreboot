@@ -50,13 +50,13 @@ chip soc/intel/meteorlake
 	register "cnvi_bt_core" = "true"
 
 	# Enable S0ix
-	register "s0ix_enable" = "1"
+	register "s0ix_enable" = "true"
 
 	# Disable C1 C-state auto-demotion
-	register "disable_c1_state_auto_demotion" = "1"
+	register "disable_c1_state_auto_demotion" = "true"
 
 	# Disable PKGC-state demotion
-	register "disable_package_c_state_demotion" = "1"
+	register "disable_package_c_state_demotion" = "true"
 
 	# Enable energy reporting
 	register "pch_pm_energy_report_enable" = "1"
@@ -402,8 +402,8 @@ chip soc/intel/meteorlake
 						device ref usb2_port9 on end
 					end
 					chip drivers/usb/acpi
-						register "desc" = ""USB2 Type-A Port 10""
-						register "type" = "UPC_TYPE_A"
+						register "desc" = ""USB2 Bluetooth""
+						register "type" = "UPC_TYPE_INTERNAL"
 						register "group" = "ACPI_PLD_GROUP(10, 1)"
 						device ref usb2_port10 on end
 					end
@@ -426,6 +426,7 @@ chip soc/intel/meteorlake
 			chip drivers/wifi/generic
 				register "wake" = "GPE0_PME_B0"
 				register "enable_cnvi_ddr_rfim" = "true"
+				use usb2_port10 as bluetooth_companion
 				device generic 0 on end
 			end
 		end

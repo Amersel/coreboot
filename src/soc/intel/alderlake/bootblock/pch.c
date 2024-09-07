@@ -16,9 +16,9 @@
 #include <intelblocks/pcr.h>
 #include <intelblocks/pmclib.h>
 #include <intelblocks/rtc.h>
+#include <intelpch/espi.h>
 #include <soc/bootblock.h>
 #include <soc/soc_chip.h>
-#include <soc/espi.h>
 #include <soc/iomap.h>
 #include <soc/p2sb.h>
 #include <soc/pci_devs.h>
@@ -98,8 +98,7 @@ static void soc_config_acpibase(void)
 
 void pch_early_iorange_init(void)
 {
-	uint16_t io_enables = LPC_IOE_COMA_EN | LPC_IOE_COMB_EN |
-			      LPC_IOE_LPT_EN | LPC_IOE_FDD_EN |
+	uint16_t io_enables = LPC_IOE_LPT_EN | LPC_IOE_FDD_EN |
 			      LPC_IOE_LGE_200 | LPC_IOE_HGE_208 |
 			      LPC_IOE_KBC_60_64 | LPC_IOE_EC_62_66 |
 			      LPC_IOE_SUPERIO_2E_2F | LPC_IOE_EC_4E_4F;

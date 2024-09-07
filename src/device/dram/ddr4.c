@@ -70,7 +70,7 @@ const spd_block spd_blocks[] = {
 	{.type = BLOCK_3, 384, 128, 0}
 };
 
-static bool verify_block(const spd_block *block, spd_raw_data spd)
+static bool verify_block(const spd_block *block, spd_ddr4_raw_data spd)
 {
 	uint16_t crc, spd_crc;
 
@@ -136,7 +136,7 @@ uint16_t ddr4_speed_mhz_to_reported_mts(uint16_t speed_mhz)
  *		SPD_STATUS_INVALID -- invalid SPD or not a DDR4 SPD
  *		SPD_STATUS_CRC_ERROR -- checksum mismatch
  */
-int spd_decode_ddr4(struct dimm_attr_ddr4_st *dimm, spd_raw_data spd)
+int spd_decode_ddr4(struct dimm_attr_ddr4_st *dimm, spd_ddr4_raw_data spd)
 {
 	u8 reg8;
 	u8 bus_width, sdram_width;
@@ -272,25 +272,7 @@ enum cb_err spd_add_smbios17_ddr4(const u8 channel, const u8 slot, const u16 sel
 		dimm->dimm_num = slot;
 		memcpy(dimm->module_part_number, info->part_number, SPD_DDR4_PART_LEN);
 		dimm->mod_id = info->manufacturer_id;
-
-		switch (info->dimm_type) {
-		case SPD_DDR4_DIMM_TYPE_SO_DIMM:
-			dimm->mod_type = DDR4_SPD_SODIMM;
-			break;
-		case SPD_DDR4_DIMM_TYPE_72B_SO_RDIMM:
-			dimm->mod_type = DDR4_SPD_72B_SO_RDIMM;
-			break;
-		case SPD_DDR4_DIMM_TYPE_UDIMM:
-			dimm->mod_type = DDR4_SPD_UDIMM;
-			break;
-		case SPD_DDR4_DIMM_TYPE_RDIMM:
-			dimm->mod_type = DDR4_SPD_RDIMM;
-			break;
-		default:
-			dimm->mod_type = SPD_UNDEFINED;
-			break;
-		}
-
+		dimm->mod_type = info->dimm_type;
 		dimm->bus_width = info->bus_width;
 		memcpy(dimm->serial, info->serial_number,
 		       MIN(sizeof(dimm->serial), sizeof(info->serial_number)));

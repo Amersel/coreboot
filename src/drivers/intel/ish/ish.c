@@ -12,7 +12,7 @@
 static void ish_fill_ssdt_generator(const struct device *dev)
 {
 	struct drivers_intel_ish_config *config = dev->chip_info;
-	struct device *root = dev->bus->dev;
+	struct device *root = dev->upstream->dev;
 	struct acpi_dp *dsd;
 
 	if (!config)
@@ -50,6 +50,9 @@ static void intel_ish_enable(struct device *dev)
 
 static void intel_ish_get_version(void)
 {
+	if (CONFIG(SOC_INTEL_CSE_LITE_SYNC_BY_PAYLOAD))
+		return;
+
 	struct cse_specific_info *info = cbmem_find(CBMEM_ID_CSE_INFO);
 	if (info == NULL)
 		return;
@@ -79,6 +82,9 @@ static const struct device_operations pci_ish_device_ops = {
 };
 
 static const unsigned short pci_device_ids[] = {
+	PCI_DID_INTEL_PTL_H_ISHB,
+	PCI_DID_INTEL_PTL_U_H_ISHB,
+	PCI_DID_INTEL_LNL_ISHB,
 	PCI_DID_INTEL_MTL_ISHB,
 	PCI_DID_INTEL_CNL_ISHB,
 	PCI_DID_INTEL_CML_ISHB,
@@ -96,6 +102,6 @@ static const struct pci_driver ish_intel_driver __pci_driver = {
 };
 
 struct chip_operations drivers_intel_ish_ops = {
-	CHIP_NAME("Intel ISH Chip")
+	.name = "Intel ISH Chip",
 	.enable_dev	= intel_ish_enable,
 };

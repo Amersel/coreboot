@@ -57,7 +57,7 @@ static struct param {
 	 */
 	long long int baseaddress_input;
 	uint32_t baseaddress_assigned;
-	uint32_t loadaddress;
+	uint64_t loadaddress;
 	uint32_t headeroffset;
 	/*
 	 * Input can be negative. It will be transformed to offset from start of region (if
@@ -65,7 +65,7 @@ static struct param {
 	 */
 	long long int headeroffset_input;
 	uint32_t headeroffset_assigned;
-	uint32_t entrypoint;
+	uint64_t entrypoint;
 	uint32_t size;
 	uint32_t alignment;
 	uint32_t pagesize;
@@ -324,19 +324,25 @@ struct mmap_window {
 static int mmap_window_table_size;
 static struct mmap_window mmap_window_table[MMAP_MAX_WINDOWS];
 
-static void add_mmap_window(size_t flash_offset, size_t host_offset,
-			    size_t window_size)
+static int add_mmap_window(unsigned long flash_offset, unsigned long host_offset, unsigned long window_size)
 {
 	if (mmap_window_table_size >= MMAP_MAX_WINDOWS) {
 		ERROR("Too many memory map windows\n");
-		return;
+		return 1;
 	}
 
-	mmap_window_table[mmap_window_table_size].flash_space.offset = flash_offset;
-	mmap_window_table[mmap_window_table_size].host_space.offset = host_offset;
-	mmap_window_table[mmap_window_table_size].flash_space.size = window_size;
-	mmap_window_table[mmap_window_table_size].host_space.size = window_size;
+	if (region_create_untrusted(
+			&mmap_window_table[mmap_window_table_size].flash_space,
+			flash_offset, window_size) != CB_SUCCESS ||
+	    region_create_untrusted(
+			&mmap_window_table[mmap_window_table_size].host_space,
+			host_offset, window_size) != CB_SUCCESS) {
+		ERROR("Invalid mmap window size %lu.\n", window_size);
+		return 1;
+	}
+
 	mmap_window_table_size++;
+	return 0;
 }
 
 
@@ -377,7 +383,9 @@ static int decode_mmap_arg(char *arg)
 		return 1;
 	}
 
-	add_mmap_window(mmap_args.flash_base, mmap_args.mmap_base, mmap_args.mmap_size);
+	if (add_mmap_window(mmap_args.flash_base, mmap_args.mmap_base, mmap_args.mmap_size))
+		return 1;
+
 	return 0;
 }
 
@@ -403,7 +411,8 @@ static bool create_mmap_windows(void)
 		 * maximum of 16MiB. If the window is smaller than 16MiB, the SPI flash window is mapped
 		 * at the top of the host window just below 4G.
 		 */
-		add_mmap_window(std_window_flash_offset, DEFAULT_DECODE_WINDOW_TOP - std_window_size, std_window_size);
+		if (add_mmap_window(std_window_flash_offset, DEFAULT_DECODE_WINDOW_TOP - std_window_size, std_window_size))
+			return false;
 	} else {
 		/*
 		 * Check provided memory map
@@ -414,9 +423,9 @@ static bool create_mmap_windows(void)
 						   &mmap_window_table[j].flash_space)) {
 					ERROR("Flash space windows (base=0x%zx, limit=0x%zx) and (base=0x%zx, limit=0x%zx) overlap!\n",
 					      region_offset(&mmap_window_table[i].flash_space),
-					      region_end(&mmap_window_table[i].flash_space),
+					      region_last(&mmap_window_table[i].flash_space),
 					      region_offset(&mmap_window_table[j].flash_space),
-					      region_end(&mmap_window_table[j].flash_space));
+					      region_last(&mmap_window_table[j].flash_space));
 					return false;
 				}
 
@@ -424,9 +433,9 @@ static bool create_mmap_windows(void)
 						   &mmap_window_table[j].host_space)) {
 					ERROR("Host space windows (base=0x%zx, limit=0x%zx) and (base=0x%zx, limit=0x%zx) overlap!\n",
 					      region_offset(&mmap_window_table[i].flash_space),
-					      region_end(&mmap_window_table[i].flash_space),
+					      region_last(&mmap_window_table[i].flash_space),
 					      region_offset(&mmap_window_table[j].flash_space),
-					      region_end(&mmap_window_table[j].flash_space));
+					      region_last(&mmap_window_table[j].flash_space));
 					return false;
 				}
 			}
@@ -650,6 +659,8 @@ static int cbfs_add_integer_component(const char *name,
 
 	header = cbfs_create_file_header(CBFS_TYPE_RAW,
 		buffer.size, name);
+	if (!header)
+		goto done;
 
 	enum vb2_hash_algorithm algo = get_mh_cache()->cbfs_hash.algo;
 	if (algo != VB2_HASH_INVALID)
@@ -774,6 +785,8 @@ static int cbfs_add_master_header(void)
 	/* Never add a hash attribute to the master header. */
 	header = cbfs_create_file_header(CBFS_TYPE_CBFSHEADER,
 		buffer_size(&buffer), name);
+	if (!header)
+		goto done;
 	if (cbfs_add_entry(&image, &buffer, 0, header, 0) != 0) {
 		ERROR("Failed to add cbfs master header into ROM image.\n");
 		goto done;
@@ -915,6 +928,8 @@ static int cbfs_add_component(const char *filename,
 
 	struct cbfs_file *header =
 		cbfs_create_file_header(param.type, buffer.size, name);
+	if (!header)
+		goto error;
 
 	/* Bootblock and CBFS header should never have file hashes. When adding
 	   the bootblock it is important that we *don't* look up the metadata
@@ -1150,23 +1165,26 @@ static int cbfstool_convert_mkstage(struct buffer *buffer, uint32_t *offset,
 	struct cbfs_file *header)
 {
 	struct buffer output;
-	size_t data_size;
 	int ret;
-
-	if (elf_program_file_size(buffer, &data_size) < 0) {
-		ERROR("Could not obtain ELF size\n");
-		return 1;
-	}
 
 	/*
 	 * We need a final location for XIP parsing, so we need to call do_cbfs_locate() early
 	 * here. That is okay because XIP stages may not be compressed, so their size cannot
 	 * change anymore at a later point.
 	 */
-	if (param.stage_xip &&
-	    do_cbfs_locate(offset, data_size))  {
-		ERROR("Could not find location for stage.\n");
-		return 1;
+	if (param.stage_xip) {
+		size_t data_size, alignment;
+		if (elf_program_file_size_align(buffer, &data_size, &alignment) < 0) {
+			ERROR("Could not obtain ELF size & alignment\n");
+			return 1;
+		}
+
+		param.alignment = MAX(alignment, param.alignment);
+
+		if (do_cbfs_locate(offset, data_size)) {
+			ERROR("Could not find location for stage.\n");
+			return 1;
+		}
 	}
 
 	struct cbfs_file_attr_stageheader *stageheader = (void *)
@@ -2151,7 +2169,7 @@ int main(int argc, char **argv)
 				param.baseaddress_assigned = 1;
 				break;
 			case 'l':
-				param.loadaddress = strtoul(optarg, &suffix, 0);
+				param.loadaddress = strtoull(optarg, &suffix, 0);
 				if (!*optarg || (suffix && *suffix)) {
 					ERROR("Invalid load address '%s'.\n",
 						optarg);
@@ -2159,7 +2177,7 @@ int main(int argc, char **argv)
 				}
 				break;
 			case 'e':
-				param.entrypoint = strtoul(optarg, &suffix, 0);
+				param.entrypoint = strtoull(optarg, &suffix, 0);
 				if (!*optarg || (suffix && *suffix)) {
 					ERROR("Invalid entry point '%s'.\n",
 						optarg);

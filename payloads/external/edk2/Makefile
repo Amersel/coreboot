@@ -37,6 +37,8 @@ BUILD_STR += -s
 endif
 endif
 
+BUILD_STR += -D BUILD_ARCH=X64
+
 #
 # EDK II (edk2/master) has the following build options relevant to coreboot:
 #
@@ -67,8 +69,10 @@ endif
 ifneq ($(CONFIG_EDK2_SERIAL_SUPPORT),y)
 BUILD_STR += -D DISABLE_SERIAL_TERMINAL=TRUE
 endif
+# VARIABLE_SUPPORT		= EMU
 # MAX_VARIABLE_SIZE		= 0x10000
 ifeq ($(CONFIG_SMMSTORE_V2),y)
+BUILD_STR += -D VARIABLE_SUPPORT=SMMSTORE
 BUILD_STR += --pcd gEfiMdeModulePkgTokenSpaceGuid.PcdMaxVariableSize=0x8000
 endif
 # PCIE_BASE_ADDRESS		= 0
@@ -78,10 +82,6 @@ endif
 # PCIE_BASE_LENGTH		= 0
 ifneq ($(CONFIG_ECAM_MMCONF_LENGTH),)
 BUILD_STR += --pcd gEfiMdePkgTokenSpaceGuid.PcdPciExpressBaseSize=$(CONFIG_ECAM_MMCONF_LENGTH)
-endif
-# PRIORITIZE_INTERNAL		= FALSE
-ifeq ($(CONFIG_EDK2_PRIORITIZE_INTERNAL),y)
-BUILD_STR += -D PRIORITIZE_INTERNAL=TRUE
 endif
 # PS2_KEYBOARD_ENABLE		= FALSE
 ifeq ($(CONFIG_EDK2_PS2_SUPPORT),y)
@@ -136,6 +136,18 @@ endif
 # TPM_ENABLE			= TRUE
 ifeq ($(CONFIG_EDK2_DISABLE_TPM),y)
 BUILD_STR += -D TPM_ENABLE=FALSE
+endif
+# UFS_ENABLE			= FALSE
+ifeq ($(CONFIG_EDK2_UFS_ENABLE),y)
+BUILD_STR += -D UFS_ENABLE=TRUE
+endif
+# USE_PCO_MMIO_EMMC		= FALSE
+ifeq ($(CONFIG_EDK2_PCO_MMIO_EMMC),y)
+BUILD_STR += -D USE_PCO_MMIO_EMMC=TRUE
+endif
+# TIMER_SUPPORT			= HPET
+ifeq ($(CONFIG_EDK2_USE_LAPIC_TIMER),y)
+BUILD_STR += -D TIMER_SUPPORT=LAPIC
 endif
 
 endif
@@ -212,7 +224,7 @@ logo: $(EDK2_PATH)
 			BMP3:$(EDK2_PATH)/MdeModulePkg/Logo/Logo.bmp;; \
 	esac \
 
-gop_driver:
+gop_driver: $(EDK2_PATH)
 	if [ -n "$(CONFIG_EDK2_GOP_DRIVER)" ]; then \
 		echo "Using GOP driver $(CONFIG_EDK2_GOP_FILE)"; \
 		cp $(top)/$(CONFIG_EDK2_GOP_FILE) $(EDK2_PATH)/UefiPayloadPkg/IntelGopDriver.efi; \

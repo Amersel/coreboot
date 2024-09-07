@@ -6,9 +6,9 @@
 #include <device/i2c_bus.h>
 #include <device/i2c_simple.h>
 #include <device/device.h>
-#include <device/path.h>
 #include <gpio.h>
-#include <string.h>
+#include <stdio.h>
+
 #include "chip.h"
 
 #if CONFIG(HAVE_ACPI_TABLES)
@@ -26,20 +26,6 @@ static bool i2c_generic_add_gpios_to_crs(struct drivers_i2c_generic_config *cfg)
 		return false;
 
 	return true;
-}
-
-static int i2c_generic_write_gpio(struct acpi_gpio *gpio, int *curr_index)
-{
-	int ret = -1;
-
-	if (gpio->pin_count == 0)
-		return ret;
-
-	acpi_device_write_gpio(gpio);
-	ret = *curr_index;
-	(*curr_index)++;
-
-	return ret;
 }
 
 void i2c_generic_fill_ssdt(const struct device *dev,
@@ -97,15 +83,15 @@ void i2c_generic_fill_ssdt(const struct device *dev,
 
 	/* Use either Interrupt() or GpioInt() */
 	if (config->irq_gpio.pin_count)
-		irq_gpio_index = i2c_generic_write_gpio(&config->irq_gpio,
+		irq_gpio_index = acpi_device_write_dsd_gpio(&config->irq_gpio,
 							&curr_index);
 	else
 		acpi_device_write_interrupt(&config->irq);
 
 	if (i2c_generic_add_gpios_to_crs(config) == true) {
-		reset_gpio_index = i2c_generic_write_gpio(&config->reset_gpio,
+		reset_gpio_index = acpi_device_write_dsd_gpio(&config->reset_gpio,
 							&curr_index);
-		enable_gpio_index = i2c_generic_write_gpio(&config->enable_gpio,
+		enable_gpio_index = acpi_device_write_dsd_gpio(&config->enable_gpio,
 							&curr_index);
 	}
 	acpigen_write_resourcetemplate_footer();
@@ -158,6 +144,34 @@ void i2c_generic_fill_ssdt(const struct device *dev,
 			config->stop_off_delay_ms
 		};
 		acpi_device_add_power_res(&power_res_params);
+	}
+
+	/* Rotation Matrix */
+	if (config->has_rotation_matrix) {
+		acpigen_write_method("ROTM", 0);
+		acpigen_write_name("RBUF");
+		acpigen_write_package(3);
+
+		for (int i = 0; i < 3; i++) {
+			char matrix_row[12];
+			snprintf(matrix_row, sizeof(matrix_row), "%d %d %d",
+				 config->rotation_matrix[i * 3 + 0],
+				 config->rotation_matrix[i * 3 + 1],
+				 config->rotation_matrix[i * 3 + 2]);
+
+			acpigen_write_string(matrix_row);
+		}
+		acpigen_pop_len();
+		acpigen_write_return_namestr("RBUF");
+
+		acpigen_pop_len();
+	}
+
+	/* Chip Direct Mapping */
+	if (config->cdm_index != CDM_NOT_PRESENT) {
+		acpigen_write_method("_CDM", 1);
+		acpigen_write_return_integer(0xabcd00 | config->cdm_index);
+		acpigen_pop_len();
 	}
 
 	/* Callback if any. */
@@ -229,6 +243,6 @@ static void i2c_generic_enable(struct device *dev)
 }
 
 struct chip_operations drivers_i2c_generic_ops = {
-	CHIP_NAME("I2C Device")
+	.name = "I2C Device",
 	.enable_dev = i2c_generic_enable
 };

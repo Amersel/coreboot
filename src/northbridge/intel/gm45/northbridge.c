@@ -81,7 +81,7 @@ static void mch_domain_read_resources(struct device *dev)
 	reserved_ram_from_to(dev, idx++, 0xc0000, 1*MiB);
 
 	/* Report < 4GB memory */
-	ram_range(dev, idx++, 1*MiB, (uintptr_t)cbmem_top());
+	ram_range(dev, idx++, 1*MiB, cbmem_top());
 
 	/* TSEG */
 	uintptr_t tseg_base;
@@ -91,10 +91,10 @@ static void mch_domain_read_resources(struct device *dev)
 
 	/* cbmem_top can be shifted downwards due to alignment.
 	   Mark the region between cbmem_top and tseg_base as unusable */
-	if ((uintptr_t)cbmem_top() < tseg_base) {
+	if (cbmem_top() < tseg_base) {
 		printk(BIOS_DEBUG, "Unused RAM between cbmem_top and TOM: 0x%lx\n",
-		       tseg_base - (uintptr_t)cbmem_top());
-		mmio_from_to(dev, idx++, (uintptr_t)cbmem_top(), tseg_base);
+		       tseg_base - cbmem_top());
+		mmio_from_to(dev, idx++, cbmem_top(), tseg_base);
 	}
 
 	/* graphic memory above TSEG */
@@ -122,7 +122,7 @@ static void mch_domain_set_resources(struct device *dev)
 			report_resource_stored(dev, resource, "");
 	}
 
-	assign_resources(dev->link_list);
+	assign_resources(dev->downstream);
 }
 
 static void mch_domain_init(struct device *dev)
@@ -183,7 +183,7 @@ struct device_operations gm45_pci_domain_ops = {
 	.read_resources   = mch_domain_read_resources,
 	.set_resources    = mch_domain_set_resources,
 	.init             = mch_domain_init,
-	.scan_bus         = pci_domain_scan_bus,
+	.scan_bus         = pci_host_bridge_scan_bus,
 	.write_acpi_tables = northbridge_write_acpi_tables,
 	.acpi_fill_ssdt   = pci_domain_ssdt,
 	.acpi_name        = northbridge_acpi_name,
@@ -233,7 +233,7 @@ static void gm45_init(void *const chip_info)
 }
 
 struct chip_operations northbridge_intel_gm45_ops = {
-	CHIP_NAME("Intel GM45 Northbridge")
+	.name = "Intel GM45 Northbridge",
 	.init = gm45_init,
 };
 

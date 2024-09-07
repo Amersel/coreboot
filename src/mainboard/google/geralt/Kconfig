@@ -1,13 +1,16 @@
 ## SPDX-License-Identifier: GPL-2.0-only
 
-# Umbrella option to be selected by variant boards.
 config BOARD_GOOGLE_GERALT_COMMON
-	def_bool n
-
-config BOARD_GOOGLE_GERALT
-	select BOARD_GOOGLE_GERALT_COMMON
+	def_bool BOARD_GOOGLE_CIRI || \
+		 BOARD_GOOGLE_GERALT
 
 if BOARD_GOOGLE_GERALT_COMMON
+
+config GERALT_SDCARD_INIT
+	def_bool BOARD_GOOGLE_GERALT
+
+config GERALT_USE_NAU8318
+	def_bool n
 
 config VBOOT
 	select VBOOT_VBNV_FLASH
@@ -35,6 +38,10 @@ config BOARD_SPECIFIC_OPTIONS
 	select HAVE_LINEAR_FRAMEBUFFER
 	select RTC
 	select MIPI_PANEL_BOE_TV110C9M_LL0 if BOARD_GOOGLE_GERALT
+	select MIPI_PANEL_BOE_NV110WUM_L60 if BOARD_GOOGLE_CIRI
+	select MIPI_PANEL_IVO_T109NW41 if BOARD_GOOGLE_CIRI
+	select FW_CONFIG
+	select FW_CONFIG_SOURCE_CHROMEEC_CBI
 
 config MAINBOARD_DIR
 	string
@@ -43,6 +50,7 @@ config MAINBOARD_DIR
 config MAINBOARD_PART_NUMBER
 	string
 	default "Geralt" if BOARD_GOOGLE_GERALT
+	default "Ciri" if BOARD_GOOGLE_CIRI
 
 config BOOT_DEVICE_SPI_FLASH_BUS
 	int
@@ -59,21 +67,5 @@ config DRIVER_TPM_I2C_BUS
 config DRIVER_TPM_I2C_ADDR
 	hex
 	default 0x50
-
-config SDCARD_INIT
-	bool
-	default y
-
-choice
-	prompt "Speaker AMP for Geralt"
-	default USE_MAX98390 if BOARD_GOOGLE_GERALT
-
-config USE_MAX98390
-	bool "MAX98390"
-
-config USE_NAU8318
-	bool "NAU8318"
-
-endchoice
 
 endif

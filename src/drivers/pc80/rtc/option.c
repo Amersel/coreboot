@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <acpi/acpi.h>
 #include <console/console.h>
 #include <string.h>
 #include <cbfs.h>
@@ -200,7 +201,8 @@ void sanitize_cmos(void)
 {
 	const unsigned char *cmos_default;
 	const bool cmos_need_reset =
-		CONFIG(STATIC_OPTION_TABLE) || cmos_error() || !cmos_lb_cks_valid();
+		(CONFIG(STATIC_OPTION_TABLE) || cmos_error() || !cmos_lb_cks_valid())
+		&& !acpi_is_wakeup_s3();
 	size_t length = 128;
 	size_t i;
 
@@ -211,9 +213,12 @@ void sanitize_cmos(void)
 			return;
 
 		u8 control_state = cmos_disable_rtc();
-		/* Max length of 256 spans bank 0 and bank 1 */
-		for (i = 14; i < MIN(256, length); i++)
+		/* Copy checked range and the checksum from the default */
+		for (i = LB_CKS_RANGE_START; i < MIN(LB_CKS_RANGE_END + 1, length); i++)
 			cmos_write_inner(cmos_default[i], i);
+		/* CMOS checksum takes 2 bytes */
+		cmos_write_inner(cmos_default[LB_CKS_LOC], LB_CKS_LOC);
+		cmos_write_inner(cmos_default[LB_CKS_LOC + 1], LB_CKS_LOC + 1);
 		cmos_restore_rtc(control_state);
 	}
 }

@@ -6,7 +6,6 @@
 #include <device/pci_ids.h>
 #include <assert.h>
 
-#if CONFIG(HAVE_ACPI_TABLES)
 static const char *pcie_acpi_name(const struct device *dev)
 {
 	assert(dev);
@@ -14,8 +13,8 @@ static const char *pcie_acpi_name(const struct device *dev)
 	if (dev->path.type != DEVICE_PATH_PCI)
 		return NULL;
 
-	assert(dev->bus);
-	if (dev->bus->secondary == 0)
+	assert(dev->upstream);
+	if (dev->upstream->secondary == 0)
 		switch (dev->path.pci.devfn) {
 		case PCI_DEVFN(1, 0):
 			return "PEGP";
@@ -27,12 +26,12 @@ static const char *pcie_acpi_name(const struct device *dev)
 			return "PEG6";
 		};
 
-	struct device *const port = dev->bus->dev;
+	struct device *const port = dev->upstream->dev;
 	assert(port);
-	assert(port->bus);
+	assert(port->upstream);
 
 	if (dev->path.pci.devfn == PCI_DEVFN(0, 0) &&
-	    port->bus->secondary == 0 &&
+	    port->upstream->secondary == 0 &&
 	    (port->path.pci.devfn == PCI_DEVFN(1, 0) ||
 	     port->path.pci.devfn == PCI_DEVFN(1, 1) ||
 	     port->path.pci.devfn == PCI_DEVFN(1, 2) ||
@@ -41,7 +40,6 @@ static const char *pcie_acpi_name(const struct device *dev)
 
 	return NULL;
 }
-#endif
 
 static struct device_operations device_ops = {
 	.read_resources		= pci_bus_read_resources,
@@ -51,9 +49,7 @@ static struct device_operations device_ops = {
 	.reset_bus		= pci_bus_reset,
 	.init			= pci_dev_init,
 	.ops_pci		= &pci_dev_ops_pci,
-#if CONFIG(HAVE_ACPI_TABLES)
 	.acpi_name		= pcie_acpi_name,
-#endif
 };
 
 static const unsigned short pci_device_ids[] = {

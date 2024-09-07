@@ -41,6 +41,8 @@
 #define  MISC_PWR_MGMT_ISST_EN		(1 << 6)
 #define  MISC_PWR_MGMT_ISST_EN_INT	(1 << 7)
 #define  MISC_PWR_MGMT_ISST_EN_EPP	(1 << 12)
+#define MSR_DISABLE_SIGNALING_THREE_STRIKE_EVENT	0x1ab
+#define  THREE_STRIKE_COUNT		(1 << 0)
 #define MSR_TURBO_RATIO_LIMIT		0x1ad
 #define MSR_PRMRR_PHYS_BASE		0x1f4
 #define MSR_PRMRR_PHYS_MASK		0x1f5
@@ -48,7 +50,10 @@
 #define  PRMRR_PHYS_MASK_VALID		(1 << 11)
 #define MSR_PRMRR_VALID_CONFIG		0x1fb
 #define MSR_POWER_CTL			0x1fc
+#define  ENABLE_BIDIR_PROCHOT		(1 << 0)
 #define  POWER_CTL_C1E_MASK		(1 << 1)
+#define  PWR_PERF_PLATFORM_OVR		(1 << 18)
+#define  VR_THERM_ALERT_DISABLE_LOCK	(1 << 23)
 #define MSR_PRMRR_BASE_0		0x2a0
 #define MSR_EVICT_CTL			0x2e0
 #define MSR_LT_CONTROL			0x2e7

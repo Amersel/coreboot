@@ -6,6 +6,7 @@ config NORTHBRIDGE_INTEL_SANDYBRIDGE
 	select CPU_INTEL_MODEL_206AX
 	select HAVE_DEBUG_RAM_SETUP
 	select INTEL_GMA_ACPI
+	select NEED_SMALL_2MB_PAGE_TABLES
 	select USE_DDR3
 
 if NORTHBRIDGE_INTEL_SANDYBRIDGE
@@ -103,6 +104,10 @@ config ECAM_MMCONF_BUS_NUMBER
 	int
 	default 64
 
+# This number must be equal or lower than what's reported in ACPI PCI _CRS
+config DOMAIN_RESOURCE_32BIT_LIMIT
+	default ECAM_MMCONF_BASE_ADDRESS
+
 config DCACHE_RAM_BASE
 	hex
 	default 0xfefe0000
@@ -171,5 +176,8 @@ config FIXED_DMIBAR_MMIO_BASE
 
 config FIXED_EPBAR_MMIO_BASE
 	default 0xfed19000
+
+config PRERAM_CBFS_CACHE_SIZE
+	default 0x0
 
 endif

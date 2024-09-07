@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
 chip soc/intel/tigerlake
 	register "common_soc_config" = "{
 		// Touchpad I2C bus
@@ -10,10 +12,10 @@ chip soc/intel/tigerlake
 
 # ACPI (soc/intel/tigerlake/acpi.c)
 	# Enable Enhanced Intel SpeedStep
-	register "eist_enable" = "1"
+	register "eist_enable" = "true"
 
 	# Enable s0ix, required for TGL-U
-	register "s0ix_enable" = "1"
+	register "s0ix_enable" = "true"
 
 # FSP Memory (soc/intel/tigerlake/romstage/fsp_params.c)
 	# Enable C6 DRAM
@@ -63,8 +65,6 @@ chip soc/intel/tigerlake
 	register "tcc_offset" = "12"
 
 # Actual device tree
-	device cpu_cluster 0 on end
-
 	device domain 0 on
 		device ref system_agent on end
 		device ref igpu on

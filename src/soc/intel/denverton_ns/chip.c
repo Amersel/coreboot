@@ -109,7 +109,7 @@ const char *soc_acpi_name(const struct device *dev)
 static struct device_operations pci_domain_ops = {
 	.read_resources = &pci_domain_read_resources,
 	.set_resources = &pci_domain_set_resources,
-	.scan_bus = &pci_domain_scan_bus,
+	.scan_bus = &pci_host_bridge_scan_bus,
 #if CONFIG(HAVE_ACPI_TABLES)
 	.acpi_name = &soc_acpi_name,
 #endif
@@ -187,7 +187,7 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *silupd)
 }
 
 struct chip_operations soc_intel_denverton_ns_ops = {
-	CHIP_NAME("Intel Denverton-NS SOC")
+	.name = "Intel Denverton-NS SOC",
 	.enable_dev = soc_enable_dev,
 	.init = soc_init,
 	.final = soc_final

@@ -16,12 +16,31 @@
 
 #define FSP_VER_LEN	30
 
+#if CONFIG(PLATFORM_USES_FSP2_4)
+#define FSPM_ARCHx_UPD FSPM_ARCH2_UPD
+#define FSPS_ARCHx_UPD FSPS_ARCH2_UPD
+#else
+#define FSPM_ARCHx_UPD FSPM_ARCH_UPD
+#define FSPS_ARCHx_UPD FSPS_ARCH_UPD
+#endif
+
 /* Macro for checking and loading array type configs into array type UPDs */
 #define FSP_ARRAY_LOAD(dst, src) \
 do { \
 	_Static_assert(ARRAY_SIZE(dst) >= ARRAY_SIZE(src), "copy buffer overflow!"); \
 	memcpy(dst, src, sizeof(src)); \
 } while (0)
+
+/* Helper function to print a message concatenated with the a FSP return status. */
+#if CONFIG(PLATFORM_USES_FSP2_X86_32)
+#define FSP_STATUS_FMT "0x%08x"
+#else
+#define FSP_STATUS_FMT "0x%016llx"
+#endif
+#define fsp_printk(status, msg_level, fmt, ...)	\
+	printk(msg_level, fmt ", status=" FSP_STATUS_FMT "\n", ##__VA_ARGS__, status)
+#define fsp_die_with_post_code(status, postcode, fmt, ...) \
+	die_with_post_code(postcode, fmt ", status=" FSP_STATUS_FMT "\n", ##__VA_ARGS__, status)
 
 struct hob_header {
 	uint16_t type;
@@ -46,6 +65,11 @@ struct fsp_multi_phase_params {
 	enum fsp_multi_phase_action multi_phase_action;
 	uint32_t phase_index;
 	void *multi_phase_param_ptr;
+};
+
+struct fsp_multi_phase_get_number_of_phases_params {
+	uint32_t number_of_phases;
+	uint32_t phases_executed;
 };
 
 struct hob_resource {
@@ -174,17 +198,32 @@ enum cb_err fsp_load_component(struct fsp_load_descriptor *fspld, struct fsp_hea
  * SoC. If the requested status is not a reboot status or unhandled, this
  * function does nothing.
  */
-void fsp_handle_reset(uint32_t status);
+void fsp_handle_reset(efi_return_status_t status);
 
 /* SoC/chipset must provide this to handle platform-specific reset codes */
-void chipset_handle_reset(uint32_t status);
+void chipset_handle_reset(efi_return_status_t status);
 
-typedef asmlinkage uint32_t (*temp_ram_exit_fn)(void *param);
-typedef asmlinkage uint32_t (*fsp_memory_init_fn)
+#if CONFIG(PLATFORM_USES_SECOND_FSP)
+/* The SoC must implement these to choose the appropriate FSP-M/FSP-S binary. */
+const char *soc_select_fsp_m_cbfs(void);
+const char *soc_select_fsp_s_cbfs(void);
+#else
+static inline const char *soc_select_fsp_m_cbfs(void)
+{
+	return CONFIG_FSP_M_CBFS;
+}
+static inline const char *soc_select_fsp_s_cbfs(void)
+{
+	return CONFIG_FSP_S_CBFS;
+}
+#endif
+
+typedef __efiapi efi_return_status_t (*temp_ram_exit_fn)(void *param);
+typedef __efiapi efi_return_status_t (*fsp_memory_init_fn)
 				   (void *raminit_upd, void **hob_list);
-typedef asmlinkage uint32_t (*fsp_silicon_init_fn)(void *silicon_upd);
-typedef asmlinkage uint32_t (*fsp_multi_phase_si_init_fn)(struct fsp_multi_phase_params *);
-typedef asmlinkage uint32_t (*fsp_notify_fn)(struct fsp_notify_params *);
+typedef __efiapi efi_return_status_t (*fsp_silicon_init_fn)(void *silicon_upd);
+typedef __efiapi efi_return_status_t (*fsp_multi_phase_init_fn)(struct fsp_multi_phase_params *);
+typedef __efiapi efi_return_status_t (*fsp_notify_fn)(struct fsp_notify_params *);
 #include <fsp/debug.h>
 
 #endif /* _FSP2_0_UTIL_H_ */

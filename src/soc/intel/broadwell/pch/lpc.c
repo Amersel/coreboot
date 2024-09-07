@@ -31,9 +31,9 @@ static void pch_enable_ioapic(struct device *dev)
 
 	/* affirm full set of redirection table entries ("write once") */
 	/* PCH-LP has 40 redirection entries */
-	ioapic_set_max_vectors(VIO_APIC_VADDR, 40);
+	ioapic_set_max_vectors(IO_APIC_ADDR, 40);
 
-	register_new_ioapic_gsi0(VIO_APIC_VADDR);
+	register_new_ioapic_gsi0(IO_APIC_ADDR);
 }
 
 #define ACPI_SCI_IRQ	9
@@ -368,7 +368,6 @@ static void pch_pm_init(struct device *dev)
 	/* Set RCBA 0x2b1c[29]=1 if DSP disabled */
 	if (RCBA32(FD) & PCH_DISABLE_ADSPD)
 		RCBA32_OR(0x2b1c, (1 << 29));
-
 }
 
 static void pch_cg_init(struct device *dev)

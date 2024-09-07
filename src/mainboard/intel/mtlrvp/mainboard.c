@@ -8,7 +8,7 @@
 #include <soc/ramstage.h>
 #include <smbios.h>
 #include <stdint.h>
-#include <string.h>
+#include <stdio.h>
 
 const char *smbios_system_sku(void)
 {

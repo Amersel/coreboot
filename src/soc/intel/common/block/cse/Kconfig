@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 config DISABLE_HECI1_AT_PRE_BOOT
 	bool "Disable HECI1 at the end of boot"
 	depends on SOC_INTEL_COMMON_BLOCK_CSE
@@ -95,7 +97,7 @@ config SOC_INTEL_STORE_ISH_FW_VERSION
 
 config SOC_INTEL_CSE_SEND_EOP_EARLY
 	bool "CSE send EOP early"
-	depends on SOC_INTEL_COMMON_BLOCK_CSE
+	depends on SOC_INTEL_COMMON_BLOCK_CSE && !SOC_INTEL_CSE_SEND_EOP_BY_PAYLOAD
 	help
 	  Use this config to send End Of Post (EOP) earlier through SoC code in order to
 	  reduce time required to send EOP and getting CSE response.
@@ -104,7 +106,7 @@ config SOC_INTEL_CSE_SEND_EOP_EARLY
 
 config SOC_INTEL_CSE_SEND_EOP_LATE
 	bool
-	depends on SOC_INTEL_COMMON_BLOCK_CSE
+	depends on SOC_INTEL_COMMON_BLOCK_CSE && !SOC_INTEL_CSE_SEND_EOP_BY_PAYLOAD
 	help
 	  Use this config to send End Of Post (EOP) late (even after CSE `final` operation)
 	  using boot state either `BS_PAYLOAD_BOOT` or `BS_PAYLOAD_LOAD` from common code
@@ -117,7 +119,7 @@ config SOC_INTEL_CSE_SEND_EOP_LATE
 
 config SOC_INTEL_CSE_SEND_EOP_ASYNC
 	bool
-	depends on SOC_INTEL_COMMON_BLOCK_CSE
+	depends on SOC_INTEL_COMMON_BLOCK_CSE && !SOC_INTEL_CSE_SEND_EOP_BY_PAYLOAD
 	depends on !SOC_INTEL_CSE_SEND_EOP_LATE
 	depends on !SOC_INTEL_CSE_SEND_EOP_EARLY
 	help
@@ -134,6 +136,26 @@ config SOC_INTEL_CSE_SEND_EOP_ASYNC
 	  request is posted (at CSE .final device operation) and the
 	  time coreboot check for its completion (BS_PAYLOAD_LOAD).
 
+config SOC_INTEL_CSE_SEND_EOP_BY_PAYLOAD
+	bool
+	depends on SOC_INTEL_COMMON_BLOCK_CSE
+	help
+	  Use this config to specify that the payload will send the End Of Post (EOP) instead
+	  of coreboot.
+
+	  In this case, the HECI interface needs to stay visible and the payload must support
+	  sending commands to CSE.
+
+config SOC_INTEL_CSE_LITE_SYNC_BY_PAYLOAD
+	bool
+	depends on SOC_INTEL_COMMON_BLOCK_CSE
+	help
+	  Use this config to specify that the payload will update the CSE RW partition instead
+	  of coreboot.
+
+	  In this case, CSE shall not switch to RW partition and the payload must support
+	  CSE RW update.
+
 config SOC_INTEL_CSE_LITE_SKU
 	bool
 	default n
@@ -143,7 +165,7 @@ config SOC_INTEL_CSE_LITE_SKU
 config SOC_INTEL_CSE_LITE_PSR
 	bool
 	default n
-	depends on SOC_INTEL_CSE_LITE_SKU
+	depends on SOC_INTEL_CSE_LITE_SKU && !SOC_INTEL_CSE_LITE_SYNC_BY_PAYLOAD
 	select SOC_INTEL_CSE_LITE_SYNC_IN_RAMSTAGE
 	help
 	 Select this config if Platform Service Record(PSR) is supported by the platform. This
@@ -162,7 +184,7 @@ config SOC_INTEL_CSE_SERVER_SKU
 config SOC_INTEL_CSE_RW_UPDATE
 	bool "Enable the CSE RW Update Feature"
 	default n
-	depends on SOC_INTEL_CSE_LITE_SKU
+	depends on SOC_INTEL_CSE_LITE_SKU || SOC_INTEL_CSE_LITE_SYNC_BY_PAYLOAD
 	help
 	 This config will enable CSE RW firmware update feature and also will be used ensure
 	 all the required configs are provided by mainboard.
@@ -210,12 +232,16 @@ config SOC_INTEL_CSE_RW_FILE
 	 Intel CSE CBFS RW blob path and file name
 
 config SOC_INTEL_CSE_RW_VERSION
-	string "Intel CSE RW firmware version" if SOC_INTEL_CSE_RW_UPDATE
+	string "Intel CSE RW firmware version (deprecated)" if SOC_INTEL_CSE_RW_UPDATE
 	default ""
 	help
 	 This config contains the Intel CSE RW version of the blob that is provided by
 	 SOC_INTEL_CSE_RW_FILE config and the version must be set in the format
 	 major.minor.hotfix.build (ex: 14.0.40.1209).
+
+	 This config may be deprecated in the future. Consider not providing the CSE RW
+	 firmware version here and let the CSE version be automatically queried from the CSE
+	 binary at build time (available with Meteor Lake and following platforms).
 
 config SOC_INTEL_CSE_SET_EOP
 	bool
@@ -268,7 +294,7 @@ config SOC_INTEL_CSE_LITE_COMPRESS_ME_RW
 
 config SOC_INTEL_CSE_PRE_CPU_RESET_TELEMETRY
 	def_bool n
-	depends on SOC_INTEL_CSE_LITE_SKU
+	depends on SOC_INTEL_CSE_LITE_SKU && !SOC_INTEL_CSE_LITE_SYNC_BY_PAYLOAD
 	help
 	  Mainboard user to select this Kconfig in order to capture pre-cpu
 	  reset boot performance telemetry data.
@@ -290,13 +316,14 @@ config SOC_INTEL_CSE_PRE_CPU_RESET_TELEMETRY_V2
 config SOC_INTEL_CSE_LITE_SYNC_IN_ROMSTAGE
 	bool
 	default !SOC_INTEL_CSE_LITE_SYNC_IN_RAMSTAGE
-	depends on SOC_INTEL_CSE_LITE_SKU && !SOC_INTEL_CSE_LITE_COMPRESS_ME_RW
+	depends on SOC_INTEL_CSE_LITE_SKU && !SOC_INTEL_CSE_LITE_COMPRESS_ME_RW && !SOC_INTEL_CSE_LITE_SYNC_BY_PAYLOAD
 	help
 	 Use default flow of CSE FW Update in romstage when uncompressed ME_RW blobs are used.
 
 config SOC_INTEL_CSE_LITE_SYNC_IN_RAMSTAGE
 	bool
 	default n
+	depends on !SOC_INTEL_CSE_LITE_SYNC_BY_PAYLOAD
 	help
 	 Use this option if CSE RW update needs to be triggered during RAMSTAGE.
 

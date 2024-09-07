@@ -22,7 +22,11 @@ static void disable_platform_hierarchy(void *unused)
 		return;
 	}
 
-	rc = tlcl_disable_platform_hierarchy();
+	/* In case both families are enabled, but TPM1 is in use. */
+	if (tlcl_get_family() != TPM_2)
+		return;
+
+	rc = tlcl2_disable_platform_hierarchy();
 	if (rc != TPM_SUCCESS)
 		printk(BIOS_ERR, "Platform hierarchy disablement failed: %#x\n",
 			rc);

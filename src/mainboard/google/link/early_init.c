@@ -1,17 +1,11 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/hpet.h>
-#include <stdint.h>
-#include <string.h>
 #include <device/pci_ops.h>
-#include <console/console.h>
 #include <northbridge/intel/sandybridge/sandybridge.h>
 #include <northbridge/intel/sandybridge/raminit.h>
-#include <northbridge/intel/sandybridge/raminit_native.h>
 #include <southbridge/intel/bd82x6x/pch.h>
 #include <southbridge/intel/common/gpio.h>
 #include "ec/google/chromeec/ec.h"
-#include <cbfs.h>
 
 #include <southbridge/intel/bd82x6x/chip.h>
 
@@ -58,103 +52,23 @@ void mainboard_late_rcba_config(void)
 	DIR_ROUTE(D22IR, PIRQA, PIRQB, PIRQC, PIRQD);
 }
 
-static uint8_t *locate_spd(void)
+static unsigned int get_spd_index(void)
 {
 	const int gpio_vector[] = {41, 42, 43, 10, -1};
-	uint8_t *spd_file;
-	size_t spd_file_len;
-	int spd_index = get_gpios(gpio_vector);
-
-	printk(BIOS_DEBUG, "spd index %d\n", spd_index);
-	spd_file = cbfs_map("spd.bin", &spd_file_len);
-	if (!spd_file)
-		die("SPD data not found.");
-
-	if (spd_file_len < ((spd_index + 1) * 256)) {
-		printk(BIOS_ERR, "spd index override to 0 - old hardware?\n");
-		spd_index = 0;
-	}
-
-	if (spd_file_len < 256)
-		die("Missing SPD data.");
-
-	return spd_file + spd_index * 256;
+	return get_gpios(gpio_vector);
 }
 
 void mainboard_fill_pei_data(struct pei_data *pei_data)
 {
-	struct pei_data pei_data_template = {
-		.pei_version = PEI_VERSION,
-		.mchbar = CONFIG_FIXED_MCHBAR_MMIO_BASE,
-		.dmibar = CONFIG_FIXED_DMIBAR_MMIO_BASE,
-		.epbar = CONFIG_FIXED_EPBAR_MMIO_BASE,
-		.pciexbar = CONFIG_ECAM_MMCONF_BASE_ADDRESS,
-		.smbusbar = CONFIG_FIXED_SMBUS_IO_BASE,
-		.wdbbar = 0x4000000,
-		.wdbsize = 0x1000,
-		.hpet_address = HPET_BASE_ADDRESS,
-		.rcba = (uintptr_t)DEFAULT_RCBA,
-		.pmbase = DEFAULT_PMBASE,
-		.gpiobase = DEFAULT_GPIOBASE,
-		.thermalbase = 0xfed08000,
-		.system_type = 0, // 0 Mobile, 1 Desktop/Server
-		.tseg_size = CONFIG_SMM_TSEG_SIZE,
-		.ts_addresses = { 0x00, 0x00, 0x00, 0x00 },
-		.ec_present = 1,
-		.ddr3lv_support = 1,
-		.max_ddr3_freq = 1600,
-		.usb_port_config = {
-			/* Empty and onboard Ports 0-7, set to un-used pin OC3 */
-			{ 0, 3, 0x0000 }, /* P0: Empty */
-			{ 1, 0, 0x0040 }, /* P1: Left USB 1  (OC0) */
-			{ 1, 1, 0x0040 }, /* P2: Left USB 2  (OC1) */
-			{ 1, 3, 0x0040 }, /* P3: SDCARD      (no OC) */
-			{ 0, 3, 0x0000 }, /* P4: Empty */
-			{ 1, 3, 0x0040 }, /* P5: WWAN        (no OC) */
-			{ 0, 3, 0x0000 }, /* P6: Empty */
-			{ 0, 3, 0x0000 }, /* P7: Empty */
-			/* Empty and onboard Ports 8-13, set to un-used pin OC4 */
-			{ 1, 4, 0x0040 }, /* P8: Camera      (no OC) */
-			{ 1, 4, 0x0040 }, /* P9: Bluetooth   (no OC) */
-			{ 0, 4, 0x0000 }, /* P10: Empty */
-			{ 0, 4, 0x0000 }, /* P11: Empty */
-			{ 0, 4, 0x0000 }, /* P12: Empty */
-			{ 0, 4, 0x0000 }, /* P13: Empty */
-		},
-	};
-	*pei_data = pei_data_template;
-	/* LINK has 2 channels of memory down, so spd_data[0] and [2]
-	   both need to be populated */
-	memcpy(pei_data->spd_data[0], locate_spd(),
-	       sizeof(pei_data->spd_data[0]));
-	memcpy(pei_data->spd_data[2], pei_data->spd_data[0],
-	       sizeof(pei_data->spd_data[0]));
+	/* TODO: Confirm if nortbridge_fill_pei_data() gets .system_type right (should be 0) */
 }
 
-const struct southbridge_usb_port mainboard_usb_ports[] = {
-	/* enabled power  USB oc pin  */
-	{ 0, 0, -1 }, /* P0: Empty */
-	{ 1, 0, 0 }, /* P1: Left USB 1  (OC0) */
-	{ 1, 0, 1 }, /* P2: Left USB 2  (OC1) */
-	{ 1, 0, -1 }, /* P3: SDCARD      (no OC) */
-	{ 0, 0, -1 }, /* P4: Empty */
-	{ 1, 0, -1 }, /* P5: WWAN        (no OC) */
-	{ 0, 0, -1 }, /* P6: Empty */
-	{ 0, 0, -1 }, /* P7: Empty */
-	{ 1, 0, -1 }, /* P8: Camera      (no OC) */
-	{ 1, 0, -1 }, /* P9: Bluetooth   (no OC) */
-	{ 0, 0, -1 }, /* P10: Empty */
-	{ 0, 0, -1 }, /* P11: Empty */
-	{ 0, 0, -1 }, /* P12: Empty */
-	{ 0, 0, -1 }, /* P13: Empty */
-};
-
-void mainboard_get_spd(spd_raw_data *spd, bool id_only)
+void mb_get_spd_map(struct spd_info *spdi)
 {
-	/* LINK has 2 channels of memory down, so spd_data[0] and [2]
-	   both need to be populated */
-	memcpy(&spd[0], locate_spd(), 128);
-	memcpy(&spd[2], &spd[0], 128);
+	/* LINK has 2 channels of memory down */
+	spdi->addresses[0] = SPD_MEMORY_DOWN;
+	spdi->addresses[2] = SPD_MEMORY_DOWN;
+	spdi->spd_index = get_spd_index();
 }
 
 void mainboard_early_init(int s3resume)

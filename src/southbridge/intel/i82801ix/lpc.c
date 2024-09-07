@@ -34,9 +34,9 @@ static void i82801ix_enable_apic(struct device *dev)
 	RCBA8(0x31ff);
 
 	/* Lock maximum redirection entries (MRE), R/WO register. */
-	ioapic_lock_max_vectors(VIO_APIC_VADDR);
+	ioapic_lock_max_vectors(IO_APIC_ADDR);
 
-	register_new_ioapic_gsi0(VIO_APIC_VADDR);
+	register_new_ioapic_gsi0(IO_APIC_ADDR);
 }
 
 static void i82801ix_enable_serial_irqs(struct device *dev)
@@ -142,14 +142,14 @@ bool southbridge_support_c5(void)
 {
 	struct device *lpc_dev = __pci_0_1f_0;
 	struct southbridge_intel_i82801ix_config *config = lpc_dev->chip_info;
-	return config->c5_enable == 1;
+	return config->c5_enable;
 }
 
 bool southbridge_support_c6(void)
 {
 	struct device *lpc_dev = __pci_0_1f_0;
 	struct southbridge_intel_i82801ix_config *config = lpc_dev->chip_info;
-	return config->c6_enable == 1;
+	return config->c6_enable;
 }
 
 static void i82801ix_power_options(struct device *dev)

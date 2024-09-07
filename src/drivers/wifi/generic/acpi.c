@@ -5,7 +5,9 @@
 #include <acpi/acpigen_pci.h>
 #include <console/console.h>
 #include <device/pci_ids.h>
+#include <mtcl.h>
 #include <sar.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <wrdd.h>
 
@@ -13,8 +15,9 @@
 #include "wifi.h"
 #include "wifi_private.h"
 
-/* WIFI Domain type */
+/* Domain type */
 #define DOMAIN_TYPE_WIFI 0x7
+#define DOMAIN_TYPE_BLUETOOTH 0x12
 
 /* Maximum number DSM UUID bifurcations in _DSM */
 #define MAX_DSM_FUNCS 2
@@ -141,10 +144,119 @@ static void wifi_dsm_unii4_control_enable(void *args)
 	acpigen_write_return_integer(dsm_config->unii_4);
 }
 
+/*
+ * Function 10: Energy Detection Threshold (EDT)
+ * Bits 0-3: EDT revision - Default 0
+ *
+ * Bits 4-5: Reserved - Should be 0
+ *
+ * Bit 6: HB EDT Level. 5 GHz ETSI - EDT Level change - Default 0
+ * 0 - Disable EDT optimization for ETSI HB
+ * 1 - Enable EDT optimization for ETSI HB
+ *
+ * Bits 7-8: Reserved - Should be 0
+ *
+ * Bit 9: UHB EDT Level. 6 GHz FCC - EDT Level change - Default 0
+ * 0 - Disable EDT optimization for FCC UHB
+ * 1 - Enable EDT optimization for FCC UHB
+ *
+ * Bit 10-12: Reserved - Default 0
+ *
+ * Bit 13: EDT_En_HB_5G2/3 - Default 0
+ * 0 - Disable EDT optimization for HB_5G2/3
+ * 1 - Enable EDT optimization for HB_5G2/3
+ *
+ * Bit 14: EDT_En_HB_5G4 - Default 0
+ * 0 - Disable EDT optimization for HB_5G4
+ * 1 - Enable EDT optimization for HB_5G4
+ *
+ * Bit 15: EDT_En_HB_5G6 - Default 0
+ * 0 - Disable EDT optimization for HB_5G6
+ * 1 - Enable EDT optimization for HB_5G6
+ *
+ * Bit 16: EDT_En_HB_5G8/9 - Default 0
+ * 0 - Disable EDT optimization for HB_5G8/9
+ * 1 - Enable EDT optimization for HB_5G8/9
+ *
+ * Bit 17: EDT_En_UHB_6G1 - Default 0
+ * 0 - Disable EDT optimization for UHB_6G1
+ * 1 - Enable EDT optimization for UHB_6G1
+ *
+ * Bit 18: EDT_En_UHB_6G3 - Default 0
+ * 0 - Disable EDT optimization for UHB_6G3
+ * 1 - Enable EDT optimization for UHB_6G3
+ *
+ * Bit 19: EDT_En_UHB_6G5 - Default 0
+ * 0 - Disable EDT optimization for UHB_6G5
+ * 1 - Enable EDT optimization for UHB_6G5
+ *
+ * Bit 20: EDT_En_UHB_6G6 - Default 0
+ * 0 - Disable EDT optimization for UHB_6G6
+ * 1 - Enable EDT optimization for UHB_6G6
+ *
+ * Bit 21: EDT_En_UHB_6G8 - Default 0
+ * 0 - Disable EDT optimization for UHB_6G8
+ * 1 - Enable EDT optimization for UHB_6G8
+ *
+ * Bit 22: EDT_En_UHB_7G0 - Default 0
+ * 0 - Disable EDT optimization for UHB_7G0
+ * 1 - Enable EDT optimization for UHB_7G0
+ *
+ * Bits 23-31: Reserved - Should be 0
+ */
+static void wifi_dsm_energy_detection_threshold(void *args)
+{
+	struct dsm_profile *dsm_config = (struct dsm_profile *)args;
+
+	acpigen_write_return_integer(dsm_config->energy_detection_threshold);
+}
+
+/*
+ * Function 11: RFI mitigation
+ * Bit 0:
+ * 0 - DLVR RFIm enabled (default)
+ * 1 - DLVR RFIm disabled
+ *
+ * Bit 1:
+ * 0 - DDR RFIm enabled (default)
+ * 1 - DDR RFIm disabled
+ *
+ * Bits 2-31: Reserved - Should be 0
+ */
+
+static void wifi_dsm_rfi_mitigation(void *args)
+{
+	struct dsm_profile *dsm_config = (struct dsm_profile *)args;
+
+	acpigen_write_return_integer(dsm_config->rfi_mitigation);
+}
+
+/*
+ * Function 12: Control Enablement 802.11be on certificated modules
+ * Bit 0
+ * 0 - 11BE disabled for China Mainland
+ * 1 - 11BE enabled for China Mainland
+ *
+ * Bit 1
+ * 0 - 11BE disabled for South Korea
+ * 1 - 11BE enabled for South Korea
+ *
+ * Bit 2:27 - Reserved (shall be set to zeroes)
+ *
+ * Bit 28:31 - 11BE enablement revision
+ *
+ */
+static void wifi_dsm_11be_country_enablement(void *args)
+{
+	struct dsm_profile *dsm_config = (struct dsm_profile *)args;
+
+	acpigen_write_return_integer(dsm_config->enablement_11be);
+}
+
 static void wifi_dsm_ddrrfim_func3_cb(void *ptr)
 {
 	const bool is_cnvi_ddr_rfim_enabled = *(bool *)ptr;
-	acpigen_write_return_integer(is_cnvi_ddr_rfim_enabled ? 1 : 0);
+	acpigen_write_return_integer(is_cnvi_ddr_rfim_enabled ? 0 : 1);
 }
 
 static void (*wifi_dsm_callbacks[])(void *) = {
@@ -156,6 +268,11 @@ static void (*wifi_dsm_callbacks[])(void *) = {
 	wifi_dsm_uart_configurations,		/* Function 5 */
 	wifi_dsm_ukrane_russia_11ax_enable,	/* Function 6 */
 	wifi_dsm_unii4_control_enable,		/* Function 7 */
+	NULL,					/* Function 8 */
+	NULL,					/* Function 9 */
+	wifi_dsm_energy_detection_threshold,	/* Function 10 */
+	wifi_dsm_rfi_mitigation,		/* Function 11 */
+	wifi_dsm_11be_country_enablement,	/* Function 12 */
 };
 
 /*
@@ -460,9 +577,96 @@ static void sar_emit_wtas(struct avg_profile *wtas)
 	acpigen_write_package_end();
 }
 
-static void emit_sar_acpi_structures(const struct device *dev, struct dsm_profile *dsm)
+static void sar_emit_brds(const struct bsar_profile *bsar)
 {
-	union wifi_sar_limits sar_limits = {{NULL, NULL, NULL, NULL, NULL} };
+	size_t package_size, table_size;
+	const uint8_t *set;
+
+	/*
+	 * Name ("BRDS", Package () {
+	 *   Revision,
+	 *   Package () {
+	 *     Domain Type,			// 0x12:Bluetooth
+	 *     Bluetooth SAR BIOS,		// BIOS SAR Enable/disable
+	 *     Bluetooth Increase Power Mode	// SAR Limitation Enable/disable
+	 *     Bluetooth SAR Power Restriction,	// 00000000 - 0dBm
+	 *					// 11111111 - 31.875dBm
+	 *					// (Step 0.125dBm)
+	 *     Bluetooth SAR Table		// SAR Tx power limit table
+	 *   }
+	 * })
+	 */
+	if (bsar->revision != BSAR_REVISION) {
+		printk(BIOS_ERR, "Unsupported BSAR table revision: %d\n",
+		       bsar->revision);
+		return;
+	}
+
+	acpigen_write_name("BRDS");
+	acpigen_write_package(2);
+	acpigen_write_dword(bsar->revision);
+
+	table_size = sizeof(*bsar) -
+		offsetof(struct bsar_profile, sar_lb_power_restriction);
+	/*
+	 * Emit 'Domain Type' + 'Dynamic SAR Enable' + 'Increase Power Mode'
+	 * + ('SAR Power Restriction' + SAR table).
+	 */
+	package_size = 1 + 1 + 1 + table_size;
+	acpigen_write_package(package_size);
+	acpigen_write_dword(DOMAIN_TYPE_BLUETOOTH);
+	acpigen_write_dword(1);
+	acpigen_write_dword(bsar->increased_power_mode_limitation);
+
+	set = (const uint8_t *)&bsar->sar_lb_power_restriction;
+	for (int i = 0; i < table_size; i++)
+		acpigen_write_byte(set[i]);
+
+	acpigen_write_package_end();
+	acpigen_write_package_end();
+}
+
+static void sar_emit_wbem(const struct wbem_profile *wbem)
+{
+	if (wbem == NULL)
+		return;
+
+	/*
+	 * Name ("WBEM", Package() {
+	 * {
+	 *   Revision,
+	 *   Package()
+	 *   {
+	 *     DomainType,				// 0x7:WiFi
+	 *     bandwidth_320mhz_country_enablement	// 0 Disabled
+	 *						// 1 Japan Enabled
+	 *						// 2 South Korea Enabled
+	 *						// 3 Japan + South Korea Enabled
+	 *   }
+	 } })
+	 */
+	if (wbem->revision != WBEM_REVISION) {
+		printk(BIOS_ERR, "Unsupported WBEM table revision: %d\n",
+		       wbem->revision);
+		return;
+	}
+
+	acpigen_write_name("WBEM");
+	acpigen_write_package(2);
+	acpigen_write_dword(wbem->revision);
+
+	acpigen_write_package(2);
+	acpigen_write_dword(DOMAIN_TYPE_WIFI);
+	acpigen_write_dword(wbem->bandwidth_320mhz_country_enablement);
+
+	acpigen_write_package_end();
+	acpigen_write_package_end();
+}
+
+static void emit_sar_acpi_structures(const struct device *dev, struct dsm_profile *dsm,
+				     struct bsar_profile *bsar, bool *bsar_loaded)
+{
+	union wifi_sar_limits sar_limits = {0};
 
 	/*
 	 * If device type is PCI, ensure that the device has Intel vendor ID. CBFS SAR and SAR
@@ -471,7 +675,7 @@ static void emit_sar_acpi_structures(const struct device *dev, struct dsm_profil
 	if (dev->path.type == DEVICE_PATH_PCI && dev->vendor != PCI_VID_INTEL)
 		return;
 
-	/* Retrieve the sar limits data */
+	/* Retrieve the SAR limits data */
 	if (get_wifi_sar_limits(&sar_limits) < 0) {
 		printk(BIOS_ERR, "failed getting SAR limits!\n");
 		return;
@@ -482,10 +686,17 @@ static void emit_sar_acpi_structures(const struct device *dev, struct dsm_profil
 	sar_emit_wgds(sar_limits.wgds);
 	sar_emit_ppag(sar_limits.ppag);
 	sar_emit_wtas(sar_limits.wtas);
+	sar_emit_wbem(sar_limits.wbem);
 
 	/* copy the dsm data to be later used for creating _DSM function */
 	if (sar_limits.dsm != NULL)
 		memcpy(dsm, sar_limits.dsm, sizeof(struct dsm_profile));
+
+	/* copy the bsar data to be later used for creating Bluetooth BRDS method */
+	if (sar_limits.bsar != NULL) {
+		memcpy(bsar, sar_limits.bsar, sizeof(struct bsar_profile));
+		*bsar_loaded = true;
+	}
 
 	free(sar_limits.sar);
 }
@@ -547,11 +758,14 @@ static void wifi_ssdt_write_properties(const struct device *dev, const char *sco
 	struct dsm_uuid dsm_ids[MAX_DSM_FUNCS];
 	/* We will need a copy dsm data to be used later for creating _DSM function */
 	struct dsm_profile dsm = {0};
+	/* We will need a copy of bsar data to be used later for creating BRDS function */
+	struct bsar_profile bsar = {0};
+	bool bsar_loaded = false;
 	uint8_t dsm_count = 0;
 
-	/* Fill Wifi sar related ACPI structures */
+	/* Fill Wifi SAR related ACPI structures */
 	if (CONFIG(USE_SAR)) {
-		emit_sar_acpi_structures(dev, &dsm);
+		emit_sar_acpi_structures(dev, &dsm, &bsar, &bsar_loaded);
 
 		if (dsm.supported_functions != 0) {
 			for (int i = 1; i < ARRAY_SIZE(wifi_dsm_callbacks); i++)
@@ -576,7 +790,31 @@ static void wifi_ssdt_write_properties(const struct device *dev, const char *sco
 
 	acpigen_write_dsm_uuid_arr(dsm_ids, dsm_count);
 
-	acpigen_pop_len(); /* Scope */
+	/*
+	 * Fill MediaTek MTCL related ACPI structure iff the device type is PCI,
+	 * the device has the MediaTek vendor ID, and the MTCL feature is
+	 * configured.
+	 */
+	if (CONFIG(USE_MTCL)) {
+		if (dev->path.type == DEVICE_PATH_PCI &&
+		    dev->vendor == PCI_VID_MEDIATEK)
+			write_mtcl_function();
+	}
+
+	acpigen_write_scope_end(); /* Scope */
+
+	/* Fill Bluetooth companion SAR related ACPI structures */
+	if (bsar_loaded && is_dev_enabled(config->bluetooth_companion)) {
+		const char *path = acpi_device_path(config->bluetooth_companion);
+		if (path) {	/* Bluetooth device under USB Hub scope or PCIe root port */
+			acpigen_write_scope(path);
+			sar_emit_brds(&bsar);
+			acpigen_write_scope_end();
+		} else {
+			printk(BIOS_ERR, "Failed to get %s Bluetooth companion ACPI path\n",
+			       dev_path(dev));
+		}
+	}
 
 	printk(BIOS_INFO, "%s: %s %s\n", scope, dev->chip_ops ? dev->chip_ops->name : "",
 	       dev_path(dev));
@@ -610,7 +848,7 @@ void wifi_cnvi_fill_ssdt(const struct device *dev)
 	if (!dev)
 		return;
 
-	path = acpi_device_path(dev->bus->dev);
+	path = acpi_device_path(dev->upstream->dev);
 	if (!path)
 		return;
 

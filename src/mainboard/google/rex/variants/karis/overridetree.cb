@@ -11,7 +11,8 @@ fw_config
 		option ALC5650_NO_AMP_I2S	0
 	end
 	field FAN 6 7
-		option FAN_SETTING_1		0
+		option ABSENT			0
+		option PRESENT			1
 	end
 	field MIPI_CAM 8 9
 		option UF_CAM_HI556		0
@@ -23,10 +24,15 @@ fw_config
 	end
 	field KB_TYPE 12
 		option KB_TYPE_DEFAULT		0
+		option KB_TYPE_CA			1
 	end
 	field WIFI_TYPE 13
 		option WIFI_CNVI		0
 		option WIFI_PCIE		1
+	end
+	field PANEL_PWRSEQ_EC_CONTROL 14
+		option DISABLE			0
+		option ENABLE			1
 	end
 end
 
@@ -123,7 +129,8 @@ chip soc/intel/meteorlake
 			chip drivers/gfx/generic
 				register "device_count" = "6"
 				# DDIA for eDP
-				register "device[0].name" = ""LCD""
+				register "device[0].name" = ""LCD0""
+				register "device[0].type" = "panel"
 				# DDIB for HDMI
 				register "device[1].name" = ""DD01""
 				# TCP0 (DP-1) for port C0
@@ -248,9 +255,7 @@ chip soc/intel/meteorlake
 				register "options.fan.fine_grained_control" = "1"
 				register "options.fan.step_size" = "2"
 
-				device generic 0 alias dptf_policy on
-					probe FAN FAN_SETTING_1
-				end
+				device generic 0 alias dptf_policy on end
 			end
 		end
 		device ref pcie_rp10 on
@@ -397,8 +402,11 @@ chip soc/intel/meteorlake
 			end
 			chip drivers/generic/gpio_keys
 				register "name" = ""PENH""
-				# GPP_E04 is the IRQ source
+				# GPP_E04 is the IRQ source, and GPP_E09 is the wake source
 				register "gpio" = "ACPI_GPIO_INPUT_ACTIVE_LOW(GPP_E04)"
+				register "key.wake_gpe" = "GPE0_DW1_09"
+				register "key.wakeup_route" = "WAKEUP_ROUTE_SCI"
+				register "key.wakeup_event_action" = "EV_ACT_DEASSERTED"
 				register "key.dev_name" = ""EJCT""
 				register "key.linux_code" = "SW_PEN_INSERTED"
 				register "key.linux_input_type" = "EV_SW"
@@ -408,7 +416,6 @@ chip soc/intel/meteorlake
 				end
 			end
 		end
-		device ref i2c2 on end
 		device ref i2c3 on
 			chip drivers/i2c/generic
 				register "hid" = ""ELAN0000""
@@ -520,6 +527,7 @@ chip soc/intel/meteorlake
 			chip drivers/wifi/generic
 				register "wake" = "GPE0_DW2_09"
 				register "add_acpi_dma_property" = "true"
+				use usb2_port10 as bluetooth_companion
 				device pci 00.0 on
 					probe WIFI_TYPE WIFI_PCIE
 				end

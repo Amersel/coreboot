@@ -82,8 +82,8 @@ Field (ECF2, ByteAcc, Lock, Preserve)
 	B1PR, 16,	// Battery Present Rate
 	B1RC, 16,	// Battery Remaining Capacity
 	B1PV, 16,	// Battery Present Voltage
-	BPRP, 8,	// Battery Remaining percentage
-	BT1A, 8,	// Bt1 ASOC
+	B1RP, 16,	// Battery Remaining percentage
+	B1CC, 16,	// Battery Cycle Count
 
 	Offset(0x9d),
 	OPWE, 8,	// OPM write to EC flag for UCSI

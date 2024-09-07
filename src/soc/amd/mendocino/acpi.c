@@ -15,18 +15,10 @@
 #include <arch/smp/mpspec.h>
 #include <console/console.h>
 #include <cpu/amd/cpuid.h>
-#include <soc/acpi.h>
+#include <device/device.h>
 #include <soc/iomap.h>
 #include <types.h>
 #include "chip.h"
-
-unsigned long acpi_fill_madt(unsigned long current)
-{
-	current += acpi_create_madt_ioapic_from_hw((acpi_madt_ioapic_t *)current,
-						   GNB_IO_APIC_ADDR);
-
-	return current;
-}
 
 /*
  * Reference section 5.2.9 Fixed ACPI Description Table (FADT)
@@ -48,7 +40,7 @@ void acpi_fill_fadt(acpi_fadt_t *fadt)
 	fadt->pm_tmr_len = 4;	/* 32 bits */
 	fadt->gpe0_blk_len = 8;	/* 64 bits */
 
-	fill_fadt_extended_pm_regs(fadt);
+	fill_fadt_extended_pm_io(fadt);
 
 	fadt->iapc_boot_arch = cfg->common_config.fadt_boot_arch; /* legacy free default */
 	fadt->flags |=	ACPI_FADT_WBINVD | /* See table 5-34 ACPI 6.3 spec */
@@ -63,6 +55,18 @@ void acpi_fill_fadt(acpi_fadt_t *fadt)
 		fadt->flags |= ACPI_FADT_LOW_PWR_IDLE_S0;
 
 	fadt->flags |= cfg->common_config.fadt_flags; /* additional board-specific flags */
+}
+
+unsigned long soc_acpi_write_tables(const struct device *device, unsigned long current,
+				    acpi_rsdp_t *rsdp)
+{
+	/* IVRS */
+	current = acpi_add_ivrs_table(current, rsdp);
+
+	if (CONFIG(PLATFORM_USES_FSP2_0))
+		current = acpi_add_fsp_tables(current, rsdp);
+
+	return current;
 }
 
 const acpi_cstate_t cstate_cfg_table[] = {

@@ -36,6 +36,7 @@ config SOC_AMD_GLINDA
 	select SOC_AMD_COMMON_BLOCK_ACPI_CPU_POWER_STATE
 	select SOC_AMD_COMMON_BLOCK_ACPI_GPIO		# TODO: Check if this is still correct
 	select SOC_AMD_COMMON_BLOCK_ACPI_IVRS		# TODO: Check if this is still correct
+	select SOC_AMD_COMMON_BLOCK_ACPI_MADT
 	select SOC_AMD_COMMON_BLOCK_AOAC		# TODO: Check if this is still correct
 	select SOC_AMD_COMMON_BLOCK_APOB		# TODO: Check if this is still correct
 	select SOC_AMD_COMMON_BLOCK_APOB_HASH		# TODO: Check if this is still correct
@@ -44,8 +45,8 @@ config SOC_AMD_GLINDA
 	select SOC_AMD_COMMON_BLOCK_DATA_FABRIC
 	select SOC_AMD_COMMON_BLOCK_DATA_FABRIC_DOMAIN
 	select SOC_AMD_COMMON_BLOCK_DATA_FABRIC_MULTI_PCI_SEGMENT
-	select SOC_AMD_COMMON_BLOCK_DATA_FABRIC_NP_REGION
 	select SOC_AMD_COMMON_BLOCK_ESPI_EXTENDED_DECODE_RANGES # TODO: Check if this is still correct
+	select SOC_AMD_COMMON_BLOCK_GPP_CLK
 	select SOC_AMD_COMMON_BLOCK_GRAPHICS		# TODO: Check if this is still correct
 	select SOC_AMD_COMMON_BLOCK_HAS_ESPI		# TODO: Check if this is still correct
 	select SOC_AMD_COMMON_BLOCK_HAS_ESPI_ALERT_ENABLE # TODO: Check if this is still correct
@@ -61,6 +62,7 @@ config SOC_AMD_GLINDA
 	select SOC_AMD_COMMON_BLOCK_PM			# TODO: Check if this is still correct
 	select SOC_AMD_COMMON_BLOCK_PM_CHIPSET_STATE_SAVE # TODO: Check if this is still correct
 	select SOC_AMD_COMMON_BLOCK_PSP_GEN2		# TODO: Check if this is still correct
+	select SOC_AMD_COMMON_BLOCK_PSP_SPL
 	select SOC_AMD_COMMON_BLOCK_RESET
 	select SOC_AMD_COMMON_BLOCK_SMBUS		# TODO: Check if this is still correct
 	select SOC_AMD_COMMON_BLOCK_SMI			# TODO: Check if this is still correct
@@ -74,8 +76,10 @@ config SOC_AMD_GLINDA
 	select SOC_AMD_COMMON_BLOCK_UCODE		# TODO: Check if this is still correct
 	select SOC_AMD_COMMON_FSP_CCX_CPPC_HOB		# TODO: Check if this is still correct
 	select SOC_AMD_COMMON_FSP_DMI_TABLES		# TODO: Check if this is still correct
+	select SOC_AMD_COMMON_FSP_PCIE_CLK_REQ
 	select SOC_AMD_COMMON_FSP_PCI			# TODO: Check if this is still correct
 	select SOC_AMD_COMMON_FSP_PRELOAD_FSPS
+	select SOC_AMD_COMMON_ROMSTAGE_LEGACY_DMA_FIXUP
 	select SSE2
 	select UDK_2017_BINDING
 	select USE_DDR5
@@ -158,7 +162,7 @@ config CBFS_MCACHE_SIZE
 
 config C_ENV_BOOTBLOCK_SIZE
 	hex
-	default 0x10000
+	default 0x20000
 	help
 	  Sets the size of the bootblock stage that should be loaded in DRAM.
 	  This variable controls the DRAM allocation size in linker script
@@ -166,13 +170,13 @@ config C_ENV_BOOTBLOCK_SIZE
 
 config ROMSTAGE_ADDR
 	hex
-	default 0x2040000
+	default 0x2050000
 	help
 	  Sets the address in DRAM where romstage should be loaded.
 
 config ROMSTAGE_SIZE
 	hex
-	default 0x80000
+	default 0x70000
 	help
 	  Sets the size of DRAM allocation for romstage in linker script.
 
@@ -232,15 +236,14 @@ config RO_REGION_ONLY
 	default "apu/amdfw"
 
 config ECAM_MMCONF_BASE_ADDRESS
-	default 0xF8000000
+	default 0xE0000000
 
 config ECAM_MMCONF_BUS_NUMBER
-	default 64
+	default 256
 
 config MAX_CPUS
 	int
-	default 8 if SOC_AMD_GLINDA
-	default 16
+	default 24
 	help
 	  Maximum number of threads the platform can have.
 
@@ -348,39 +351,6 @@ config PSP_WHITELIST_FILE
 	string "Debug whitelist file path"
 	depends on HAVE_PSP_WHITELIST_FILE
 	default "site-local/3rdparty/amd_blobs/glinda/PSP/wtl-mrg.sbin"
-
-config PERFORM_SPL_FUSING
-	bool "Send SPL fuse command to PSP"
-	default n
-	help
-	  Send the Security Patch Level (SPL) fusing command to the PSP in
-	  order to update the minimum SPL version to be written to the SoC's
-	  fuse bits. This will prevent using any embedded firmware components
-	  with lower SPL version.
-
-	  If unsure, answer 'n'
-
-config SPL_TABLE_FILE
-	string "SPL table file override"
-	help
-	  Provide a mainboard-specific Security Patch Level (SPL) table file
-	  override. The SPL file is required to support PSP FW anti-rollback
-	  and needs to be created by AMD. The default SPL file specified in the
-	  SoC's fw.cfg is in the corresponding folder of the amd_blobs submodule
-	  and applies to all boards that use the SoC without verstage on PSP.
-	  In the verstage on PSP case, a different SPL file is specific as an
-	  override via this Kconfig option.
-
-config HAVE_SPL_RW_AB_FILE
-	bool "Have a separate mainboard-specific SPL file in RW A/B partitions"
-	default n
-	depends on VBOOT_SLOTS_RW_AB
-	help
-	  Have separate mainboard-specific Security Patch Level (SPL) table
-	  file for the RW A/B FMAP partitions.
-
-config SPL_RW_AB_TABLE_FILE
-	string "Separate SPL table file override for RW A/B partitions"
 
 config PSP_SOFTFUSE_BITS
 	string "PSP Soft Fuse bits to enable"

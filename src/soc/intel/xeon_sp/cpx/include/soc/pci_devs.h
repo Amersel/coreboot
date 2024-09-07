@@ -13,6 +13,7 @@
 #define SAD_ALL_PAM0123_CSR		0x40
 #define   PAM_LOCK			BIT(0)
 #define SAD_ALL_PAM456_CSR		0x44
+#define SAD_ALL_DEVID			0x344f
 
 #if !defined(__SIMPLE_DEVICE__)
 #define _PCU_DEV(bus, func)		pcidev_path_on_bus(bus, PCI_DEVFN(PCU_DEV, func))
@@ -24,6 +25,7 @@
 #define PCU_DEV                         30
 
 #define PCU_CR0_FUN                     0
+#define PCU_CR0_DEVID                   0x344a
 #define PCU_DEV_CR0(bus)                                   _PCU_DEV(bus, PCU_CR0_FUN)
 #define PCU_CR0_PLATFORM_INFO                              0xa8
 #define PCU_CR0_TURBO_ACTIVATION_RATIO                     0xb0
@@ -37,6 +39,7 @@
 #define   PMAX_LOCK                                        BIT(31)
 
 #define PCU_CR1_FUN                     1
+#define PCU_CR1_DEVID                   0x344b
 #define PCU_DEV_CR1(bus)                                   _PCU_DEV(bus, PCU_CR1_FUN)
 #define PCU_CR1_BIOS_MB_DATA_REG                           0x8c
 
@@ -64,6 +67,7 @@
 #define SAPMCTL_LOCK_MASK                                   BIT(31)
 
 #define PCU_CR2_FUN                     2
+#define PCU_CR2_DEVID                   0x344c
 #define PCU_DEV_CR2(bus)                                   _PCU_DEV(bus, PCU_CR2_FUN)
 #define PCU_CR2_DRAM_POWER_INFO_LWR                        0xa8
 #define PCU_CR2_DRAM_POWER_INFO_UPR                        (PCU_CR2_DRAM_POWER_INFO_LWR + 4)
@@ -72,6 +76,7 @@
 #define PP_PWR_LIM_LOCK                                    BIT(31)
 
 #define PCU_CR3_FUN                     3
+#define PCU_CR3_DEVID                   0x344d
 #define PCU_DEV_CR3(bus)                                   _PCU_DEV(bus, PCU_CR3_FUN)
 #define PCU_CR3_CONFIG_TDP_CONTROL                         0x60
 #define   TDP_LOCK                                         BIT(31)
@@ -86,13 +91,11 @@
 
 #define UBOX_DEV			8
 
-#define UBOX_PMON_BUS			0
-#define UBOX_PMON_DEV			8
-#define UBOX_PMON_FUNC			1
-#define UBOX_DEV_PMON			_UBOX_DEV(UBOX_PMON_FUNC)
+/* Bus: B0, Device: 8, Function: 1 */
 #define SMM_FEATURE_CONTROL		0x7c
 #define SMM_CODE_CHK_EN			BIT(2)
 #define SMM_FEATURE_CONTROL_LOCK	BIT(0)
+#define UBOX_DFX_DEVID			0x2015
 
 
 #define UBOX_DECS_BUS			0
@@ -116,6 +119,7 @@
 #define VTD_CAP_LOW			0x08
 #define VTD_CAP_HIGH			0x0C
 #define VTD_EXT_CAP_HIGH		0x14
+#define VTD_BAR_CSR			0x180
 #define VTD_LTDPR			0x290
 
 /* IMC Devices */
@@ -182,7 +186,5 @@
 // IIO DFX Global D7F7 registers
 #define IIO_DFX_TSWCTL0		0x30c
 #define IIO_DFX_LCK_CTL		0x504
-
-pci_devfn_t soc_get_ubox_pmon_dev(void);
 
 #endif /* _SOC_PCI_DEVS_H_ */

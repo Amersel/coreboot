@@ -52,13 +52,13 @@ static void mch_domain_read_resources(struct device *dev)
 
 static void mch_domain_set_resources(struct device *dev)
 {
-	assign_resources(dev->link_list);
+	assign_resources(dev->downstream);
 }
 
 struct device_operations e7505_pci_domain_ops = {
 	.read_resources   = mch_domain_read_resources,
 	.set_resources    = mch_domain_set_resources,
-	.scan_bus         = pci_domain_scan_bus,
+	.scan_bus         = pci_host_bridge_scan_bus,
 	.ops_pci          = &pci_dev_ops_pci,
 };
 
@@ -70,5 +70,5 @@ struct device_operations e7505_cpu_bus_ops = {
 };
 
 struct chip_operations northbridge_intel_e7505_ops = {
-	CHIP_NAME("Intel E7505 Northbridge")
+	.name = "Intel E7505 Northbridge",
 };

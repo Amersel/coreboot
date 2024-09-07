@@ -1,8 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/vtxprintf.h>
-#include <stdarg.h>
-#include <string.h>
+#include <stdio.h>
 
 struct vsnprintf_context {
 	char *str_buf;

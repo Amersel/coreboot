@@ -11,6 +11,10 @@ chip northbridge/intel/sandybridge
 	# Enable DVI Hotplug with 6ms pulse
 	register "gpu_dp_b_hotplug" = "0x06"
 
+	# 1333MHz RAM frequency
+	register "max_mem_clock_mhz" = "666"
+	register "spd_addresses" = "{0x50, 0, 0x51, 0}"
+
 	device domain 0 on
 		device ref host_bridge on  end	# Host bridge
 		device ref peg10 off end	# PCIe Bridge for discrete graphics
@@ -22,6 +26,23 @@ chip northbridge/intel/sandybridge
 			register "spi_uvscc" = "0x2005"
 
 			register "gen1_dec" = "0x00fc0a01"	# SuperIO @0xa00-0xaff
+
+			register "usb_port_config" = "{
+				{1, 1, 0}, /* back, towards HDMI plugs */
+				{1, 1, 0}, /* back, towards power plug */
+				{1, 1, 1}, /* half-width miniPCIe */
+				{1, 1, 1}, /* full-width miniPCIe */
+				{1, 1, 2}, /* front-panel header */
+				{1, 1, 2}, /* front-panel header */
+				{1, 1, 3}, /* front connector */
+				{0, 1, 3}, /* not available x7 */
+				{0, 1, 4},
+				{0, 1, 4},
+				{0, 1, 5},
+				{0, 1, 5},
+				{0, 1, 6},
+				{0, 1, 6}
+			}"
 
 			device ref xhci off end	# USB xHCI
 			device ref mei1 on  end	# Management Engine Interface 1

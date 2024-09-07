@@ -201,6 +201,52 @@ detect_special_flags() {
 		CFLAGS_GCC="$CFLAGS_GCC -Wno-address-of-packed-member"
 	testcc "$GCC"      "$CFLAGS_GCC --param=min-pagesize=1024 $FLAGS_GCC" &&
 		CFLAGS_GCC="$CFLAGS_GCC --param=min-pagesize=1024"
+
+	testcc "$GCC"      "$CFLAGS_GCC -Wflex-array-member-not-at-end" &&
+		CFLAGS_GCC="$CFLAGS_GCC -Wflex-array-member-not-at-end"
+
+	testcc "$GCC"      "$CFLAGS_GCC -Wcalloc-transposed-args" &&
+		CFLAGS_GCC="$CFLAGS_GCC -Wcalloc-transposed-args"
+
+	testcc "$GCC"      "$CFLAGS_GCC -Wno-unused-parameter" &&
+		CFLAGS_GCC="$CFLAGS_GCC -Wno-unused-parameter"
+
+	testcc "$GCC"      "$CFLAGS_GCC -Wno-sign-compare" &&
+		CFLAGS_GCC="$CFLAGS_GCC -Wno-sign-compare"
+
+	testcc "$GCC"      "$CFLAGS_GCC -Wno-empty-body" &&
+		CFLAGS_GCC="$CFLAGS_GCC -Wno-empty-body"
+
+	testcc "$GCC"      "$CFLAGS_GCC -Wno-missing-field-initializers" &&
+		CFLAGS_GCC="$CFLAGS_GCC -Wno-missing-field-initializers"
+
+	testcc "$GCC"      "$CFLAGS_GCC -Wno-override-init" &&
+		CFLAGS_GCC="$CFLAGS_GCC -Wno-override-init"
+
+	testcc "$GCC"      "$CFLAGS_GCC -Wno-ignored-qualifiers" &&
+		CFLAGS_GCC="$CFLAGS_GCC -Wno-ignored-qualifiers"
+
+	testcc "$GCC"      "$CFLAGS_GCC -Wno-shift-negative-value" &&
+		CFLAGS_GCC="$CFLAGS_GCC -Wno-shift-negative-value"
+
+	testcc "$GCC"      "$CFLAGS_GCC -Wno-unused-but-set-parameter" &&
+		CFLAGS_GCC="$CFLAGS_GCC -Wno-unused-but-set-parameter"
+
+	testcc "$GCC"      "$CFLAGS_GCC -Wno-type-limits" &&
+		CFLAGS_GCC="$CFLAGS_GCC -Wno-type-limits"
+
+	testcc "$GCC"      "$CFLAGS_GCC -Wno-cast-function-type" &&
+		CFLAGS_GCC="$CFLAGS_GCC -Wno-cast-function-type"
+
+	testcc "$GCC"      "$CFLAGS_GCC -Wextra" &&
+		CFLAGS_GCC="$CFLAGS_GCC -Wextra"
+
+	# Disable warning on segments with RWX.
+	# All loadable sections are placed in the same segment for simplicity.
+	testld "$GCC" "$FLAGS_GCC" "${GCCPREFIX}ld${LINKER_SUFFIX}" \
+		"$LDFLAGS --no-warn-rwx-segments" && \
+		LDFLAGS="$LDFLAGS --no-warn-rwx-segments"
+
 	case "$architecture" in
 	x86)
 		;;
@@ -253,15 +299,25 @@ fi
 cat <<EOF
 
 # Clang
-CLANG_CC_${TARCH}:=${CLANG}
-CLANG_CFLAGS_${TARCH}:=${CFLAGS_CLANG}
-CLANG_CFLAGS_${TARCH}+=-Qunused-arguments -m${TWIDTH}
+CLANG_CC_${TARCH} := ${CLANG}
+CLANG_CFLAGS_${TARCH} := ${CFLAGS_CLANG}
+CLANG_CFLAGS_${TARCH} += -Qunused-arguments
+CLANG_CFLAGS_${TARCH} += -m${TWIDTH}
 # tone down clang compiler warnings
-CLANG_CFLAGS_${TARCH}+=-Wno-unused-variable -Wno-unused-function -Wno-tautological-compare
-CLANG_CFLAGS_${TARCH}+=-Wno-shift-overflow -Wno-address-of-packed-member -Wno-initializer-overrides
-CLANG_CFLAGS_${TARCH}+=-fbracket-depth=2048 -mllvm -asm-macro-max-nesting-depth=1000
+CLANG_CFLAGS_${TARCH} += -Wno-unused-variable
+CLANG_CFLAGS_${TARCH} += -Wno-unused-function
+CLANG_CFLAGS_${TARCH} += -Wno-tautological-compare
+CLANG_CFLAGS_${TARCH} += -Wno-shift-overflow
+CLANG_CFLAGS_${TARCH} += -Wno-address-of-packed-member
+CLANG_CFLAGS_${TARCH} += -Wno-initializer-overrides
+CLANG_CFLAGS_${TARCH} += -fbracket-depth=2048
+CLANG_CFLAGS_${TARCH} += -mllvm
+CLANG_CFLAGS_${TARCH} += -asm-macro-max-nesting-depth=1000
 CLANG_COMPILER_RT_${TARCH}:=${CC_RT_CLANG}
 CLANG_COMPILER_RT_FLAGS_${TARCH}:=${CC_RT_EXTRA_CLANG}
+# Leak the target arch into the preprocessor flags with clang.
+# This is needed to preprocess linker scripts
+CLANG_CPPFLAGS_${TARCH}:=${CPPFLAGS_CLANG}
 
 # GCC/Clang Common
 ifeq (\$(CONFIG_COMPILER_GCC)\$(CONFIG_LP_COMPILER_GCC),y)
@@ -272,6 +328,7 @@ ifeq (\$(CONFIG_COMPILER_GCC)\$(CONFIG_LP_COMPILER_GCC),y)
 else
 	CC_${TARCH}:=\$(CLANG_CC_${TARCH})
 	CFLAGS_${TARCH}:=\$(CLANG_CFLAGS_${TARCH})
+	CPPFLAGS_${TARCH}:=\$(CLANG_CPPFLAGS_${TARCH})
 	COMPILER_RT_${TARCH}:=\$(CLANG_COMPILER_RT_${TARCH})
 	COMPILER_RT_FLAGS_${TARCH}:=\$(CLANG_COMPILER_RT_FLAGS_${TARCH})
 endif
@@ -397,7 +454,6 @@ arch_config_ppc64() {
 	TWIDTH="64"
 	TSUPP="ppc64"
 	TABI="linux-gnu" # there is no generic ABI on ppc64
-	CC_RT_EXTRA_GCC="-mcpu=power8 -mbig-endian"
 }
 
 # Right now, the clang reference toolchain is not building compiler-rt builtins
@@ -462,7 +518,7 @@ test_architecture() {
 
 	for clang_arch in $TCLIST invalid; do
 		for clang_prefix in $search $XGCCPATH "$GENERIC_COMPILER_PREFIX"; do
-			testcc "${clang_prefix}clang" "-target ${clang_arch}-$TABI -c" && break 2
+			testcc "${clang_prefix}clang" "-target ${clang_arch}-none-unknown-${TABI} -c" && break 2
 		done
 	done
 
@@ -471,7 +527,9 @@ test_architecture() {
 		# but that's more of a clang limitation. Let's be optimistic
 		# that this will change in the future.
 		CLANG="${clang_prefix}clang"
-		CFLAGS_CLANG="-target ${clang_arch}-${TABI} $CFLAGS_CLANG"
+		CLANG_TARGET="-target ${clang_arch}-none-unknown-${TABI}"
+		CFLAGS_CLANG="$CLANG_TARGET $CFLAGS_CLANG"
+		CPPFLAGS_CLANG="$CLANG_TARGET $CPPFLAGS_CLANG"
 	fi
 }
 

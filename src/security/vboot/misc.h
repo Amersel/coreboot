@@ -22,9 +22,6 @@ static inline int vboot_is_firmware_slot_a(struct vb2_context *ctx)
 
 /*
  * Check if given flag is set in the flags field in GBB header.
- * Return value:
- * true: Flag is set.
- * false: Flag is not set.
  */
 static inline bool vboot_is_gbb_flag_set(enum vb2_gbb_flag flag)
 {
@@ -48,7 +45,7 @@ static inline int verification_should_run(void)
 	if (CONFIG(VBOOT_SEPARATE_VERSTAGE))
 		return ENV_SEPARATE_VERSTAGE;
 	else if (CONFIG(VBOOT_STARTS_IN_ROMSTAGE))
-		return ENV_ROMSTAGE;
+		return ENV_RAMINIT;
 	else if (CONFIG(VBOOT_STARTS_IN_BOOTBLOCK))
 		return ENV_BOOTBLOCK;
 	else

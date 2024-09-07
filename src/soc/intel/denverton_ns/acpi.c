@@ -56,7 +56,7 @@ static const acpi_cstate_t cstate_map[] = {
 void soc_fill_gnvs(struct global_nvs *gnvs)
 {
 	/* Top of Low Memory (start of resource allocation) */
-	gnvs->tolm = (uintptr_t)cbmem_top();
+	gnvs->tolm = cbmem_top();
 
 	/* MMIO Low/High & TSEG base and length */
 	gnvs->mmiob = (u32)get_top_of_low_memory();
@@ -173,7 +173,7 @@ static unsigned long acpi_fill_dmar(unsigned long current)
 	if (!vtbar)
 		return current;
 
-	current += acpi_create_dmar_drhd(current,
+	current += acpi_create_dmar_drhd_4k(current,
 			DRHD_INCLUDE_PCI_ALL, 0, vtbar);
 
 	current += acpi_create_dmar_ds_ioapic_from_hw(current,

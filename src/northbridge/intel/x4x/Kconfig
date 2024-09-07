@@ -7,9 +7,10 @@ config NORTHBRIDGE_INTEL_X4X
 	select INTEL_GMA_ACPI
 	select CACHE_MRC_SETTINGS
 	select BOOT_DEVICE_SPI_FLASH_NO_EARLY_WRITES
-	select HAVE_EXP_X86_64_SUPPORT
+	select HAVE_X86_64_SUPPORT
 	select USE_DDR3
 	select USE_DDR2
+	select NEED_SMALL_2MB_PAGE_TABLES
 
 if NORTHBRIDGE_INTEL_X4X
 
@@ -26,6 +27,10 @@ config ECAM_MMCONF_BASE_ADDRESS
 config ECAM_MMCONF_BUS_NUMBER
 	int
 	default 256
+
+# This number must be equal or lower than what's reported in ACPI PCI _CRS
+config DOMAIN_RESOURCE_32BIT_LIMIT
+	default 0xfec00000
 
 config SMM_RESERVED_SIZE
 	hex

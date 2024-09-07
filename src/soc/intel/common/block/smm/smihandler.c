@@ -297,9 +297,13 @@ static void southbridge_smi_store(
 	const bool wp_enabled = !fast_spi_wpd_status();
 	if (wp_enabled) {
 		set_insmm_sts(true);
-		fast_spi_disable_wp();
-		/* Not clearing SPI sync SMI status here results in hangs */
+		/*
+		 * As per BWG, clearing "SPI_BIOS_CONTROL_SYNC_SS"
+		 * bit is a must prior setting SPI_BIOS_CONTROL_WPD" bit
+		 * to avoid 3-strike error.
+		 */
 		fast_spi_clear_sync_smi_status();
+		fast_spi_disable_wp();
 	}
 
 	/* drivers/smmstore/smi.c */
@@ -456,12 +460,12 @@ void smihandler_southbridge_tco(
 	if (!tco_sts)
 		return;
 
-	if (tco_sts & TCO_TIMEOUT) { /* TIMEOUT */
+	if (tco_sts & TCO1_STS_TIMEOUT) { /* TIMEOUT */
 		/* Handle TCO timeout */
 		printk(BIOS_DEBUG, "TCO Timeout.\n");
 	}
 
-	if (tco_sts & (TCO_INTRD_DET << 16)) { /* INTRUDER# assertion */
+	if (tco_sts & (TCO2_INTRD_DET << 16)) { /* INTRUDER# assertion */
 		/*
 		 * Handle intrusion event
 		 * If we ever get here, probably the case has been opened.

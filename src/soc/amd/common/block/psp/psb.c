@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <amdblocks/reset.h>
-#include <amdblocks/smn.h>
 #include <bootstate.h>
 #include <console/console.h>
 #include <device/mmio.h>
@@ -35,7 +34,7 @@
 #define FUSE_STATUS_FUSING_ERR	0x0a
 #define FUSE_STATUS_BOOT_DONE	0x0b
 
-static const char *psb_test_status_to_string(u32 status)
+static const char *psb_test_status_to_string(uint32_t status)
 {
 	switch (status) {
 	case PSB_TEST_STATUS_PASS:
@@ -67,7 +66,7 @@ static const char *psb_test_status_to_string(u32 status)
 	}
 }
 
-static const char *fuse_status_to_string(u32 status)
+static const char *fuse_status_to_string(uint32_t status)
 {
 	switch (status) {
 	case FUSE_STATUS_SUCCESS:
@@ -83,9 +82,16 @@ static const char *fuse_status_to_string(u32 status)
 	}
 }
 
-static uint32_t get_psb_status(void)
+static enum cb_err get_psb_status(uint32_t *psb_status_value)
 {
-	return smn_read32(SMN_PSP_PUBLIC_BASE + PSB_STATUS_OFFSET);
+	const uintptr_t psp_mmio = get_psp_mmio_base();
+
+	if (!psp_mmio) {
+		printk(BIOS_WARNING, "PSP: PSP_ADDR_MSR uninitialized\n");
+		return CB_ERR;
+	}
+	*psb_status_value = read32p(psp_mmio | PSB_STATUS_OFFSET);
+	return CB_SUCCESS;
 }
 
 /*
@@ -95,14 +101,18 @@ static uint32_t get_psb_status(void)
  */
 static enum cb_err psb_enable(void)
 {
-	u32 status;
+	uint32_t status;
 	struct mbox_default_buffer buffer = {
 		.header = {
 			.size = sizeof(buffer)
 		}
 	};
 
-	status = get_psb_status();
+	if (get_psb_status(&status) != CB_SUCCESS) {
+		printk(BIOS_ERR, "PSP: Failed to get base address.\n");
+		return CB_ERR;
+	}
+
 	printk(BIOS_INFO, "PSB: Status = %x\n", status);
 
 	if (status & FUSE_PLATFORM_SECURE_BOOT_EN) {
@@ -110,10 +120,14 @@ static enum cb_err psb_enable(void)
 		return CB_SUCCESS;
 	}
 
-	status = soc_read_c2p38();
+	if (soc_read_c2p38(&status) != CB_SUCCESS) {
+		printk(BIOS_ERR, "PSP: Failed to get base address.\n");
+		return CB_ERR;
+	}
+
 	printk(BIOS_INFO, "PSB: HSTI = %x\n", status);
 
-	const u32 psb_test_status = status & PSB_TEST_STATUS_MASK;
+	const uint32_t psb_test_status = status & PSB_TEST_STATUS_MASK;
 
 	if (psb_test_status != PSB_TEST_STATUS_PASS) {
 		printk(BIOS_ERR, "PSB: %s\n", psb_test_status_to_string(psb_test_status));
@@ -136,7 +150,7 @@ static enum cb_err psb_enable(void)
 		return CB_ERR;
 	}
 
-	const u32 fuse_status = read32(&buffer.header.status);
+	const uint32_t fuse_status = read32(&buffer.header.status);
 	if (fuse_status != FUSE_STATUS_SUCCESS) {
 		printk(BIOS_ERR, "PSB: %s\n", fuse_status_to_string(fuse_status));
 		return CB_ERR;

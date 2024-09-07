@@ -3,12 +3,8 @@
 /* How much nesting do we support? */
 #define ACPIGEN_LENSTACK_SIZE 10
 
-/*
- * If you need to change this, change acpigen_write_len_f and
- * acpigen_pop_len
- */
-
-#define ACPIGEN_MAXLEN 0xfffff
+/* If you need to change this, change acpigen_pop_len too */
+#define ACPIGEN_RSVD_PKGLEN_BYTES	3
 
 #include <lib.h>
 #include <string.h>
@@ -18,6 +14,7 @@
 #include <console/console.h>
 #include <device/device.h>
 #include <device/soundwire.h>
+#include <stdio.h>
 #include <types.h>
 
 static char *gencurrent;
@@ -29,23 +26,66 @@ void acpigen_write_len_f(void)
 {
 	ASSERT(ltop < (ACPIGEN_LENSTACK_SIZE - 1))
 	len_stack[ltop++] = gencurrent;
-	acpigen_emit_byte(0);
-	acpigen_emit_byte(0);
-	acpigen_emit_byte(0);
+	/* Reserve ACPIGEN_RSVD_PKGLEN_BYTES bytes for PkgLength. The actual byte values will
+	   be written later in the corresponding acpigen_pop_len call. */
+	for (size_t i = 0; i < ACPIGEN_RSVD_PKGLEN_BYTES; i++)
+		acpigen_emit_byte(0);
 }
 
 void acpigen_pop_len(void)
 {
-	int len;
+	size_t len;
 	ASSERT(ltop > 0)
 	char *p = len_stack[--ltop];
 	len = gencurrent - p;
-	ASSERT(len <= ACPIGEN_MAXLEN)
-	/* generate store length for 0xfffff max */
-	p[0] = (0x80 | (len & 0xf));
-	p[1] = (len >> 4 & 0xff);
-	p[2] = (len >> 12 & 0xff);
+	const size_t payload_len = len - ACPIGEN_RSVD_PKGLEN_BYTES;
 
+	if (len <= 0x3f + 2) {
+		/* PkgLength of up to 0x3f can be encoded in one PkgLength byte instead of the
+		   reserved 3 bytes. Since only 1 PkgLength byte will be written, the payload
+		   data needs to be moved by 2 bytes */
+		memmove(&p[ACPIGEN_RSVD_PKGLEN_BYTES - 2],
+			&p[ACPIGEN_RSVD_PKGLEN_BYTES], payload_len);
+		/* Adjust the PkgLength to take into account that we only use 1 of the 3
+		   reserved bytes */
+		len -= 2;
+		/* The two most significant bits of PkgLength get the value of 0 to indicate
+		   there are no additional PkgLength bytes. In this case the single PkgLength
+		   byte encodes the length in its lower 6 bits */
+		p[0] = len;
+		/* Adjust pointer for next ACPI bytecode byte */
+		acpigen_set_current(p + len);
+	} else if (len <= 0xfff + 1) {
+		/* PkgLength of up to 0xfff can be encoded in 2 PkgLength bytes instead of the
+		   reserved 3 bytes. Since only 2 PkgLength bytes will be written, the payload
+		   data needs to be moved by 1 byte */
+		memmove(&p[ACPIGEN_RSVD_PKGLEN_BYTES - 1],
+			&p[ACPIGEN_RSVD_PKGLEN_BYTES], payload_len);
+		/* Adjust the PkgLength to take into account that we only use 2 of the 3
+		   reserved bytes */
+		len -= 1;
+		/* The two most significant bits of PkgLength get the value of 1 to indicate
+		   there's a second PkgLength byte. The lower 4 bits of the first PkgLength
+		   byte and the second PkgLength byte encode the length */
+		p[0] = (0x1 << 6 | (len & 0xf));
+		p[1] = (len >> 4 & 0xff);
+		/* Adjust pointer for next ACPI bytecode byte */
+		acpigen_set_current(p + len);
+	} else if (len <= 0xfffff) {
+		/* PkgLength of up to 0xfffff can be encoded in 3 PkgLength bytes. Since this
+		   is the amount of reserved bytes, no need to move the payload in this case */
+		/* The two most significant bits of PkgLength get the value of 2 to indicate
+		   there are two more PkgLength bytes following the first one. The lower 4 bits
+		   of the first PkgLength byte and the two following PkgLength bytes encode the
+		   length */
+		p[0] = (0x2 << 6 | (len & 0xf));
+		p[1] = (len >> 4 & 0xff);
+		p[2] = (len >> 12 & 0xff);
+		/* No need to adjust pointer for next ACPI bytecode byte */
+	} else {
+		/* The case of PkgLength up to 0xfffffff isn't supported at the moment */
+		printk(BIOS_ERR, "%s: package length exceeds maximum of 0xfffff.\n", __func__);
+	}
 }
 
 void acpigen_set_current(char *curr)
@@ -185,7 +225,7 @@ void acpigen_write_name_unicode(const char *name, const char *string)
 	acpigen_write_name(name);
 	acpigen_emit_byte(BUFFER_OP);
 	acpigen_write_len_f();
-	acpigen_write_integer(len);
+	acpigen_write_integer(2 * len);
 	for (size_t i = 0; i < len; i++) {
 		const signed char c = string[i];
 		/* Simple ASCII to UTF-16 conversion, replace non ASCII characters */
@@ -826,6 +866,17 @@ void acpigen_write_BBN(uint8_t base_bus_number)
 	acpigen_write_method("_BBN", 0);
 	acpigen_emit_byte(RETURN_OP);
 	acpigen_write_byte(base_bus_number);
+	acpigen_pop_len();
+}
+
+void acpigen_write_SEG(uint8_t segment_group_number)
+{
+	/*
+	 * Method (_SEG, 0, NotSerialized) { Return (status) }
+	 */
+	acpigen_write_method("_SEG", 0);
+	acpigen_emit_byte(RETURN_OP);
+	acpigen_write_byte(segment_group_number);
 	acpigen_pop_len();
 }
 
@@ -1830,7 +1881,6 @@ static void acpigen_write_dsm_uuid(struct dsm_uuid *id)
 	acpigen_write_return_singleton_buffer(0x0);
 
 	acpigen_write_if_end(); /* If (LEqual (Local0, ToUUID(uuid))) */
-
 }
 
 /*
@@ -2257,42 +2307,54 @@ void acpigen_resource_producer_io(u16 io_base, u16 io_limit)
 			      io_limit - io_base + 1); /* length */
 }
 
-static void acpigen_resource_producer_mmio32(u32 mmio_base, u32 mmio_limit, u16 type_flags)
+static void acpigen_resource_mmio32(u32 mmio_base, u32 mmio_limit, u16 gen_flags,
+				    u16 type_flags)
 {
 	acpigen_resource_dword(RSRC_TYPE_MEM, /* res_type */
-			      ADDR_SPACE_GENERAL_FLAG_MAX_FIXED
-			      | ADDR_SPACE_GENERAL_FLAG_MIN_FIXED
-			      | ADDR_SPACE_GENERAL_FLAG_DEC_POS
-			      | ADDR_SPACE_GENERAL_FLAG_PRODUCER, /* gen_flags */
-			      type_flags, /* type_flags */
-			      0, /* gran */
-			      mmio_base, /* range_min */
-			      mmio_limit, /* range_max */
-			      0x0, /* translation */
-			      mmio_limit - mmio_base + 1); /* length */
+			       gen_flags, /* gen_flags */
+			       type_flags, /* type_flags */
+			       0, /* gran */
+			       mmio_base, /* range_min */
+			       mmio_limit, /* range_max */
+			       0x0, /* translation */
+			       mmio_limit - mmio_base + 1); /* length */
 }
 
-static void acpigen_resource_producer_mmio64(u64 mmio_base, u64 mmio_limit, u16 type_flags)
+static void acpigen_resource_mmio64(u64 mmio_base, u64 mmio_limit, u16 gen_flags,
+				    u16 type_flags)
 {
 	acpigen_resource_qword(RSRC_TYPE_MEM, /* res_type */
-			      ADDR_SPACE_GENERAL_FLAG_MAX_FIXED
-			      | ADDR_SPACE_GENERAL_FLAG_MIN_FIXED
-			      | ADDR_SPACE_GENERAL_FLAG_DEC_POS
-			      | ADDR_SPACE_GENERAL_FLAG_PRODUCER, /* gen_flags */
-			      type_flags, /* type_flags */
-			      0, /* gran */
-			      mmio_base, /* range_min */
-			      mmio_limit, /* range_max */
-			      0x0, /* translation */
-			      mmio_limit - mmio_base + 1); /* length */
+			       gen_flags, /* gen_flags */
+			       type_flags, /* type_flags */
+			       0, /* gran */
+			       mmio_base, /* range_min */
+			       mmio_limit, /* range_max */
+			       0x0, /* translation */
+			       mmio_limit - mmio_base + 1); /* length */
+}
+
+static void acpigen_resource_mmio(u64 mmio_base, u64 mmio_limit, bool is_producer, u16 type_flags)
+{
+	const u16 gen_flags = ADDR_SPACE_GENERAL_FLAG_MAX_FIXED
+		| ADDR_SPACE_GENERAL_FLAG_MIN_FIXED
+		| ADDR_SPACE_GENERAL_FLAG_DEC_POS
+		| (is_producer ? ADDR_SPACE_GENERAL_FLAG_PRODUCER
+		   : ADDR_SPACE_GENERAL_FLAG_CONSUMER);
+
+	if (mmio_base < 4ULL * GiB && mmio_limit < 4ULL * GiB)
+		acpigen_resource_mmio32(mmio_base, mmio_limit, gen_flags, type_flags);
+	else
+		acpigen_resource_mmio64(mmio_base, mmio_limit, gen_flags, type_flags);
 }
 
 void acpigen_resource_producer_mmio(u64 mmio_base, u64 mmio_limit, u16 type_flags)
 {
-	if (mmio_base < 4ULL * GiB && mmio_limit < 4ULL * GiB)
-		acpigen_resource_producer_mmio32(mmio_base, mmio_limit, type_flags);
-	else
-		acpigen_resource_producer_mmio64(mmio_base, mmio_limit, type_flags);
+	acpigen_resource_mmio(mmio_base, mmio_limit, true, type_flags);
+}
+
+void acpigen_resource_consumer_mmio(u64 mmio_base, u64 mmio_limit, u16 type_flags)
+{
+	acpigen_resource_mmio(mmio_base, mmio_limit, false, type_flags);
 }
 
 void acpigen_write_ADR(uint64_t adr)
@@ -2408,10 +2470,10 @@ void acpigen_write_delay_until_namestr_int(uint32_t wait_ms, const char *name, u
 	uint32_t wait_ms_segment = 1;
 	uint32_t segments = wait_ms;
 
-	/* Sleep in 16ms segments if delay is more than 32ms. */
-	if (wait_ms > 32) {
-		wait_ms_segment = 16;
-		segments = wait_ms / 16;
+	/* Sleep in 2ms segments if delay is more than 2ms. */
+	if (wait_ms > 2) {
+		wait_ms_segment = 2;
+		segments = wait_ms / wait_ms_segment;
 	}
 
 	acpigen_write_store_int_to_op(segments, LOCAL7_OP);

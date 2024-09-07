@@ -5,9 +5,9 @@
 #include <console/console.h>
 #include <device/i2c.h>
 #include <device/device.h>
-#include <device/path.h>
 #include <identity.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <vendorcode/google/dsm_calib.h>
 #include "chip.h"
 
@@ -129,6 +129,6 @@ static void max98390_enable(struct device *dev)
 }
 
 struct chip_operations drivers_i2c_max98390_ops = {
-	CHIP_NAME("Maxim MAX98390 Codec")
+	.name = "Maxim MAX98390 Codec",
 	.enable_dev = max98390_enable
 };

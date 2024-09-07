@@ -5,7 +5,10 @@
 
 #include <acpi/acpi.h>
 #include <amdblocks/gpio.h>
+#include <device/device.h>
 #include <types.h>
+
+#define ACPI_SCI_IRQ 9
 
 /* ACPI MMIO registers 0xfed80800 */
 #define MMIO_ACPI_PM1_EVT_BLK		0x00
@@ -36,8 +39,6 @@ void acpi_pm_gpe_add_events_print_events(void);
 /* Clear PM and GPE status registers. */
 void acpi_clear_pm_gpe_status(void);
 
-void fill_fadt_extended_pm_regs(acpi_fadt_t *fadt);
-
 /*
  * If a system reset is about to be requested, modify the PM1 register so it
  * will never be misinterpreted as an S3 resume.
@@ -51,13 +52,18 @@ struct chipset_power_state {
 	struct gpio_wake_state gpio_state;
 };
 
+unsigned long soc_acpi_write_tables(const struct device *device, unsigned long current,
+				    acpi_rsdp_t *rsdp);
+
+unsigned long acpi_add_fsp_tables(unsigned long current, acpi_rsdp_t *rsdp);
+unsigned long acpi_add_opensil_tables(unsigned long current, acpi_rsdp_t *rsdp);
+
 unsigned long southbridge_write_acpi_tables(const struct device *device, unsigned long current,
 					    struct acpi_rsdp *rsdp);
 
-uintptr_t add_agesa_fsp_acpi_table(guid_t guid, const char *name, acpi_rsdp_t *rsdp,
-				   uintptr_t current);
-
 void acpi_log_events(const struct chipset_power_state *ps);
-unsigned long acpi_fill_ivrs(acpi_ivrs_t *ivrs, unsigned long current);
+
+unsigned long acpi_add_crat_table(unsigned long current, acpi_rsdp_t *rsdp);
+unsigned long acpi_add_ivrs_table(unsigned long current, acpi_rsdp_t *rsdp);
 
 #endif /* AMD_BLOCK_ACPI_H */

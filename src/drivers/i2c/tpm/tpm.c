@@ -117,7 +117,6 @@ static int iic_tpm_read(uint8_t addr, uint8_t *buffer, size_t len)
 					  buffer, len);
 			if (rc == 0)
 				break;  /* success, break to skip sleep */
-
 		}
 		break;
 
@@ -451,12 +450,28 @@ out_err:
 
 /* Initialization of I2C TPM */
 
-tpm_result_t tpm_vendor_probe(unsigned int bus, uint32_t addr)
+tpm_result_t tpm_vendor_probe(unsigned int bus, uint32_t addr, enum tpm_family *family)
 {
 	struct stopwatch sw;
 	uint8_t buf = 0;
 	int ret;
 	long sw_run_duration = SLEEP_DURATION_PROBE_MS;
+
+	/*
+	 * Infineon "I2C Protocol Stack Specification v0.20" is supposedly a
+	 * simple adoption of the LPC TIS Protocol to the I2C Bus, but looking
+	 * at "TCG PC Client Specific TIS" doesn't confirm that and Infineon's
+	 * specification isn't publicly available.
+	 *
+	 * Because it's unknown how to access information about TPM version of
+	 * the device in this case, the assumption is that whatever TPM version
+	 * is enabled at compile-time defines what the device supports. And
+	 * since this driver doesn't appear to be used with TPM 2 devices, the
+	 * check is written in a way to give TPM 1 preference even if support
+	 * for both versions is compiled in.
+	 */
+	if (family != NULL)
+		*family = CONFIG(TPM1) ? TPM_1 : TPM_2;
 
 	tpm_dev.chip_type = UNKNOWN;
 	tpm_dev.bus = bus;
@@ -506,8 +521,6 @@ tpm_result_t tpm_vendor_init(struct tpm_chip *chip, unsigned int bus, uint32_t d
 	tpm_dev.addr = dev_addr;
 	tpm_dev.sleep_short = SLEEP_DURATION;
 	tpm_dev.sleep_long = SLEEP_DURATION_LONG;
-
-	chip->is_open = 1;
 
 	chip->req_complete_mask = TPM_STS_DATA_AVAIL | TPM_STS_VALID;
 	chip->req_complete_val = TPM_STS_DATA_AVAIL | TPM_STS_VALID;

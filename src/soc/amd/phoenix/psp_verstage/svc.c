@@ -5,7 +5,6 @@
 #include <assert.h>
 #include <bl_uapp/bl_syscall_public.h>
 #include <psp_verstage.h>
-#include <stddef.h>
 #include <string.h>
 #include <svc_call.h>
 
@@ -181,7 +180,6 @@ uint32_t svc_modexp(struct mod_exp_params *mod_exp_param)
 	};
 	SVC_CALL2(SVC_VERSTAGE_CMD, CMD_MODEXP, (void *)&param, retval);
 	return retval;
-
 }
 
 uint32_t svc_ccp_dma(uint32_t spi_rom_offset, void *dest, uint32_t size)

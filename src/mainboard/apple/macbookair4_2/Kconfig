@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 if BOARD_APPLE_MACBOOKAIR4_2
 
 config BOARD_SPECIFIC_OPTIONS
@@ -15,6 +17,7 @@ config BOARD_SPECIFIC_OPTIONS
 	select MAINBOARD_HAS_LIBGFXINIT
 	select HAVE_CMOS_DEFAULT
 	select HAVE_OPTION_TABLE
+	select HAVE_SPD_IN_CBFS
 
 config MAINBOARD_DIR
 	default "apple/macbookair4_2"

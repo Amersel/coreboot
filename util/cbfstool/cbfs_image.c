@@ -401,8 +401,8 @@ int cbfs_copy_instance(struct cbfs_image *image, struct buffer *dst)
 	if (last_entry_size < 0)
 		WARN("No room to create the last entry!\n");
 	else
-		cbfs_create_empty_entry(dst_entry, CBFS_TYPE_NULL,
-			last_entry_size, "");
+		return cbfs_create_empty_entry(dst_entry, CBFS_TYPE_NULL,
+					       last_entry_size, "");
 
 	return 0;
 }
@@ -437,8 +437,10 @@ int cbfs_expand_to_region(struct buffer *region)
 		cbfs_calculate_file_header_size("") - sizeof(int32_t);
 
 	if (last_entry_size > 0) {
-		cbfs_create_empty_entry(entry, CBFS_TYPE_NULL,
-			last_entry_size, "");
+		if (cbfs_create_empty_entry(entry, CBFS_TYPE_NULL,
+					    last_entry_size, ""))
+			return 1;
+
 		/* If the last entry was an empty file, merge them. */
 		cbfs_legacy_walk(&image, cbfs_merge_empty_entry, NULL);
 	}
@@ -586,8 +588,9 @@ int cbfs_compact_instance(struct cbfs_image *image)
 		prev_size -= spill_size + empty_metadata_size;
 
 		/* Create new empty file. */
-		cbfs_create_empty_entry(cur, CBFS_TYPE_NULL,
-					prev_size, "");
+		if (cbfs_create_empty_entry(cur, CBFS_TYPE_NULL,
+					    prev_size, ""))
+			return 1;
 
 		/* Merge any potential empty entries together. */
 		cbfs_legacy_walk(image, cbfs_merge_empty_entry, NULL);
@@ -641,7 +644,8 @@ static int cbfs_add_entry_at(struct cbfs_image *image,
 	if (header_offset - addr > min_entry_size) {
 		DEBUG("|min|...|header|content|... <create new entry>\n");
 		len = header_offset - addr - min_entry_size;
-		cbfs_create_empty_entry(entry, CBFS_TYPE_NULL, len, "");
+		if (cbfs_create_empty_entry(entry, CBFS_TYPE_NULL, len, ""))
+			return -1;
 		if (verbose > 1) cbfs_print_entry_info(image, entry, stderr);
 		entry = cbfs_find_next_entry(image, entry);
 		addr = cbfs_get_entry_addr(image, entry);
@@ -713,7 +717,8 @@ static int cbfs_add_entry_at(struct cbfs_image *image,
 			buffer_size(&image->buffer) - sizeof(int32_t)) {
 		len -= sizeof(int32_t);
 	}
-	cbfs_create_empty_entry(entry, CBFS_TYPE_NULL, len, "");
+	if (cbfs_create_empty_entry(entry, CBFS_TYPE_NULL, len, ""))
+		return -1;
 	if (verbose > 1) cbfs_print_entry_info(image, entry, stderr);
 	return 0;
 }
@@ -859,7 +864,7 @@ static int cbfs_payload_decompress(struct cbfs_payload_segment *segments,
 		if (segments[i].type == PAYLOAD_SEGMENT_BSS ||
 				segments[i].type == PAYLOAD_SEGMENT_ENTRY) {
 			continue;
-		} else if (segments[i].type == PAYLOAD_SEGMENT_PARAMS) {
+		} else if (segments[i].type == PAYLOAD_SEGMENT_DEPRECATED_PARAMS) {
 			memcpy(out_ptr, in_ptr, segments[i].len);
 			segments[i].offset = new_offset;
 			new_offset += segments[i].len;
@@ -1085,7 +1090,7 @@ static int cbfs_payload_make_elf(struct buffer *buff, uint32_t arch,
 			segments++;
 		} else if (payload_type == PAYLOAD_SEGMENT_BSS) {
 			segments++;
-		} else if (payload_type == PAYLOAD_SEGMENT_PARAMS) {
+		} else if (payload_type == PAYLOAD_SEGMENT_DEPRECATED_PARAMS) {
 			segments++;
 		} else if (payload_type == PAYLOAD_SEGMENT_ENTRY) {
 			/* The last segment in a payload is always ENTRY as
@@ -1157,7 +1162,7 @@ static int cbfs_payload_make_elf(struct buffer *buff, uint32_t arch,
 			shdr.sh_size = segs[i].len;
 			name = strdup(".bss");
 			buffer_splice(&tbuff, buff, 0, 0);
-		} else if (segs[i].type == PAYLOAD_SEGMENT_PARAMS) {
+		} else if (segs[i].type == PAYLOAD_SEGMENT_DEPRECATED_PARAMS) {
 			shdr.sh_type = SHT_NOTE;
 			shdr.sh_flags = 0;
 			shdr.sh_size = segs[i].len;
@@ -1369,44 +1374,44 @@ static int cbfs_print_decoded_payload_segment_info(
 	 * cbfs_decode_payload_segment.
 	 */
 	switch (seg->type) {
-		case PAYLOAD_SEGMENT_CODE:
-		case PAYLOAD_SEGMENT_DATA:
-			fprintf(fp, "    %s (%s compression, offset: 0x%x, "
-				"load: 0x%" PRIx64 ", length: %d/%d)\n",
-				(seg->type == PAYLOAD_SEGMENT_CODE ?
-				 "code " : "data"),
-				lookup_name_by_type(types_cbfs_compression,
-						    seg->compression,
-						    "(unknown)"),
-				seg->offset, seg->load_addr, seg->len,
-				seg->mem_len);
-			break;
+	case PAYLOAD_SEGMENT_CODE:
+	case PAYLOAD_SEGMENT_DATA:
+		fprintf(fp, "    %s (%s compression, offset: 0x%x, "
+			"load: 0x%" PRIx64 ", length: %d/%d)\n",
+			(seg->type == PAYLOAD_SEGMENT_CODE ?
+			 "code " : "data"),
+			lookup_name_by_type(types_cbfs_compression,
+					    seg->compression,
+					    "(unknown)"),
+			seg->offset, seg->load_addr, seg->len,
+			seg->mem_len);
+		break;
 
-		case PAYLOAD_SEGMENT_ENTRY:
-			fprintf(fp, "    entry (0x%" PRIx64 ")\n",
-				seg->load_addr);
-			break;
+	case PAYLOAD_SEGMENT_ENTRY:
+		fprintf(fp, "    entry (0x%" PRIx64 ")\n",
+			seg->load_addr);
+		break;
 
-		case PAYLOAD_SEGMENT_BSS:
-			fprintf(fp, "    BSS (address 0x%016" PRIx64 ", "
-				"length 0x%x)\n",
-				seg->load_addr, seg->len);
-			break;
+	case PAYLOAD_SEGMENT_BSS:
+		fprintf(fp, "    BSS (address 0x%016" PRIx64 ", "
+			"length 0x%x)\n",
+			seg->load_addr, seg->len);
+		break;
 
-		case PAYLOAD_SEGMENT_PARAMS:
-			fprintf(fp, "    parameters\n");
-			break;
+	case PAYLOAD_SEGMENT_DEPRECATED_PARAMS:
+		fprintf(fp, "    parameters (deprecated)\n");
+		break;
 
-		default:
-			fprintf(fp, "   0x%x (%s compression, offset: 0x%x, "
-				"load: 0x%" PRIx64 ", length: %d/%d\n",
-				seg->type,
-				lookup_name_by_type(types_cbfs_compression,
-						    seg->compression,
-						    "(unknown)"),
-				seg->offset, seg->load_addr, seg->len,
-				seg->mem_len);
-			break;
+	default:
+		fprintf(fp, "   0x%x (%s compression, offset: 0x%x, "
+			"load: 0x%" PRIx64 ", length: %d/%d\n",
+			seg->type,
+			lookup_name_by_type(types_cbfs_compression,
+					    seg->compression,
+					    "(unknown)"),
+			seg->offset, seg->load_addr, seg->len,
+			seg->mem_len);
+		break;
 	}
 	return 0;
 }
@@ -1479,26 +1484,26 @@ int cbfs_print_entry_info(struct cbfs_image *image, struct cbfs_file *entry,
 
 	/* note the components of the subheader may be in host order ... */
 	switch (be32toh(entry->type)) {
-		case CBFS_TYPE_STAGE:
-			cbfs_print_stage_info(entry, fp);
-			break;
+	case CBFS_TYPE_STAGE:
+		cbfs_print_stage_info(entry, fp);
+		break;
 
-		case CBFS_TYPE_SELF:
-			payload = (struct cbfs_payload_segment *)
-					CBFS_SUBHEADER(entry);
-			while (payload) {
-				struct cbfs_payload_segment seg;
-				cbfs_decode_payload_segment(&seg, payload);
-				cbfs_print_decoded_payload_segment_info(
-						&seg, fp);
-				if (seg.type == PAYLOAD_SEGMENT_ENTRY)
-					break;
-				else
-				payload ++;
-			}
-			break;
-		default:
-			break;
+	case CBFS_TYPE_SELF:
+		payload = (struct cbfs_payload_segment *)
+				CBFS_SUBHEADER(entry);
+		while (payload) {
+			struct cbfs_payload_segment seg;
+			cbfs_decode_payload_segment(&seg, payload);
+			cbfs_print_decoded_payload_segment_info(
+					&seg, fp);
+			if (seg.type == PAYLOAD_SEGMENT_ENTRY)
+				break;
+			else
+			payload ++;
+		}
+		break;
+	default:
+		break;
 	}
 	return 0;
 }
@@ -1650,9 +1655,7 @@ int cbfs_merge_empty_entry(struct cbfs_image *image, struct cbfs_file *entry,
 	uint32_t addr = cbfs_get_entry_addr(image, entry);
 	size_t len = next_addr - addr - cbfs_calculate_file_header_size("");
 	DEBUG("join_empty_entry: [0x%x, 0x%x) len=%zu\n", addr, next_addr, len);
-	cbfs_create_empty_entry(entry, CBFS_TYPE_NULL, len, "");
-
-	return 0;
+	return cbfs_create_empty_entry(entry, CBFS_TYPE_NULL, len, "");
 }
 
 int cbfs_legacy_walk(struct cbfs_image *image, cbfs_entry_callback callback,
@@ -1785,13 +1788,19 @@ int cbfs_is_valid_entry(struct cbfs_image *image, struct cbfs_file *entry)
 struct cbfs_file *cbfs_create_file_header(int type,
 			    size_t len, const char *name)
 {
+	size_t header_size = cbfs_calculate_file_header_size(name);
+	if (header_size > CBFS_METADATA_MAX_SIZE) {
+		ERROR("'%s' name too long to fit in CBFS header\n", name);
+		return NULL;
+	}
+
 	struct cbfs_file *entry = malloc(CBFS_METADATA_MAX_SIZE);
 	memset(entry, CBFS_CONTENT_DEFAULT_VALUE, CBFS_METADATA_MAX_SIZE);
 	memcpy(entry->magic, CBFS_FILE_MAGIC, sizeof(entry->magic));
 	entry->type = htobe32(type);
 	entry->len = htobe32(len);
 	entry->attributes_offset = 0;
-	entry->offset = htobe32(cbfs_calculate_file_header_size(name));
+	entry->offset = htobe32(header_size);
 	memset(entry->filename, 0, be32toh(entry->offset) - sizeof(*entry));
 	strcpy(entry->filename, name);
 	return entry;
@@ -1801,6 +1810,9 @@ int cbfs_create_empty_entry(struct cbfs_file *entry, int type,
 			    size_t len, const char *name)
 {
 	struct cbfs_file *tmp = cbfs_create_file_header(type, len, name);
+	if (!tmp)
+		return -1;
+
 	memcpy(entry, tmp, be32toh(tmp->offset));
 	free(tmp);
 	memset(CBFS_SUBHEADER(entry), CBFS_CONTENT_DEFAULT_VALUE, len);

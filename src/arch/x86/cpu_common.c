@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <commonlib/helpers.h>
 #include <cpu/cpu.h>
 #include <types.h>
 
@@ -58,6 +59,14 @@ unsigned int cpu_phys_address_size(void)
 	if (cpuid_edx(1) & (CPUID_FEATURE_PAE | CPUID_FEATURE_PSE36))
 		return 36;
 	return 32;
+}
+
+unsigned int soc_phys_address_size(void)
+{
+	if (CONFIG_SOC_PHYSICAL_ADDRESS_WIDTH)
+		return CONFIG_SOC_PHYSICAL_ADDRESS_WIDTH;
+
+	return cpu_phys_address_size();
 }
 
 /*
@@ -225,4 +234,16 @@ bool fill_cpu_cache_info(uint8_t level, struct cpu_cache_info *info)
 	info->size = get_cache_size(info);
 
 	return true;
+}
+
+bool is_cache_sets_power_of_two(void)
+{
+	struct cpu_cache_info info;
+
+	if (!fill_cpu_cache_info(CACHE_L3, &info))
+		return false;
+
+	size_t cache_sets = cpu_get_cache_sets(&info);
+
+	return IS_POWER_OF_2(cache_sets);
 }

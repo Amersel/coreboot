@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 config SOC_INTEL_ALDERLAKE
 	bool
 	select ACPI_INTEL_HARDWARE_SLEEP_VALUES
@@ -32,6 +34,7 @@ config SOC_INTEL_ALDERLAKE
 	select INTEL_GMA_VERSION_2
 	select INTEL_TXT_LIB
 	select MP_SERVICES_PPI_V2
+	select MRC_CACHE_USING_MRC_VERSION if SOC_INTEL_ALDERLAKE_PCH_N && !FSP_TYPE_IOT
 	select MRC_SETTINGS_PROTECT
 	select PARALLEL_MP_AP_WORK
 	select PLATFORM_USES_FSP2_2
@@ -73,6 +76,7 @@ config SOC_INTEL_ALDERLAKE
 	select SOC_INTEL_COMMON_BLOCK_SA
 	select SOC_INTEL_COMMON_BLOCK_SMM
 	select SOC_INTEL_COMMON_BLOCK_SMM_IO_TRAP
+	select SOC_INTEL_COMMON_BLOCK_SMM_TCO_ENABLE
 	select SOC_INTEL_COMMON_BLOCK_THERMAL_BEHIND_PMC
 	select SOC_INTEL_COMMON_BLOCK_VTD
 	select SOC_INTEL_COMMON_BLOCK_XHCI
@@ -80,16 +84,16 @@ config SOC_INTEL_ALDERLAKE
 	select SOC_INTEL_COMMON_FSP_RESET
 	select SOC_INTEL_COMMON_PCH_CLIENT
 	select SOC_INTEL_COMMON_RESET
-	select SOC_INTEL_CSE_SEND_EOP_LATE if !BOARD_GOOGLE_BRYA_COMMON
+	select SOC_INTEL_CSE_SEND_EOP_LATE if !BOARD_GOOGLE_BRYA_COMMON && !BOARD_GOOGLE_BROX_COMMON
 	select SOC_INTEL_CSE_SET_EOP
-	select SOC_INTEL_GFX_MBUS_JOIN if MAINBOARD_HAS_CHROMEOS && BMP_LOGO
 	select SOC_INTEL_MEM_MAPPED_PM_CONFIGURATION
 	select HAVE_INTEL_COMPLIANCE_TEST_MODE
 	select SSE2
 	select SUPPORT_CPU_UCODE_IN_CBFS
 	select TSC_MONOTONIC_TIMER
 	select UDELAY_TSC
-	select UDK_202005_BINDING
+	select UDK_202111_BINDING if SOC_INTEL_ALDERLAKE_PCH_N
+	select UDK_202005_BINDING if !SOC_INTEL_ALDERLAKE_PCH_N
 	select VBOOT_LIB
 	select X86_CLFLUSH_CAR
 	help
@@ -104,15 +108,16 @@ config SOC_INTEL_RAPTORLAKE
 	 Intel Raptorlake support. Mainboards using RPL should select
 	 SOC_INTEL_RAPTORLAKE and SOC_INTEL_ALDERLAKE_PCH_* together.
 
-config SOC_INTEL_ALDERLAKE_PCH_M
+config SOC_INTEL_TWINLAKE
 	bool
-	select SOC_INTEL_ALDERLAKE
+	select SOC_INTEL_ALDERLAKE_PCH_N
 	help
-	  Choose this option if your mainboard has a PCH-M chipset.
+	 Intel Twinlake support. Mainboards using TWL should select
+	 SOC_INTEL_TWINLAKE.
 
 config SOC_INTEL_ALDERLAKE_PCH_N
 	bool
-	select HAVE_INTEL_FSP_REPO
+	select HAVE_INTEL_FSP_REPO if FSP_TYPE_IOT
 	select SOC_INTEL_ALDERLAKE
 	help
 	  Choose this option if your mainboard has a PCH-N chipset.
@@ -128,7 +133,7 @@ config SOC_INTEL_ALDERLAKE_PCH_P
 config SOC_INTEL_ALDERLAKE_PCH_S
 	bool
 	select SOC_INTEL_ALDERLAKE
-	select HAVE_INTEL_FSP_REPO if !SOC_INTEL_RAPTORLAKE_PCH_S || (SOC_INTEL_RAPTORLAKE_PCH_S && FSP_TYPE_IOT)
+	select HAVE_INTEL_FSP_REPO
 	select PLATFORM_USES_FSP2_3
 	help
 	  Choose this option if your mainboard has a PCH-S chipset.
@@ -141,6 +146,9 @@ config SOC_INTEL_RAPTORLAKE_PCH_S
 	  Choose this option if your mainboard has a Raptor Lake PCH-S chipset.
 
 if SOC_INTEL_ALDERLAKE
+
+config DIMM_SPD_SIZE
+	default 512
 
 config SOC_INTEL_ALDERLAKE_TCSS_USB4_SUPPORT
 	bool
@@ -182,12 +190,12 @@ config DCACHE_RAM_SIZE
 
 config DCACHE_BSP_STACK_SIZE
 	hex
-	default 0x80400
+	default 0x88000
 	help
 	  The amount of anticipated stack usage in CAR by bootblock and
 	  other stages. In the case of FSP_USES_CB_STACK default value will be
 	  sum of FSP-M stack requirement(512KiB) and CB romstage stack requirement
-	  (~1KiB).
+	  (~32KiB).
 
 config FSP_TEMP_RAM_SIZE
 	hex
@@ -242,21 +250,18 @@ endif # SOC_INTEL_ENABLE_USB4_PCIE_RESOURCES
 
 config MAX_PCH_ROOT_PORTS
 	int
-	default 10 if SOC_INTEL_ALDERLAKE_PCH_M
 	default 12 if SOC_INTEL_ALDERLAKE_PCH_N
 	default 12 if SOC_INTEL_ALDERLAKE_PCH_P
 	default 28 if SOC_INTEL_ALDERLAKE_PCH_S
 
 config MAX_CPU_ROOT_PORTS
 	int
-	default 1 if SOC_INTEL_ALDERLAKE_PCH_M
 	default 0 if SOC_INTEL_ALDERLAKE_PCH_N
 	default 3 if SOC_INTEL_ALDERLAKE_PCH_P || SOC_INTEL_ALDERLAKE_PCH_S
 
 config MAX_TBT_ROOT_PORTS
 	int
 	default 0 if SOC_INTEL_ALDERLAKE_PCH_N || SOC_INTEL_ALDERLAKE_PCH_S
-	default 2 if SOC_INTEL_ALDERLAKE_PCH_M
 	default 4 if SOC_INTEL_ALDERLAKE_PCH_P
 
 config MAX_ROOT_PORTS
@@ -265,7 +270,6 @@ config MAX_ROOT_PORTS
 
 config MAX_PCIE_CLOCK_SRC
 	int
-	default 6 if SOC_INTEL_ALDERLAKE_PCH_M
 	default 5 if SOC_INTEL_ALDERLAKE_PCH_N
 	default 10 if SOC_INTEL_ALDERLAKE_PCH_P
 	default 18 if SOC_INTEL_ALDERLAKE_PCH_S
@@ -277,7 +281,6 @@ config MAX_PCIE_CLOCK_SRC
 
 config MAX_PCIE_CLOCK_REQ
 	int
-	default 6  if SOC_INTEL_ALDERLAKE_PCH_M
 	default 5  if SOC_INTEL_ALDERLAKE_PCH_N
 	default 10 if SOC_INTEL_ALDERLAKE_PCH_P
 	default 18 if SOC_INTEL_ALDERLAKE_PCH_S
@@ -350,10 +353,6 @@ config CONSOLE_UART_BASE_ADDRESS
 	default 0xfe03e000
 	depends on INTEL_LPSS_UART_FOR_CONSOLE
 
-config VBT_DATA_SIZE_KB
-	int
-	default 9
-
 # Clock divider parameters for 115200 baud rate
 # Baudrate = (UART source clock * M) /(N *16)
 # ADL UART source clock: 100MHz
@@ -399,47 +398,39 @@ config FSP_TYPE_IOT
 
 config FSP_HEADER_PATH
 	string "Location of FSP headers"
+	default "src/vendorcode/intel/fsp/fsp2_0/twinlake/" if SOC_INTEL_TWINLAKE && !FSP_USE_REPO
 	default "src/vendorcode/intel/fsp/fsp2_0/alderlake_n/" if SOC_INTEL_ALDERLAKE_PCH_N && !FSP_USE_REPO
-	default "src/vendorcode/intel/fsp/fsp2_0/raptorlake/4221.00_google/" if VENDOR_GOOGLE && SOC_INTEL_RAPTORLAKE && !FSP_USE_REPO
-	default "src/vendorcode/intel/fsp/fsp2_0/raptorlake/4301.01/" if SOC_INTEL_RAPTORLAKE && !FSP_USE_REPO
+	default "src/vendorcode/intel/fsp/fsp2_0/raptorlake/" if SOC_INTEL_RAPTORLAKE && !FSP_USE_REPO
+	default "3rdparty/fsp/RaptorLakeFspBinPkg/IoT/RaptorLakeP/Include/" if SOC_INTEL_ALDERLAKE_PCH_P && SOC_INTEL_RAPTORLAKE && FSP_TYPE_IOT
+	default "3rdparty/fsp/RaptorLakeFspBinPkg/IoT/RaptorLakeS/Include/" if SOC_INTEL_RAPTORLAKE_PCH_S && FSP_TYPE_IOT
 	default "3rdparty/fsp/RaptorLakeFspBinPkg/Client/RaptorLakeP/Include/" if SOC_INTEL_ALDERLAKE_PCH_P && SOC_INTEL_RAPTORLAKE
 	default "3rdparty/fsp/RaptorLakeFspBinPkg/Client/RaptorLakeS/Include/" if SOC_INTEL_ALDERLAKE_PCH_S && SOC_INTEL_RAPTORLAKE
-	default "3rdparty/fsp/RaptorLakeFspBinPkg/IoT/RaptorLakeS/Include/" if SOC_INTEL_RAPTORLAKE_PCH_S && FSP_TYPE_IOT
 	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeP/Include/" if SOC_INTEL_ALDERLAKE_PCH_P && FSP_TYPE_IOT
 	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeS/Include/" if SOC_INTEL_ALDERLAKE_PCH_S && FSP_TYPE_IOT
 	default "3rdparty/fsp/AlderLakeFspBinPkg/Client/AlderLakeP/Include/" if SOC_INTEL_ALDERLAKE_PCH_P && !SOC_INTEL_RAPTORLAKE
-	default "3rdparty/fsp/RaptorLakeFspBinPkg/Client/RaptorLakeP/Include/" if SOC_INTEL_ALDERLAKE_PCH_P && SOC_INTEL_RAPTORLAKE
 	default "3rdparty/fsp/AlderLakeFspBinPkg/Client/AlderLakeS/Include/" if SOC_INTEL_ALDERLAKE_PCH_S
-	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeN/Include/" if SOC_INTEL_ALDERLAKE_PCH_N
+	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeN/Include/" if SOC_INTEL_ALDERLAKE_PCH_N && FSP_TYPE_IOT
 	default "src/vendorcode/intel/fsp/fsp2_0/alderlake/" if !FSP_USE_REPO
 
 config FSP_FD_PATH
 	string
 	depends on FSP_USE_REPO
+	default "3rdparty/fsp/RaptorLakeFspBinPkg/IoT/RaptorLakeP/FSP.fd" if SOC_INTEL_ALDERLAKE_PCH_P && SOC_INTEL_RAPTORLAKE && FSP_TYPE_IOT
 	default "3rdparty/fsp/RaptorLakeFspBinPkg/IoT/RaptorLakeS/FSP.fd" if SOC_INTEL_RAPTORLAKE_PCH_S && FSP_TYPE_IOT
 	default "3rdparty/fsp/RaptorLakeFspBinPkg/Client/RaptorLakeP/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_P && SOC_INTEL_RAPTORLAKE
 	default "3rdparty/fsp/RaptorLakeFspBinPkg/Client/RaptorLakeS/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_S && SOC_INTEL_RAPTORLAKE
 	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeP/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_P && FSP_TYPE_IOT
 	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeS/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_S && FSP_TYPE_IOT
 	default "3rdparty/fsp/AlderLakeFspBinPkg/Client/AlderLakeP/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_P && !SOC_INTEL_RAPTORLAKE
-	default "3rdparty/fsp/RaptorLakeFspBinPkg/Client/RaptorLakeP/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_P && SOC_INTEL_RAPTORLAKE
 	default "3rdparty/fsp/AlderLakeFspBinPkg/Client/AlderLakeS/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_S
-	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeN/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_N
+	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeN/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_N && FSP_TYPE_IOT
 
-config SOC_INTEL_ALDERLAKE_DEBUG_CONSENT
-	int "Debug Consent for ADL"
-	# USB DBC is more common for developers so make this default to 2 if
-	# SOC_INTEL_DEBUG_CONSENT=y
+# Override platform debug consent value:
+#  0:Disabled, 2:Enabled (All Probes+TraceHub), 6:Enable (Low Power),
+#  7:Manual
+config SOC_INTEL_COMMON_DEBUG_CONSENT
+	int
 	default 2 if SOC_INTEL_DEBUG_CONSENT
-	default 0
-	help
-	  This is to control debug interface on SOC.
-	  Setting non-zero value will allow to use DBC or DCI to debug SOC.
-	  PlatformDebugConsent in FspmUpd.h has the details.
-
-	  Desired platform debug type are
-	  0:Disabled, 2:Enabled (All Probes+TraceHub), 6:Enable (Low Power),
-	  7:Manual
 
 config DATA_BUS_WIDTH
 	int
@@ -522,7 +513,7 @@ config INTEL_GMA_BCLM_WIDTH
 
 config FSP_PUBLISH_MBP_HOB
 	bool
-	default n if CHROMEOS && (SOC_INTEL_RAPTORLAKE || SOC_INTEL_ALDERLAKE_PCH_N)
+	default n if CHROMEOS && (SOC_INTEL_ALDERLAKE_PCH_N)
 	default y
 	help
 	  This is to control creation of ME_BIOS_PAYLOAD_HOB (MBP HOB) by FSP.
@@ -531,8 +522,7 @@ config FSP_PUBLISH_MBP_HOB
 	  Note: It cannot be disabled for ADL-P based platforms because ADL-P FSP relies on
 	  MBP HOB for ChipsetInit version for ChipsetInit sync. As ChipsetInit sync doesn't
 	  occur if no MBP HOB, so it results S0ix issue. This limitation is addressed in the
-	  later platforms so creation of MBP HOB can be skipped for ADL-N and RPL based
-	  platforms.
+	  later platforms so creation of MBP HOB can be skipped for ADL-N based platforms.
 
 config INCLUDE_HSPHY_IN_FMAP
 	bool "Include PCIe 5.0 HSPHY firmware in flash"
@@ -562,5 +552,10 @@ config HSPHY_FW_MAX_SIZE
 
 config HAVE_BMP_LOGO_COMPRESS_LZMA
 	default n
+
+config SOC_INTEL_COMMON_BLOCK_ACPI_SLP_S0_FREQ_HZ
+	default 0x2005
+	help
+	  slp_s0_residency granularity in 122us ticks (i.e. ~8.2KHz).
 
 endif

@@ -5,7 +5,7 @@ This chapter explains the frequency selection done on Sandy Bridge and Ivy
 Bridge memory initialization.
 
 ## Definitions
-```eval_rst
+```{eval-rst}
 +---------+-------------------------------------------------------------------+------------+--------------+
 | Symbol  | Description                                                       | Units      | Valid region |
 +=========+===================================================================+============+==============+
@@ -94,7 +94,7 @@ multiplier to select the DRAM frequency (SCK) by the following formula:
 > **Note:** Since coreboot 4.6 Ivy Bridge supports 100MHz REFCK.
 
 ## Sandy Bridge's supported frequencies
-```eval_rst
+```{eval-rst}
 +------------+-----------+------------------+-------------------------+---------------+
 | SCK [Mhz]  | DDR [Mhz] | Mutiplier (MULT) | Reference clock (REFCK) | Comment       |
 +============+===========+==================+=========================+===============+
@@ -113,7 +113,7 @@ multiplier to select the DRAM frequency (SCK) by the following formula:
 ```
 
 ## Ivy Bridge's supported frequencies
-```eval_rst
+```{eval-rst}
 +------------+-----------+------------------+-------------------------+---------------+
 | SCK [Mhz]  | DDR [Mhz] | Mutiplier (MULT) | Reference clock (REFCK) | Comment       |
 +============+===========+==================+=========================+===============+
@@ -160,7 +160,7 @@ As you can see, by using DIMMs with different maximum DRAM frequencies, the
 slowest DIMMs' frequency will be selected, to prevent over-clocking it.
 
 The selected frequency gives the PLL multiplier to operate at. In case the PLL
-locks (see Take me to [Hard fuses](#hard_fuses)) the frequency will be used for
+locks (see Take me to [Hard fuses](#hard-fuses)) the frequency will be used for
 all DIMMs. At this point it's not possible to change the multiplier again,
 until the system has been powered off. In case the PLL doesn't lock, the next
 smaller multiplier will be used until a working multiplier will be found.

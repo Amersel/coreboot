@@ -41,75 +41,6 @@ void soc_fill_fadt(acpi_fadt_t *fadt)
 	fadt->flags &=  ~(ACPI_FADT_SEALED_CASE | ACPI_FADT_S4_RTC_WAKE);
 }
 
-void uncore_inject_dsdt(const struct device *device)
-{
-	struct iiostack_resource stack_info = {0};
-
-	/* Only add RTxx entries once. */
-	if (device->bus->secondary != 0)
-		return;
-
-	get_iiostack_info(&stack_info);
-
-	acpigen_write_scope("\\_SB");
-
-	for (uint8_t stack = 0; stack < stack_info.no_of_stacks; ++stack) {
-		const STACK_RES *ri = &stack_info.res[stack];
-		char rtname[16];
-
-		snprintf(rtname, sizeof(rtname), "RT%02x", stack);
-
-		acpigen_write_name(rtname);
-		printk(BIOS_DEBUG, "\tCreating ResourceTemplate %s for stack: %d\n",
-			rtname, stack);
-
-		acpigen_write_resourcetemplate_header();
-
-		/* bus resource */
-		acpigen_resource_word(2, 0xc, 0, 0, ri->BusBase, ri->BusLimit,
-			0x0, (ri->BusLimit - ri->BusBase + 1));
-
-		/* additional io resources on socket 0 bus 0 */
-		if (stack == 0) {
-			/* ACPI 6.4.2.5 I/O Port Descriptor */
-			acpigen_write_io16(0xCF8, 0xCFF, 0x1, 0x8, 1);
-
-			/* IO decode  CF8-CFF */
-			acpigen_resource_word(1, 0xc, 0x3, 0, 0x0000, 0x03AF, 0, 0x03B0);
-			acpigen_resource_word(1, 0xc, 0x3, 0, 0x03E0, 0x0CF7, 0, 0x0918);
-			acpigen_resource_word(1, 0xc, 0x3, 0, 0x03B0, 0x03BB, 0, 0x000C);
-			acpigen_resource_word(1, 0xc, 0x3, 0, 0x03C0, 0x03DF, 0, 0x0020);
-		}
-
-		/* IO resource */
-		acpigen_resource_word(1, 0xc, 0x3, 0, ri->PciResourceIoBase,
-			ri->PciResourceIoLimit, 0x0,
-			(ri->PciResourceIoLimit - ri->PciResourceIoBase + 1));
-
-		/* additional mem32 resources on socket 0 bus 0 */
-		if (stack == 0) {
-			acpigen_resource_dword(0, 0xc, 3, 0, VGA_MMIO_BASE,
-				VGA_MMIO_LIMIT, 0x0, VGA_MMIO_SIZE);
-			acpigen_resource_dword(0, 0xc, 1, 0, SPI_BASE_ADDRESS,
-				(SPI_BASE_ADDRESS + SPI_BASE_SIZE - 1), 0x0,
-				SPI_BASE_SIZE);
-		}
-
-		/* Mem32 resource */
-		acpigen_resource_dword(0, 0xc, 1, 0, ri->PciResourceMem32Base,
-			ri->PciResourceMem32Limit, 0x0,
-			(ri->PciResourceMem32Limit - ri->PciResourceMem32Base + 1));
-
-		/* Mem64 resource */
-		acpigen_resource_qword(0, 0xc, 1, 0, ri->PciResourceMem64Base,
-			ri->PciResourceMem64Limit, 0x0,
-			(ri->PciResourceMem64Limit - ri->PciResourceMem64Base + 1));
-
-		acpigen_write_resourcetemplate_footer();
-	}
-	acpigen_pop_len();
-}
-
 /* TODO: See if we can use the common generate_p_state_entries */
 void soc_power_states_generation(int core, int cores_per_package)
 {
@@ -199,7 +130,6 @@ void soc_power_states_generation(int core, int cores_per_package)
 	/* Generate the remaining entries */
 	for (ratio = ratio_min + ((num_entries - 1) * ratio_step);
 	     ratio >= ratio_min; ratio -= ratio_step) {
-
 		/* Calculate power at this ratio */
 		power = common_calculate_power_ratio(power_max, ratio_max, ratio);
 		clock = ratio * CONFIG_CPU_BCLK_MHZ;

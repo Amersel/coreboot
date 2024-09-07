@@ -9,23 +9,22 @@
 #include <hob_iiouds.h>
 #include <soc/pch_pci_devs.h>
 
-#define dump_csr(fmt, dev, reg) \
-	printk(BIOS_SPEW, "%s%x:%x:%x reg: %s (0x%x), data: 0x%x\n", \
-		fmt, ((uint32_t)dev >> 20) & 0xfff, ((uint32_t)dev >> 15) & 0x1f, \
-		((uint32_t)dev >> 12) & 0x07, \
-		#reg, reg, pci_s_read_config32(dev, reg))
+#define dump_csr(dev, reg) \
+	printk(BIOS_SPEW, "%s reg: %s (0x%x), data: 0x%x\n", \
+		dev_path(dev), \
+		#reg, reg, pci_read_config32(dev, reg))
 
-#define dump_csr64(fmt, dev, reg) \
-	printk(BIOS_SPEW, "%s%x:%x:%x reg: %s (0x%x), data: 0x%x%x\n", \
-		fmt, ((uint32_t)dev >> 20) & 0xfff, ((uint32_t)dev >> 15) & 0x1f, \
-		((uint32_t)dev >> 12) & 0x07, #reg, reg, \
-		pci_s_read_config32(dev, reg+4), pci_s_read_config32(dev, reg))
+#define dump_csr64(dev, reg) \
+	printk(BIOS_SPEW, "%s reg: %s (0x%x), data: 0x%x%x\n", \
+		dev_path(dev), #reg, reg, \
+		pci_read_config32(dev, reg+4), pci_read_config32(dev, reg))
 
 #define SAD_ALL_DEV			29
 #define SAD_ALL_FUNC			0
 #define SAD_ALL_PAM0123_CSR		0x40
 #define   PAM_LOCK			BIT(0)
 #define SAD_ALL_PAM456_CSR		0x44
+#define SAD_ALL_DEVID			0x2054
 
 #if !defined(__SIMPLE_DEVICE__)
 #define _PCU_DEV(bus, func)		pcidev_path_on_bus(bus, PCI_DEVFN(PCU_DEV, func))
@@ -36,8 +35,10 @@
 #define PCU_IIO_STACK                   1
 #define PCU_DEV                         30
 #define PCU_CR1_FUN                     1
+#define PCU_CR1_DEVID                   0x2081
 
 #define PCU_CR0_FUN                     0
+#define PCU_CR0_DEVID                   0x2080
 #define PCU_DEV_CR0(bus)                _PCU_DEV(bus, PCU_CR0_FUN)
 #define PCU_CR0_PLATFORM_INFO           0xa8
 #define PCU_CR0_P_STATE_LIMITS          0xd8
@@ -73,6 +74,8 @@
 #define PCU_CR1_DESIRED_CORES_CFG2_REG                     0xa0
 #define PCU_CR1_DESIRED_CORES_CFG2_REG_LOCK_MASK           BIT(31)
 
+#define PCU_CR2_DEVID                   0x2082
+
 #if !defined(__SIMPLE_DEVICE__)
 #define _UBOX_DEV(func)		pcidev_path_on_root_debug(PCI_DEVFN(UBOX_DEV, func), __func__)
 #else
@@ -81,13 +84,11 @@
 
 #define UBOX_DEV			8
 
-#define UBOX_PMON_BUS			0
-#define UBOX_PMON_DEV			8
-#define UBOX_PMON_FUNC			1
-#define UBOX_DEV_PMON			_UBOX_DEV(UBOX_PMON_FUNC)
+/* Bus: B0, Device: 8, Function: 1 */
 #define SMM_FEATURE_CONTROL		0x7c
 #define SMM_CODE_CHK_EN			BIT(2)
 #define SMM_FEATURE_CONTROL_LOCK	BIT(0)
+#define UBOX_DFX_DEVID			0x2015
 
 #define UBOX_DECS_BUS			0
 #define UBOX_DECS_DEV			8
@@ -110,6 +111,7 @@
 #define VTD_CAP_LOW			0x08
 #define VTD_CAP_HIGH			0x0C
 #define VTD_EXT_CAP_HIGH		0x14
+#define VTD_BAR_CSR			0x180
 #define VTD_LTDPR			0x290
 
 #define PCU_CR1_C2C3TT_REG                                 0xdc
@@ -163,7 +165,5 @@
 // IIO DFX Global D7F7 registers
 #define IIO_DFX_TSWCTL0		0x30c
 #define IIO_DFX_LCK_CTL		0x504
-
-pci_devfn_t soc_get_ubox_pmon_dev(void);
 
 #endif /* _SOC_PCI_DEVS_H_ */

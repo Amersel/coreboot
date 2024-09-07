@@ -11,10 +11,10 @@ static const struct pad_config override_gpio_table[] = {
 	PAD_NC(GPP_A21, NONE),
 	/* A21 : GPP_A22 ==> NC */
 	PAD_NC(GPP_A22, NONE),
-	/* B5  : I2C2_SDA ==> TOF_I2C_DAT */
-	PAD_CFG_NF_LOCK(GPP_B5, NONE, NF1, LOCK_CONFIG),
-	/* B6  : I2C2_SCL ==> TOF_I2C_CLK */
-	PAD_CFG_NF_LOCK(GPP_B6, NONE, NF1, LOCK_CONFIG),
+	/* B5  : GPP_B5 ==> NC */
+	PAD_NC_LOCK(GPP_B5, NONE, LOCK_CONFIG),
+	/* B6  : GPP_B6 ==> NC */
+	PAD_NC_LOCK(GPP_B6, NONE, LOCK_CONFIG),
 	/* D3  : ISH_GP3 ==> NC */
 	PAD_NC_LOCK(GPP_D3, NONE, LOCK_CONFIG),
 	/* D8  : SRCCLKREQ3# ==> NC */
@@ -37,8 +37,6 @@ static const struct pad_config override_gpio_table[] = {
 	PAD_NC_LOCK(GPP_H12, NONE, LOCK_CONFIG),
 	/* H13 : UART0_CTS# ==> NC */
 	PAD_NC_LOCK(GPP_H13, NONE, LOCK_CONFIG),
-	/* H19 : SRCCLKREQ4# ==> TOF_INT# */
-	PAD_CFG_GPI_INT(GPP_H19, NONE, PLTRST, EDGE_BOTH),
 	/* H22 : IMGCLKOUT3 ==> NC */
 	PAD_NC(GPP_H22, NONE),
 	/* R6  : DMIC_CLK_A_1A ==> NC */
@@ -65,6 +63,14 @@ static const struct pad_config early_gpio_table[] = {
 	PAD_CFG_NF(GPP_H11, NONE, DEEP, NF2),
 };
 
+static const struct pad_config romstage_gpio_table[] = {
+	/* Enable touchscreen, hold in reset */
+	/* C0  : SMBCLK ==> EN_PP3300_TCHSCR */
+	PAD_CFG_GPO(GPP_C0, 1, DEEP),
+	/* C1  : SMBDATA ==> USI_RST_L */
+	PAD_CFG_GPO(GPP_C1, 0, DEEP),
+};
+
 const struct pad_config *variant_gpio_override_table(size_t *num)
 {
 	*num = ARRAY_SIZE(override_gpio_table);
@@ -75,4 +81,10 @@ const struct pad_config *variant_early_gpio_table(size_t *num)
 {
 	*num = ARRAY_SIZE(early_gpio_table);
 	return early_gpio_table;
+}
+
+const struct pad_config *variant_romstage_gpio_table(size_t *num)
+{
+	*num = ARRAY_SIZE(romstage_gpio_table);
+	return romstage_gpio_table;
 }

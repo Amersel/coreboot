@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 config CPU_INTEL_SOCKET_FCBGA559
 	bool
 	select CPU_INTEL_MODEL_106CX
@@ -14,6 +16,9 @@ config DCACHE_RAM_BASE
 config DCACHE_RAM_SIZE
 	hex
 	default 0x8000
+
+config PRERAM_CBFS_CACHE_SIZE
+	default 0x0
 
 config DCACHE_BSP_STACK_SIZE
 	hex

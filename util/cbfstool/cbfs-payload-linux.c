@@ -34,14 +34,12 @@ struct bzpayload {
 	struct buffer cmdline;
 	struct buffer initrd;
 	/* Output variables. */
-	enum cbfs_compression algo;
-	comp_func_ptr compress;
 	struct buffer output;
 	size_t offset;
 	struct cbfs_payload_segment *out_seg;
 };
 
-static int bzp_init(struct bzpayload *bzp, enum cbfs_compression algo)
+static int bzp_init(struct bzpayload *bzp)
 {
 	memset(bzp, 0, sizeof(*bzp));
 
@@ -49,13 +47,6 @@ static int bzp_init(struct bzpayload *bzp, enum cbfs_compression algo)
 	 * Need at least the terminating entry segment.
 	 */
 	bzp->num_segments = 1;
-
-	bzp->algo = algo;
-	bzp->compress = compression_function(algo);
-	if (bzp->compress == NULL) {
-		ERROR("Invalid compression algorithm specified.\n");
-		return -1;
-	}
 
 	return 0;
 }
@@ -138,16 +129,19 @@ static int bzp_init_output(struct bzpayload *bzp, const char *name)
 	return 0;
 }
 
-static void bzp_output_segment(struct bzpayload *bzp, struct buffer *b,
-                               uint32_t type, uint64_t load_addr)
+static int bzp_output_segment(struct bzpayload *bzp, struct buffer *b,
+			      uint32_t type, uint64_t load_addr,
+			      enum cbfs_compression algo)
 {
 	struct buffer out;
 	struct cbfs_payload_segment *seg;
 	int len = 0;
 
 	/* Don't process empty buffers. */
-	if (b != NULL && buffer_size(b) == 0)
-		return;
+	if (b != NULL && buffer_size(b) == 0) {
+		ERROR("%s(): Input buffer is empty\n", __func__);
+		return -1;
+	}
 
 	seg = bzp->out_seg;
 	seg->type = type;
@@ -155,20 +149,33 @@ static void bzp_output_segment(struct bzpayload *bzp, struct buffer *b,
 	bzp->out_seg++;
 
 	/* No buffer associated with segment. */
-	if (b == NULL)
-		return;
+	if (b == NULL) {
+		if (type == PAYLOAD_SEGMENT_ENTRY)
+			return 0; // entry segments don't have a buffer attached
+		else
+			return -1;
+	}
 
 	/* Use a temp buffer for easier management. */
 	buffer_splice(&out, &bzp->output, bzp->offset, buffer_size(b));
 
 	seg->mem_len = buffer_size(b);
 	seg->offset = bzp->offset;
-	bzp->compress(buffer_get(b), buffer_size(b), buffer_get(&out), &len);
-	seg->compression = bzp->algo;
+
+	comp_func_ptr compress_func = compression_function(algo);
+	int ret = compress_func(buffer_get(b), buffer_size(b), buffer_get(&out), &len);
+	if (ret) {
+		ERROR("%s(): Compression failed\n", __func__);
+		return ret;
+	}
+
+	seg->compression = algo;
 	seg->len = len;
 
 	/* Update output offset. */
 	bzp->offset += len;
+
+	return 0; // success
 }
 
 /* TODO:
@@ -193,7 +200,12 @@ int parse_bzImage_to_payload(const struct buffer *input,
 	struct linux_header *hdr = (struct linux_header *)input->data;
 	unsigned int setup_size = 4 * 512;
 
-	if (bzp_init(&bzp, algo) != 0)
+	if (compression_function(algo) == NULL) {
+		ERROR("Invalid compression algorithm specified.\n");
+		return -1;
+	}
+
+	if (bzp_init(&bzp) != 0)
 		return -1;
 
 	if (bzp_add_trampoline(&bzp) != 0)
@@ -291,28 +303,58 @@ int parse_bzImage_to_payload(const struct buffer *input,
 	if (bzp_init_output(&bzp, input->name) != 0)
 		return -1;
 
-	/* parameter block */
-	bzp_output_segment(&bzp, &bzp.parameters,
-	                   PAYLOAD_SEGMENT_DATA, LINUX_PARAM_LOC);
+	int ret;
 
-	/* code block */
-	bzp_output_segment(&bzp, &bzp.kernel,
-	                   PAYLOAD_SEGMENT_CODE, kernel_base);
+	/* parameter block */
+	ret = bzp_output_segment(&bzp, &bzp.parameters,
+				 PAYLOAD_SEGMENT_DATA, LINUX_PARAM_LOC, algo);
+	if (ret) {
+		ERROR("%s(): Failed to write Linux zero page into segment\n", __func__);
+		return ret;
+	}
+
+	/* code block: There is no point in compressing the bzImage (it is already compressed)*/
+	ret = bzp_output_segment(&bzp, &bzp.kernel,
+				 PAYLOAD_SEGMENT_CODE, kernel_base, CBFS_COMPRESS_NONE);
+	if (ret) {
+		ERROR("%s(): Failed to write Linux kernel into segment\n", __func__);
+		return ret;
+	}
 
 	/* trampoline */
-	bzp_output_segment(&bzp, &bzp.trampoline,
-	                   PAYLOAD_SEGMENT_CODE, TRAMPOLINE_ENTRY_LOC);
+	ret = bzp_output_segment(&bzp, &bzp.trampoline,
+				 PAYLOAD_SEGMENT_CODE, TRAMPOLINE_ENTRY_LOC, algo);
+	if (ret) {
+		ERROR("%s(): Failed to write Linux trampoline into segment\n", __func__);
+		return ret;
+	}
 
 	/* cmdline */
-	bzp_output_segment(&bzp, &bzp.cmdline,
-	                   PAYLOAD_SEGMENT_DATA, COMMAND_LINE_LOC);
+	if (buffer_size(&bzp.cmdline) != 0) {
+		ret = bzp_output_segment(&bzp, &bzp.cmdline,
+					 PAYLOAD_SEGMENT_DATA, COMMAND_LINE_LOC, algo);
+		if (ret) {
+			ERROR("%s(): Failed to write Linux cmdline into segment\n", __func__);
+			return ret;
+		}
+	}
 
-	/* initrd */
-	bzp_output_segment(&bzp, &bzp.initrd,
-	                   PAYLOAD_SEGMENT_DATA, initrd_base);
+	if (buffer_size(&bzp.initrd) != 0) {
+		/* initrd */
+		ret = bzp_output_segment(&bzp, &bzp.initrd,
+					 PAYLOAD_SEGMENT_DATA, initrd_base, algo);
+		if (ret) {
+			ERROR("%s(): Failed to write Linux initrd into segment\n", __func__);
+			return ret;
+		}
+	}
 
 	/* Terminating entry segment. */
-	bzp_output_segment(&bzp, NULL, PAYLOAD_SEGMENT_ENTRY, TRAMPOLINE_ENTRY_LOC);
+	ret = bzp_output_segment(&bzp, NULL, PAYLOAD_SEGMENT_ENTRY, TRAMPOLINE_ENTRY_LOC, algo);
+	if (ret) {
+		ERROR("%s(): Failed to write entry segment\n", __func__);
+		return ret;
+	}
 
 	/* Set size of buffer taking into account potential compression. */
 	buffer_set_size(&bzp.output, bzp.offset);

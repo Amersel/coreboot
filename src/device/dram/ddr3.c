@@ -97,7 +97,7 @@ u16 spd_ddr3_calc_unique_crc(u8 *spd, int len)
  *		SPD_STATUS_INVALID_FIELD -- A field with an invalid value was
  *					    detected.
  */
-int spd_decode_ddr3(struct dimm_attr_ddr3_st *dimm, spd_raw_data spd)
+int spd_decode_ddr3(struct dimm_attr_ddr3_st *dimm, spd_ddr3_raw_data spd)
 {
 	int ret;
 	u16 crc, spd_crc;
@@ -122,7 +122,7 @@ int spd_decode_ddr3(struct dimm_attr_ddr3_st *dimm, spd_raw_data spd)
 	dimm->dram_type = SPD_MEMORY_TYPE_SDRAM_DDR3;
 	dimm->dimm_type = spd[3] & 0xf;
 
-	crc = spd_ddr3_calc_crc(spd, sizeof(spd_raw_data));
+	crc = spd_ddr3_calc_crc(spd, sizeof(spd_ddr3_raw_data));
 	/* Compare with the CRC in the SPD */
 	spd_crc = (spd[127] << 8) + spd[126];
 	/* Verify the CRC is correct */
@@ -365,7 +365,7 @@ int spd_decode_ddr3(struct dimm_attr_ddr3_st *dimm, spd_raw_data spd)
 	memcpy(dimm->part_number, &spd[128], 16);
 	printram("  Part number        : %s\n", dimm->part_number);
 
-	memcpy(dimm->serial, &spd[SPD_DIMM_SERIAL_NUM], SPD_DIMM_SERIAL_LEN);
+	memcpy(dimm->serial, &spd[SPD_DDR3_SERIAL_NUM], SPD_DDR3_SERIAL_LEN);
 
 	return ret;
 }
@@ -390,7 +390,7 @@ int spd_decode_ddr3(struct dimm_attr_ddr3_st *dimm, spd_raw_data spd)
  *		SPD_STATUS_INVALID_FIELD -- A field with an invalid value was
  *					    detected.
  */
-int spd_xmp_decode_ddr3(struct dimm_attr_ddr3_st *dimm, spd_raw_data spd,
+int spd_xmp_decode_ddr3(struct dimm_attr_ddr3_st *dimm, spd_ddr3_raw_data spd,
 			enum ddr3_xmp_profile profile)
 {
 	int ret;
@@ -422,6 +422,8 @@ int spd_xmp_decode_ddr3(struct dimm_attr_ddr3_st *dimm, spd_raw_data spd,
 		/* Medium Timebase =
 		 *   Medium Timebase (MTB) Dividend /
 		 *   Medium Timebase (MTB) Divisor */
+		if (spd[181] == 0) // Avoid dividing by zero.
+			return SPD_STATUS_INVALID;
 		mtb = (((u32)spd[180]) << 8) / spd[181];
 
 		dimm->dimms_per_channel = ((spd[178] >> 2) & 0x3) + 1;
@@ -437,6 +439,8 @@ int spd_xmp_decode_ddr3(struct dimm_attr_ddr3_st *dimm, spd_raw_data spd,
 		/* Medium Timebase =
 		 *   Medium Timebase (MTB) Dividend /
 		 *   Medium Timebase (MTB) Divisor */
+		if (spd[183] == 0) // Avoid dividing by zero.
+			return SPD_STATUS_INVALID;
 		mtb = (((u32)spd[182]) << 8) / spd[183];
 
 		dimm->dimms_per_channel = ((spd[178] >> 4) & 0x3) + 1;

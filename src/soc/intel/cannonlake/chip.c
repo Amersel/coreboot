@@ -2,6 +2,7 @@
 
 #include <device/device.h>
 #include <device/pci.h>
+#include <device/pci_ids.h>
 #include <fsp/api.h>
 #include <fsp/util.h>
 #include <gpio.h>
@@ -80,10 +81,11 @@ const char *soc_acpi_name(const struct device *dev)
 	switch (dev->path.pci.devfn) {
 	case SA_DEVFN_ROOT:	return "MCHC";
 	case SA_DEVFN_IGD:	return "GFX0";
+	case SA_DEVFN_TS:	return "TCPU";
 	case PCH_DEVFN_ISH:	return "ISHB";
+	case SA_DEVFN_GNA:	return "GNA";
 	case PCH_DEVFN_XHCI:	return "XHCI";
 	case PCH_DEVFN_USBOTG:	return "XDCI";
-	case PCH_DEVFN_THERMAL:	return "THRM";
 	case PCH_DEVFN_I2C0:	return "I2C0";
 	case PCH_DEVFN_I2C1:	return "I2C1";
 	case PCH_DEVFN_I2C2:	return "I2C2";
@@ -152,10 +154,20 @@ void soc_init_pre_device(void *chip_info)
 	soc_gpio_pm_configuration();
 
 	/* swap enabled PCI ports in device tree if needed */
-	if (CONFIG(SOC_INTEL_CANNONLAKE_PCH_H))
+	if (CONFIG(SOC_INTEL_CANNONLAKE_PCH_H)) {
 		pcie_rp_update_devicetree(pch_h_rp_groups);
-	else
+
+		/*
+		 * Fix up device ID of hidden PCI device in devicetree.
+		 * This is used by soc/intel/common/block/uart.c to generate ACPI
+		 */
+		struct device *uart2 = PCH_DEV_UART2;
+		if (uart2->hidden)
+			uart2->device = PCI_DID_INTEL_CNP_H_UART2;
+
+	} else {
 		pcie_rp_update_devicetree(pch_lp_rp_groups);
+	}
 }
 
 static void cpu_fill_ssdt(const struct device *dev)
@@ -174,7 +186,7 @@ static void cpu_set_north_irqs(struct device *dev)
 static struct device_operations pci_domain_ops = {
 	.read_resources   = &pci_domain_read_resources,
 	.set_resources    = &pci_domain_set_resources,
-	.scan_bus         = &pci_domain_scan_bus,
+	.scan_bus         = &pci_host_bridge_scan_bus,
 #if CONFIG(HAVE_ACPI_TABLES)
 	.acpi_name        = &soc_acpi_name,
 	.acpi_fill_ssdt   = ssdt_set_above_4g_pci,
@@ -205,7 +217,7 @@ static void soc_enable(struct device *dev)
 }
 
 struct chip_operations soc_intel_cannonlake_ops = {
-	CHIP_NAME("Intel Cannonlake")
+	.name = "Intel Cannonlake",
 	.enable_dev	= &soc_enable,
 	.init		= &soc_init_pre_device,
 };

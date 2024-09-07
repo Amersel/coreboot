@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
-
+#include <acpi/acpigen_pci.h>
 #include <cbfs.h>
 #include <console/console.h>
 #include <device/pci.h>
@@ -7,30 +7,12 @@
 #include <intelblocks/acpi.h>
 #include <soc/acpi.h>
 #include <soc/chip_common.h>
+#include <soc/numa.h>
 #include <soc/pch.h>
 #include <soc/soc_pch.h>
 #include <soc/ramstage.h>
 #include <soc/soc_util.h>
 #include <soc/util.h>
-
-#if CONFIG(HAVE_ACPI_TABLES)
-const char *soc_acpi_name(const struct device *dev)
-{
-	if (dev->path.type == DEVICE_PATH_DOMAIN)
-		return "PC00";
-	return NULL;
-}
-#endif
-
-static struct device_operations pci_domain_ops = {
-	.read_resources = &pci_domain_read_resources,
-	.set_resources = &xeonsp_pci_domain_set_resources,
-	.scan_bus = &xeonsp_pci_domain_scan_bus,
-#if CONFIG(HAVE_ACPI_TABLES)
-	.write_acpi_tables  = &northbridge_write_acpi_tables,
-	.acpi_name        = soc_acpi_name
-#endif
-};
 
 static struct device_operations cpu_bus_ops = {
 	.read_resources = noop_read_resources,
@@ -46,8 +28,7 @@ static void soc_enable_dev(struct device *dev)
 {
 	/* Set the operations if it is a special bus type */
 	if (dev->path.type == DEVICE_PATH_DOMAIN) {
-		dev->ops = &pci_domain_ops;
-		attach_iio_stacks(dev);
+		/* domain ops are assigned at their creation */
 	} else if (dev->path.type == DEVICE_PATH_CPU_CLUSTER) {
 		dev->ops = &cpu_bus_ops;
 	} else if (dev->path.type == DEVICE_PATH_GPIO) {
@@ -57,8 +38,14 @@ static void soc_enable_dev(struct device *dev)
 
 static void soc_init(void *data)
 {
+	unlock_pam_regions();
+
 	printk(BIOS_DEBUG, "coreboot: calling fsp_silicon_init\n");
 	fsp_silicon_init();
+
+	setup_pds();
+	attach_iio_stacks();
+
 	override_hpet_ioapic_bdf();
 	pch_lock_dmictl();
 }
@@ -89,7 +76,7 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *silupd)
 }
 
 struct chip_operations soc_intel_xeon_sp_skx_ops = {
-	CHIP_NAME("Intel Skylake-SP")
+	.name = "Intel Skylake-SP",
 	.enable_dev = soc_enable_dev,
 	.init = soc_init,
 	.final = soc_final

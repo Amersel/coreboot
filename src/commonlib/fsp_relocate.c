@@ -4,24 +4,11 @@
 #include <commonlib/endian.h>
 #include <commonlib/fsp.h>
 #include <inttypes.h>
-/*
- * Intel's code does not have a handle on changing global packing state.
- * Therefore, one needs to protect against packing policies that are set
- * globally for a compilation unit just by including a header file.
- */
-#pragma pack(push)
-
-/* Default bind FSP 1.1 API to edk2 UEFI 2.4 types. */
-#include <vendorcode/intel/edk2/uefi_2.4/uefi_types.h>
-#include <vendorcode/intel/fsp/fsp1_1/IntelFspPkg/Include/FspInfoHeader.h>
-
-/* Restore original packing policy. */
-#pragma pack(pop)
-
 #include <commonlib/helpers.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <vendorcode/intel/fsp/fsp_header.h>
 
 #define FSP_DBG_LVL BIOS_NEVER
 #define MASK_24BITS  0x00FFFFFF
@@ -173,16 +160,17 @@ static FSP_INFO_HEADER *fsp_get_info_hdr(void *fsp, size_t fih_offset)
 
 static int pe_relocate(uintptr_t new_addr, void *pe, void *fsp, size_t fih_off)
 {
-	EFI_IMAGE_NT_HEADERS32 *peih;
+	EFI_IMAGE_OPTIONAL_HEADER_UNION *peih;
 	EFI_IMAGE_DOS_HEADER *doshdr;
 	EFI_IMAGE_OPTIONAL_HEADER32 *ophdr;
+	EFI_IMAGE_OPTIONAL_HEADER64 *ophdr64;
 	FSP_INFO_HEADER *fih;
 	uint32_t  roffset, rsize;
 	uint32_t  offset;
 	uint8_t *pe_base = pe;
-	uint32_t image_base;
-	uint32_t img_base_off;
-	uint32_t delta;
+	uint64_t image_base;
+	uint64_t img_base_off;
+	uint64_t delta;
 
 	doshdr = pe;
 	if (read_le16(&doshdr->e_magic) != EFI_IMAGE_DOS_SIGNATURE) {
@@ -192,15 +180,20 @@ static int pe_relocate(uintptr_t new_addr, void *pe, void *fsp, size_t fih_off)
 
 	peih = relative_offset(pe, doshdr->e_lfanew);
 
-	if (read_le32(&peih->Signature) != EFI_IMAGE_NT_SIGNATURE) {
+	if (read_le32(&peih->Pe32.Signature) != EFI_IMAGE_NT_SIGNATURE) {
 		printk(BIOS_ERR, "Invalid PE32 header\n");
 		return -1;
 	}
 
-	ophdr = &peih->OptionalHeader;
+	ophdr = &peih->Pe32.OptionalHeader;
+	ophdr64 = &peih->Pe32Plus.OptionalHeader;
 
-	if (read_le16(&ophdr->Magic) != EFI_IMAGE_NT_OPTIONAL_HDR32_MAGIC) {
-		printk(BIOS_ERR, "No support for non-PE32 images\n");
+	if (read_le16(&ophdr->Magic) == EFI_IMAGE_NT_OPTIONAL_HDR32_MAGIC) {
+		ophdr64 = NULL;
+	} else if (read_le16(&ophdr64->Magic) == EFI_IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
+		ophdr = NULL;
+	} else {
+		printk(BIOS_ERR, "No support for non-PE32/PE32+ images\n");
 		return -1;
 	}
 
@@ -210,21 +203,26 @@ static int pe_relocate(uintptr_t new_addr, void *pe, void *fsp, size_t fih_off)
 		return -1;
 	}
 	image_base = read_le32(&fih->ImageBase);
-	printk(FSP_DBG_LVL, "FSP InfoHdr Image Base is %x\n", image_base);
+	printk(FSP_DBG_LVL, "FSP InfoHdr Image Base is %" PRIX64"\n", image_base);
 
 	delta = new_addr - image_base;
 
-	img_base_off = read_le32(&ophdr->ImageBase);
-	printk(FSP_DBG_LVL, "lfanew 0x%x, delta-0x%x, FSP Base 0x%x, NT32ImageBase 0x%x, offset 0x%x\n",
+	img_base_off = ophdr ? read_le32(&ophdr->ImageBase) : read_le64(&ophdr64->ImageBase);
+	printk(FSP_DBG_LVL, "lfanew 0x%x, delta-0x%" PRIX64 ", FSP Base 0x%" PRIX64 ", NT32ImageBase 0x%" PRIX64 ", offset 0x%" PRIX64 "\n",
 			read_le32(&doshdr->e_lfanew),
 			delta, image_base, img_base_off,
-			(uint32_t)((uint8_t *)&ophdr->ImageBase - pe_base));
+			(uint64_t)((uint8_t *)(uintptr_t)img_base_off - pe_base));
 
-	printk(FSP_DBG_LVL, "relocating PE32 image at addr - 0x%" PRIxPTR "\n", new_addr);
-	rsize = read_le32(&ophdr->DataDirectory[EFI_IMAGE_DIRECTORY_ENTRY_BASERELOC].Size);
-	roffset = read_le32(&ophdr->DataDirectory[EFI_IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress);
+	printk(FSP_DBG_LVL, "relocating PE32%s image at addr - 0x%" PRIxPTR "\n", ophdr ? "" : "+", new_addr);
+	if (ophdr) {
+		rsize = read_le32(&ophdr->DataDirectory[EFI_IMAGE_DIRECTORY_ENTRY_BASERELOC].Size);
+		roffset = read_le32(&ophdr->DataDirectory[EFI_IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress);
+	} else {
+		rsize = read_le32(&ophdr64->DataDirectory[EFI_IMAGE_DIRECTORY_ENTRY_BASERELOC].Size);
+		roffset = read_le32(&ophdr64->DataDirectory[EFI_IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress);
+	}
+
 	printk(FSP_DBG_LVL, "relocation table at offset-%x,size=%x\n", roffset, rsize);
-	// TODO - add support for PE32+ also
 
 	offset = roffset;
 	while (offset < (roffset + rsize)) {
@@ -247,20 +245,23 @@ static int pe_relocate(uintptr_t new_addr, void *pe, void *fsp, size_t fih_off)
 			uint16_t roff = reloc_offset(rdata[i]);
 			uint16_t rtype = reloc_type(rdata[i]);
 			uint32_t aoff = vaddr + roff;
-			uint32_t val;
-			printk(FSP_DBG_LVL, "\t\treloc type %x offset %x aoff %x, base-0x%x\n",
+			uint64_t val;
+			printk(FSP_DBG_LVL, "\t\treloc type %x offset %x aoff %x, base-0x%" PRIX64 "\n",
 					rtype, roff, aoff, img_base_off);
 			switch (rtype) {
 			case EFI_IMAGE_REL_BASED_ABSOLUTE:
 				continue;
 			case EFI_IMAGE_REL_BASED_HIGHLOW:
 				val = read_le32(&pe_base[aoff]);
-				printk(FSP_DBG_LVL, "Adjusting %p %x -> %x\n",
+				printk(FSP_DBG_LVL, "Adjusting %p %" PRIX64 " -> %" PRIX64 "\n",
 					&pe_base[aoff], val, val + delta);
 				write_le32(&pe_base[aoff], val + delta);
 				break;
 			case EFI_IMAGE_REL_BASED_DIR64:
-				printk(BIOS_ERR, "Unsupported DIR64\n");
+				val = read_le64(&pe_base[aoff]);
+				printk(FSP_DBG_LVL, "Adjusting %p %"  PRIX64 " -> %" PRIX64 "\n",
+					&pe_base[aoff], val, val + delta);
+				write_le64(&pe_base[aoff], val + delta);
 				break;
 			default:
 				printk(BIOS_ERR, "Unsupported relocation type %d\n",
@@ -270,10 +271,13 @@ static int pe_relocate(uintptr_t new_addr, void *pe, void *fsp, size_t fih_off)
 		}
 		offset += sizeof(*rdata) * rnum;
 	}
-	printk(FSP_DBG_LVL, "Adjust Image Base %x->%x\n",
+	printk(FSP_DBG_LVL, "Adjust Image Base %" PRIX64 "->%" PRIX64 "\n",
 			img_base_off, img_base_off + delta);
 	img_base_off += delta;
-	write_le32(&ophdr->ImageBase, img_base_off);
+	if (ophdr)
+		write_le32(&ophdr->ImageBase, img_base_off);
+	else
+		write_le64(&ophdr64->ImageBase, img_base_off);
 
 	return 0;
 }
@@ -584,7 +588,7 @@ static ssize_t relocate_fvh(uintptr_t new_addr, void *fsp, size_t fsp_size,
 		printk(FSP_DBG_LVL, "file offset: %zx\n", file_offset);
 
 		/* First file and section should be FSP info header. */
-		if (fih_offset != NULL && *fih_offset == 0)
+		if (*fih_offset == 0)
 			*fih_offset = file_offset;
 
 		ffsfh = relative_offset(fsp, file_offset);
@@ -671,14 +675,8 @@ ssize_t fsp_component_relocate(uintptr_t new_addr, void *fsp, size_t size)
 	while (offset < size) {
 		ssize_t nparsed;
 
-		/* Relocate each FV within the FSP region. The FSP_INFO_HEADER
-		 * should only be located in the first FV. */
-		if (offset == 0)
-			nparsed = relocate_fvh(new_addr, fsp, size, offset,
-						&fih_offset);
-		else
-			nparsed = relocate_fvh(new_addr, fsp, size, offset,
-						NULL);
+		/* Relocate each FV within the FSP region. */
+		nparsed = relocate_fvh(new_addr, fsp, size, offset, &fih_offset);
 
 		/* FV should be larger than 0 or failed to parse. */
 		if (nparsed <= 0) {

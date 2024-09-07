@@ -6,46 +6,18 @@
 #include <delay.h>
 #include <device/device.h>
 #include <device/pci.h>
+#include <device/pci_ids.h>
 #include <intelblocks/cfg.h>
 #include <intelblocks/cpulib.h>
+#include <intelblocks/p2sb.h>
 #include <intelpch/lockdown.h>
+#include <soc/chip_common.h>
+#include <soc/pch_pci_devs.h>
 #include <soc/pci_devs.h>
 #include <soc/msr.h>
 #include <soc/soc_util.h>
 #include <soc/util.h>
 #include <timer.h>
-
-void lock_pam0123(void)
-{
-	if (get_lockdown_config() != CHIPSET_LOCKDOWN_COREBOOT)
-		return;
-
-	/* section 16.3.19 of Intel doc. #612246 */
-	uint32_t pam0123_lock = 0x33333331;
-	uint32_t bus1 = get_socket_ubox_busno(0);
-
-	pci_s_write_config32(PCI_DEV(bus1, SAD_ALL_DEV, SAD_ALL_FUNC),
-		SAD_ALL_PAM0123_CSR, pam0123_lock);
-}
-
-void unlock_pam_regions(void)
-{
-	uint32_t pam0123_unlock_dram = 0x33333330;
-	uint32_t pam456_unlock_dram = 0x00333333;
-	uint32_t bus1 = get_socket_ubox_busno(0);
-
-	pci_io_write_config32(PCI_DEV(bus1, SAD_ALL_DEV, SAD_ALL_FUNC),
-		SAD_ALL_PAM0123_CSR, pam0123_unlock_dram);
-	pci_io_write_config32(PCI_DEV(bus1, SAD_ALL_DEV, SAD_ALL_FUNC),
-		SAD_ALL_PAM456_CSR, pam456_unlock_dram);
-
-	uint32_t reg1 = pci_io_read_config32(PCI_DEV(bus1, SAD_ALL_DEV,
-		SAD_ALL_FUNC), SAD_ALL_PAM0123_CSR);
-	uint32_t reg2 = pci_io_read_config32(PCI_DEV(bus1, SAD_ALL_DEV,
-		SAD_ALL_FUNC), SAD_ALL_PAM456_CSR);
-	printk(BIOS_DEBUG, "%s:%s pam0123_csr: 0x%x, pam456_csr: 0x%x\n",
-		__FILE__, __func__, reg1, reg2);
-}
 
 msr_t read_msr_ppin(void)
 {
@@ -101,27 +73,6 @@ const IIO_UDS *get_iio_uds(void)
 	return hob;
 }
 
-void get_iiostack_info(struct iiostack_resource *info)
-{
-	const IIO_UDS *hob = get_iio_uds();
-
-	// copy IIO Stack info from FSP HOB
-	info->no_of_stacks = 0;
-	for (int socket = 0, iio = 0; iio < hob->PlatformData.numofIIO; ++socket) {
-		if (!soc_cpu_is_enabled(socket))
-			continue;
-		iio++;
-		for (int x = 0; x < MAX_IIO_STACK; ++x) {
-			const STACK_RES *ri;
-			ri = &hob->PlatformData.IIO_resource[socket].StackRes[x];
-			if (!is_iio_stack_res(ri))
-				continue;
-			assert(info->no_of_stacks < (CONFIG_MAX_SOCKET * MAX_IIO_STACK));
-			memcpy(&info->res[info->no_of_stacks++], ri, sizeof(STACK_RES));
-		}
-	}
-}
-
 /*
  * Returns true if the CPU in the specified socket was found
  * during QPI init, false otherwise.
@@ -139,21 +90,68 @@ unsigned int soc_get_num_cpus(void)
 	return get_iio_uds()->SystemStatus.numCpus;
 }
 
+unsigned int smbios_soc_get_max_sockets(void)
+{
+	return soc_get_num_cpus();
+}
+
+union p2sb_bdf soc_get_hpet_bdf(void)
+{
+	if (CONFIG(SOC_INTEL_COMMON_IBL_BASE)) {
+		union p2sb_bdf bdf = {
+			.bus = HPET_BUS_NUM,
+			.dev = HPET_DEV_NUM,
+			.fn = HPET0_FUNC_NUM
+		};
+		return bdf;
+	}
+	return p2sb_get_hpet_bdf();
+}
+
+union p2sb_bdf soc_get_ioapic_bdf(void)
+{
+	if (CONFIG(SOC_INTEL_COMMON_IBL_BASE)) {
+		union p2sb_bdf bdf = {
+			.bus = PCH_IOAPIC_BUS_NUMBER,
+			.dev = PCH_IOAPIC_DEV_NUM,
+			.fn = PCH_IOAPIC_FUNC_NUM
+		};
+		return bdf;
+	}
+	return p2sb_get_ioapic_bdf();
+}
+
 #if ENV_RAMSTAGE /* Setting devtree variables is only allowed in ramstage. */
+
+void lock_pam0123(void)
+{
+	const uint32_t pam0123_lock = 0x33333331;
+	struct device *dev;
+
+	if (get_lockdown_config() != CHIPSET_LOCKDOWN_COREBOOT)
+		return;
+
+	dev = NULL;
+	/* Look for SAD_ALL devices on all sockets */
+	while ((dev = dev_find_device(PCI_VID_INTEL, SAD_ALL_DEVID, dev)))
+		pci_write_config32(dev, SAD_ALL_PAM0123_CSR, pam0123_lock);
+}
+
 /* return true if command timed out else false */
-static bool wait_for_bios_cmd_cpl(pci_devfn_t dev, uint32_t reg, uint32_t mask,
-	uint32_t target)
+static bool wait_for_bios_cmd_cpl(struct device *pcu1, uint32_t reg, uint32_t mask,
+				  uint32_t target)
 {
 	const uint32_t max_delay = 5000; /* 5 seconds max */
 	const uint32_t step_delay = 50; /* 50 us */
 	struct stopwatch sw;
 
 	stopwatch_init_msecs_expire(&sw, max_delay);
-	while ((pci_s_read_config32(dev, reg) & mask) != target) {
+	while ((pci_read_config32(pcu1, reg) & mask) != target) {
 		udelay(step_delay);
 		if (stopwatch_expired(&sw)) {
-			printk(BIOS_ERR, "%s timed out for dev: %x, reg: 0x%x, "
-				"mask: 0x%x, target: 0x%x\n", __func__, dev, reg, mask, target);
+			printk(BIOS_ERR, "%s timed out for dev: %s, reg: 0x%x, "
+			       "mask: 0x%x, target: 0x%x\n",
+			       __func__, dev_path(pcu1), reg, mask, target);
 			return true; /* timedout */
 		}
 	}
@@ -161,94 +159,94 @@ static bool wait_for_bios_cmd_cpl(pci_devfn_t dev, uint32_t reg, uint32_t mask,
 }
 
 /* return true if command timed out else false */
-static bool write_bios_mailbox_cmd(pci_devfn_t dev, uint32_t command, uint32_t data)
+static bool write_bios_mailbox_cmd(struct device *pcu1, uint32_t command, uint32_t data)
 {
 	/* verify bios is not in busy state */
-	if (wait_for_bios_cmd_cpl(dev, PCU_CR1_BIOS_MB_INTERFACE_REG, BIOS_MB_RUN_BUSY_MASK, 0))
+	if (wait_for_bios_cmd_cpl(pcu1, PCU_CR1_BIOS_MB_INTERFACE_REG, BIOS_MB_RUN_BUSY_MASK, 0))
 		return true; /* timed out */
 
 	/* write data to data register */
-	printk(BIOS_SPEW, "%s - pci_s_write_config32 reg: 0x%x, data: 0x%x\n", __func__,
-		PCU_CR1_BIOS_MB_DATA_REG, data);
-	pci_s_write_config32(dev, PCU_CR1_BIOS_MB_DATA_REG, data);
+	printk(BIOS_SPEW, "%s - pci_write_config32 reg: 0x%x, data: 0x%x\n", __func__,
+	       PCU_CR1_BIOS_MB_DATA_REG, data);
+
+	pci_write_config32(pcu1, PCU_CR1_BIOS_MB_DATA_REG, data);
 
 	/* write the command */
-	printk(BIOS_SPEW, "%s - pci_s_write_config32 reg: 0x%x, data: 0x%lx\n", __func__,
-		PCU_CR1_BIOS_MB_INTERFACE_REG, command | BIOS_MB_RUN_BUSY_MASK);
-	pci_s_write_config32(dev, PCU_CR1_BIOS_MB_INTERFACE_REG,
-		command | BIOS_MB_RUN_BUSY_MASK);
+	printk(BIOS_SPEW, "%s - pci_write_config32 reg: 0x%x, data: 0x%lx\n", __func__,
+	       PCU_CR1_BIOS_MB_INTERFACE_REG, command | BIOS_MB_RUN_BUSY_MASK);
+
+	pci_write_config32(pcu1, PCU_CR1_BIOS_MB_INTERFACE_REG,
+			   command | BIOS_MB_RUN_BUSY_MASK);
 
 	/* wait for completion or time out*/
-	return wait_for_bios_cmd_cpl(dev, PCU_CR1_BIOS_MB_INTERFACE_REG,
-		BIOS_MB_RUN_BUSY_MASK, 0);
+	return wait_for_bios_cmd_cpl(pcu1, PCU_CR1_BIOS_MB_INTERFACE_REG,
+				     BIOS_MB_RUN_BUSY_MASK, 0);
 }
 
 /* return true if command timed out else false */
-static bool set_bios_reset_cpl_for_package(uint32_t socket, uint32_t rst_cpl_mask,
-	uint32_t pcode_init_mask, uint32_t val)
+static bool set_bios_reset_cpl_for_package(struct device *pcu1,
+					   uint32_t rst_cpl_mask,
+					   uint32_t pcode_init_mask,
+					   uint32_t val)
 {
-	const uint32_t bus = get_socket_ubox_busno(socket);
-	const pci_devfn_t dev = PCI_DEV(bus, PCU_DEV, PCU_CR1_FUN);
-
-	uint32_t reg = pci_s_read_config32(dev, PCU_CR1_BIOS_RESET_CPL_REG);
-	reg &= (uint32_t)~rst_cpl_mask;
-	reg |= val;
-
 	/* update BIOS RESET completion bit */
-	pci_s_write_config32(dev, PCU_CR1_BIOS_RESET_CPL_REG, reg);
+	pci_update_config32(pcu1, PCU_CR1_BIOS_RESET_CPL_REG, ~rst_cpl_mask, val);
 
 	/* wait for PCU ack */
-	return wait_for_bios_cmd_cpl(dev, PCU_CR1_BIOS_RESET_CPL_REG, pcode_init_mask,
-		pcode_init_mask);
+	return wait_for_bios_cmd_cpl(pcu1, PCU_CR1_BIOS_RESET_CPL_REG,
+				     pcode_init_mask, pcode_init_mask);
 }
 
 static void set_bios_init_completion_for_package(uint32_t socket)
 {
+	struct device *pcu0 = dev_find_device_on_socket(socket, PCI_VID_INTEL, PCU_CR0_DEVID);
+	struct device *pcu1 = dev_find_device_on_socket(socket, PCI_VID_INTEL, PCU_CR1_DEVID);
 	uint32_t data;
 	bool timedout;
-	const uint32_t bus = get_socket_ubox_busno(socket);
-	const pci_devfn_t dev = PCI_DEV(bus, PCU_DEV, PCU_CR1_FUN);
+
+	if (!pcu0 || !pcu1)
+		die("Failed to locate PCU PCI device\n");
 
 	/* read PCU config */
-	timedout = write_bios_mailbox_cmd(dev, BIOS_CMD_READ_PCU_MISC_CFG, 0);
+	timedout = write_bios_mailbox_cmd(pcu1, BIOS_CMD_READ_PCU_MISC_CFG, 0);
 	if (timedout) {
 		/* 2nd try */
-		timedout = write_bios_mailbox_cmd(dev, BIOS_CMD_READ_PCU_MISC_CFG, 0);
+		timedout = write_bios_mailbox_cmd(pcu1, BIOS_CMD_READ_PCU_MISC_CFG, 0);
 		if (timedout)
 			die("BIOS PCU Misc Config Read timed out.\n");
 
 		/* Since the 1st try failed, we need to make sure PCU is in stable state */
-		data = pci_s_read_config32(dev, PCU_CR1_BIOS_MB_DATA_REG);
-		printk(BIOS_SPEW, "%s - pci_s_read_config32 reg: 0x%x, data: 0x%x\n",
+		data = pci_read_config32(pcu1, PCU_CR1_BIOS_MB_DATA_REG);
+		printk(BIOS_SPEW, "%s - pci_read_config32 reg: 0x%x, data: 0x%x\n",
 			__func__, PCU_CR1_BIOS_MB_DATA_REG, data);
-		timedout = write_bios_mailbox_cmd(dev, BIOS_CMD_WRITE_PCU_MISC_CFG, data);
+		timedout = write_bios_mailbox_cmd(pcu1, BIOS_CMD_WRITE_PCU_MISC_CFG, data);
 		if (timedout)
 			die("BIOS PCU Misc Config Write timed out.\n");
 	}
 
 	/* update RST_CPL3, PCODE_INIT_DONE3 */
-	timedout = set_bios_reset_cpl_for_package(socket, RST_CPL3_MASK,
+	timedout = set_bios_reset_cpl_for_package(pcu1, RST_CPL3_MASK,
 		PCODE_INIT_DONE3_MASK, RST_CPL3_MASK);
 	if (timedout)
 		die("BIOS RESET CPL3 timed out.\n");
 
 	/* Set PMAX_LOCK - must be set before RESET CPL4 */
-	data = pci_s_read_config32(PCI_DEV(bus, PCU_DEV, PCU_CR0_FUN), PCU_CR0_PMAX);
+	data = pci_read_config32(pcu0, PCU_CR0_PMAX);
 	data |= PMAX_LOCK;
-	pci_s_write_config32(PCI_DEV(bus, PCU_DEV, PCU_CR0_FUN), PCU_CR0_PMAX, data);
+	pci_write_config32(pcu0, PCU_CR0_PMAX, data);
 
 	/* update RST_CPL4, PCODE_INIT_DONE4 */
-	timedout = set_bios_reset_cpl_for_package(socket, RST_CPL4_MASK,
+	timedout = set_bios_reset_cpl_for_package(pcu1, RST_CPL4_MASK,
 		PCODE_INIT_DONE4_MASK, RST_CPL4_MASK);
 	if (timedout)
 		die("BIOS RESET CPL4 timed out.\n");
 
 	/* set CSR_DESIRED_CORES_CFG2 lock bit */
-	data = pci_s_read_config32(dev, PCU_CR1_DESIRED_CORES_CFG2_REG);
+	data = pci_read_config32(pcu1, PCU_CR1_DESIRED_CORES_CFG2_REG);
 	data |= PCU_CR1_DESIRED_CORES_CFG2_REG_LOCK_MASK;
-	printk(BIOS_SPEW, "%s - pci_s_write_config32 PCU_CR1_DESIRED_CORES_CFG2_REG 0x%x, data: 0x%x\n",
+	printk(BIOS_SPEW, "%s - pci_write_config32 PCU_CR1_DESIRED_CORES_CFG2_REG 0x%x, data: 0x%x\n",
 		__func__, PCU_CR1_DESIRED_CORES_CFG2_REG, data);
-	pci_s_write_config32(dev, PCU_CR1_DESIRED_CORES_CFG2_REG, data);
+	pci_write_config32(pcu1, PCU_CR1_DESIRED_CORES_CFG2_REG, data);
 }
 
 void set_bios_init_completion(void)

@@ -4,7 +4,6 @@
 #include <acpi/acpi_device.h>
 #include <acpi/acpi_soundwire.h>
 #include <device/device.h>
-#include <device/path.h>
 #include <device/soundwire.h>
 #include <mipi/ids.h>
 #include <stdio.h>
@@ -160,6 +159,6 @@ static void soundwire_max98373_enable(struct device *dev)
 }
 
 struct chip_operations drivers_soundwire_max98373_ops = {
-	CHIP_NAME("Maxim MAX98373 SoundWire Codec")
+	.name = "Maxim MAX98373 SoundWire Codec",
 	.enable_dev = soundwire_max98373_enable
 };

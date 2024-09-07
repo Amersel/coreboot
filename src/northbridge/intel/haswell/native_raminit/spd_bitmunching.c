@@ -5,6 +5,7 @@
 #include <console/console.h>
 #include <device/dram/ddr3.h>
 #include <device/smbus_host.h>
+#include <northbridge/intel/haswell/chip.h>
 #include <northbridge/intel/haswell/haswell.h>
 #include <northbridge/intel/haswell/raminit.h>
 #include <string.h>
@@ -27,24 +28,24 @@ static const uint8_t *get_spd_data_from_cbfs(struct spd_info *spdi)
 		return NULL;
 	}
 
-	if (spd_file_len < ((spdi->spd_index + 1) * SPD_LEN)) {
+	if (spd_file_len < ((spdi->spd_index + 1) * SPD_SIZE_MAX_DDR3)) {
 		printk(BIOS_ERR, "SPD index override to 0 - old hardware?\n");
 		spdi->spd_index = 0;
 	}
 
-	if (spd_file_len < SPD_LEN) {
+	if (spd_file_len < SPD_SIZE_MAX_DDR3) {
 		printk(BIOS_ERR, "Invalid SPD data in CBFS\n");
 		return NULL;
 	}
 
-	return spd_file + (spdi->spd_index * SPD_LEN);
+	return spd_file + (spdi->spd_index * SPD_SIZE_MAX_DDR3);
 }
 
 static void get_spd_for_dimm(struct raminit_dimm_info *const dimm, const uint8_t *cbfs_spd)
 {
 	if (dimm->spd_addr == SPD_MEMORY_DOWN) {
 		if (cbfs_spd) {
-			memcpy(dimm->raw_spd, cbfs_spd, SPD_LEN);
+			memcpy(dimm->raw_spd, cbfs_spd, SPD_SIZE_MAX_DDR3);
 			dimm->valid = true;
 			printk(RAM_DEBUG, "memory-down\n");
 			return;
@@ -60,9 +61,9 @@ static void get_spd_for_dimm(struct raminit_dimm_info *const dimm, const uint8_t
 		return;
 	}
 	printk(RAM_DEBUG, "and DDR3\n");
-	if (i2c_eeprom_read(dimm->spd_addr, 0, SPD_LEN, dimm->raw_spd) != SPD_LEN) {
+	if (i2c_eeprom_read(dimm->spd_addr, 0, SPD_SIZE_MAX_DDR3, dimm->raw_spd) != SPD_SIZE_MAX_DDR3) {
 		printk(BIOS_WARNING, "I2C block read failed, trying SMBus byte reads\n");
-		for (uint32_t i = 0; i < SPD_LEN; i++)
+		for (uint32_t i = 0; i < SPD_SIZE_MAX_DDR3; i++)
 			dimm->raw_spd[i] = smbus_read_byte(dimm->spd_addr, i);
 	}
 	dimm->valid = true;
@@ -70,8 +71,9 @@ static void get_spd_for_dimm(struct raminit_dimm_info *const dimm, const uint8_t
 
 static void get_spd_data(struct sysinfo *ctrl)
 {
+	const struct northbridge_intel_haswell_config *cfg = config_of_soc();
 	struct spd_info spdi = {0};
-	mb_get_spd_map(&spdi);
+	get_spd_info(&spdi, cfg);
 	const uint8_t *cbfs_spd = get_spd_data_from_cbfs(&spdi);
 	for (uint8_t channel = 0; channel < NUM_CHANNELS; channel++) {
 		for (uint8_t slot = 0; slot < NUM_SLOTS; slot++) {

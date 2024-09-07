@@ -154,7 +154,6 @@ void cpu_set_p_state_to_min_clock_ratio(void)
  */
 int cpu_get_burst_mode_state(void)
 {
-
 	msr_t msr;
 	unsigned int eax;
 	int burst_en, burst_cap, burst_state = BURST_MODE_UNKNOWN;
@@ -504,4 +503,13 @@ void disable_three_strike_error(void)
 	msr = rdmsr(MSR_PREFETCH_CTL);
 	msr.lo = msr.lo | DISABLE_CPU_ERROR;
 	wrmsr(MSR_PREFETCH_CTL, msr);
+}
+
+void disable_signaling_three_strike_event(void)
+{
+	msr_t msr;
+
+	msr = rdmsr(MSR_DISABLE_SIGNALING_THREE_STRIKE_EVENT);
+	msr.lo = msr.lo | THREE_STRIKE_COUNT;
+	wrmsr(MSR_DISABLE_SIGNALING_THREE_STRIKE_EVENT, msr);
 }

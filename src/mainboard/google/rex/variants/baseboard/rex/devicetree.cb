@@ -31,13 +31,13 @@ chip soc/intel/meteorlake
 	register "tcss_ports[3]" = "TCSS_PORT_EMPTY"	# Disable USB-C Port 3
 
 	# S0ix enable
-	register "s0ix_enable" = "1"
+	register "s0ix_enable" = "true"
 
 	# Disable C1 C-state auto-demotion
-	register "disable_c1_state_auto_demotion" = "1"
+	register "disable_c1_state_auto_demotion" = "true"
 
 	# Disable PKGC-state demotion
-	register "disable_package_c_state_demotion" = "1"
+	register "disable_package_c_state_demotion" = "true"
 
 	# Enable Energy Reporting
 	register "pch_pm_energy_report_enable" = "1"
@@ -45,28 +45,35 @@ chip soc/intel/meteorlake
 	# DPTF enable
 	register "dptf_enable" = "1"
 
+	# Setting TCC of 100C = Tj max (110) - TCC_Offset (10)
+	register "tcc_offset" = "10"
+
 	# Enable CNVi BT
 	register "cnvi_bt_core" = "true"
 
 	register "sagv" = "SAGV_ENABLED"
 
-	register "sagv_freq_mhz[0]" = "3200"
+	register "sagv_freq_mhz[0]" = "2133"
 	register "sagv_gear[0]" = "4"
 
-	register "sagv_freq_mhz[1]" = "6000"
+	register "sagv_freq_mhz[1]" = "4267"
 	register "sagv_gear[1]" = "4"
 
-	register "sagv_freq_mhz[2]" = "6400"
+	register "sagv_freq_mhz[2]" = "6000"
 	register "sagv_gear[2]" = "4"
 
-	register "sagv_freq_mhz[3]" = "5600"
-	register "sagv_gear[3]" = "2"
+	register "sagv_freq_mhz[3]" = "6400"
+	register "sagv_gear[3]" = "4"
+
+	# set EPP to 45%: 45 * 256/100 = 115 = 0x73
+	register "enable_energy_perf_pref" = "true"
+	register "energy_perf_pref_value" = "0x73"
 
 	# Set on-board graphics as primary display
-	register "skip_ext_gfx_scan" = "1"
+	register "skip_ext_gfx_scan" = "true"
 
 	register "serial_io_uart_mode" = "{
-		[PchSerialIoIndexUART0] = PchSerialIoPci,
+		[PchSerialIoIndexUART0] = PchSerialIoSkipInit,
 		[PchSerialIoIndexUART1] = PchSerialIoDisabled,
 		[PchSerialIoIndexUART2] = PchSerialIoDisabled,
 	}"
@@ -90,6 +97,7 @@ chip soc/intel/meteorlake
 	device domain 0 on
 		device ref igpu on end
 		device ref dtt on end
+		device ref vpu on end
 		device ref ioe_shared_sram on end
 		device ref xhci on end
 		device ref pmc_shared_sram on end

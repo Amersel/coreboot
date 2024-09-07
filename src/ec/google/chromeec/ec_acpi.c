@@ -157,6 +157,11 @@ static void fill_ssdt_typec_device(const struct device *dev)
 	struct acpi_pld pld = {0};
 	uint32_t pcap_mask = 0;
 
+	/* UCSI implementations do not require an ACPI device with mux info since the
+	   linux kernel doesn't set the muxes. */
+	if (google_chromeec_get_ucsi_enabled())
+		return;
+
 	rv = google_chromeec_get_num_pd_ports(&num_ports);
 	if (rv || num_ports == 0)
 		return;
@@ -228,6 +233,9 @@ static const enum ps2_action_key ps2_enum_val[] = {
 	[TK_KBD_BKLIGHT_TOGGLE] = PS2_KEY_KBD_BKLIGHT_TOGGLE,
 	[TK_MICMUTE] = PS2_KEY_MICMUTE,
 	[TK_MENU] = PS2_KEY_MENU,
+	[TK_DICTATE] = PS2_KEY_DICTATE,
+	[TK_ACCESSIBILITY] = PS2_KEY_ACCESSIBILITY,
+	[TK_DONOTDISTURB] = PS2_KEY_DO_NOT_DISTURB,
 };
 
 static void fill_ssdt_ps2_keyboard(const struct device *dev)
@@ -252,6 +260,7 @@ static void fill_ssdt_ps2_keyboard(const struct device *dev)
 				 !!(keybd.capabilities & KEYBD_CAP_FUNCTION_KEYS),
 				 !!(keybd.capabilities & KEYBD_CAP_NUMERIC_KEYPAD),
 				 !!(keybd.capabilities & KEYBD_CAP_SCRNLOCK_KEY),
+				 !!(keybd.capabilities & KEYBD_CAP_ASSISTANT_KEY),
 				 true);
 }
 
@@ -273,7 +282,7 @@ void google_chromeec_fill_ssdt_generator(const struct device *dev)
 	path.type = DEVICE_PATH_GENERIC;
 	path.generic.id = 0;
 	path.generic.subid = 0;
-	ec = alloc_find_dev(dev->bus, &path);
+	ec = alloc_find_dev(dev->upstream, &path);
 	ec->ops = &ec_ops;
 
 	if (CONFIG(DRIVERS_INTEL_DPTF))

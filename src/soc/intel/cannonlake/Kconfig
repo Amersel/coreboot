@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 config SOC_INTEL_CANNONLAKE_BASE
 	bool
 	select ACPI_INTEL_HARDWARE_SLEEP_VALUES
@@ -9,6 +11,7 @@ config SOC_INTEL_CANNONLAKE_BASE
 	select CPU_INTEL_FIRMWARE_INTERFACE_TABLE
 	select CPU_SUPPORTS_PM_TIMER_EMULATION
 	select DISPLAY_FSP_VERSION_INFO
+	select DRIVERS_USB_ACPI
 	select EDK2_CPU_TIMER_LIB if PAYLOAD_EDK2
 	select FSP_COMPRESS_FSP_S_LZMA
 	select FSP_M_XIP
@@ -43,6 +46,7 @@ config SOC_INTEL_CANNONLAKE_BASE
 	select SOC_INTEL_COMMON_BLOCK_CPU
 	select SOC_INTEL_COMMON_BLOCK_CPU_MPINIT
 	select SOC_INTEL_COMMON_BLOCK_CPU_SMMRELOCATE
+	select SOC_INTEL_COMMON_BLOCK_DTT
 	select SOC_INTEL_COMMON_BLOCK_GPIO_DUAL_ROUTE_SUPPORT
 	select SOC_INTEL_COMMON_BLOCK_GSPI_VERSION_2
 	select SOC_INTEL_COMMON_BLOCK_HDA
@@ -60,7 +64,7 @@ config SOC_INTEL_CANNONLAKE_BASE
 	select SOC_INTEL_COMMON_NHLT
 	select SOC_INTEL_COMMON_PCH_CLIENT
 	select SOC_INTEL_COMMON_RESET
-	select SOC_INTEL_CONFIGURE_DDI_A_4_LANES
+	select SOC_INTEL_GFX_HAVE_DDI_A_BIFURCATION
 	select SOC_INTEL_MEM_MAPPED_PM_CONFIGURATION
 	select SSE2
 	select SUPPORT_CPU_UCODE_IN_CBFS
@@ -75,7 +79,7 @@ config SOC_INTEL_CANNONLAKE_BASE
 config SOC_INTEL_COFFEELAKE
 	bool
 	select SOC_INTEL_CANNONLAKE_BASE
-	select HAVE_EXP_X86_64_SUPPORT
+	select HAVE_X86_64_SUPPORT
 	select HECI_DISABLE_USING_SMM
 	select INTEL_CAR_NEM
 
@@ -101,6 +105,17 @@ config SOC_INTEL_COMETLAKE_1
 config SOC_INTEL_COMETLAKE_2
 	bool
 	select SOC_INTEL_COMETLAKE
+
+config SOC_INTEL_COMETLAKE_1_2
+	bool
+	select SOC_INTEL_COMETLAKE
+	select PLATFORM_USES_SECOND_FSP
+	help
+	  Support both CML v1 and v2, for boards that may have either stepping.
+	  Embeds both FSPs and selects the correct one at runtime.  The second
+	  FSP consumes about 800 KiB of flash space.
+
+	  The first FSP is for CML v1, the second is for CML v2.
 
 config SOC_INTEL_COMETLAKE_S
 	bool
@@ -151,6 +166,11 @@ config FSP_TEMP_RAM_SIZE
 	  The amount of anticipated heap usage in CAR by FSP.
 	  Refer to Platform FSP integration guide document to know
 	  the exact FSP requirement for Heap setup.
+
+config CHIPSET_DEVICETREE
+	string
+	default "soc/intel/cannonlake/chipset_pch_h.cb" if SOC_INTEL_CANNONLAKE_PCH_H
+	default "soc/intel/cannonlake/chipset.cb"
 
 config IFD_CHIPSET
 	string
@@ -285,27 +305,21 @@ config MB_HAS_ACTIVE_HIGH_SD_PWR_ENABLE
 config FSP_HEADER_PATH
 	default "3rdparty/fsp/CoffeeLakeFspBinPkg/Include/" if SOC_INTEL_COFFEELAKE || SOC_INTEL_WHISKEYLAKE
 	default "3rdparty/fsp/CometLakeFspBinPkg/CometLake1/Include/" if SOC_INTEL_COMETLAKE_1
-	default "3rdparty/fsp/CometLakeFspBinPkg/CometLake2/Include/" if SOC_INTEL_COMETLAKE_2
+	# CML v1/v2 headers are equivalent (differ only in comments) so build
+	# against v2 arbitrarily.
+	default "3rdparty/fsp/CometLakeFspBinPkg/CometLake2/Include/" if SOC_INTEL_COMETLAKE_2 || SOC_INTEL_COMETLAKE_1_2
 	default "3rdparty/fsp/CometLakeFspBinPkg/CometLakeS/Include/" if SOC_INTEL_COMETLAKE_S
 	default "3rdparty/fsp/CometLakeFspBinPkg/CometLakeV/Include/" if SOC_INTEL_COMETLAKE_V
 
 config FSP_FD_PATH
 	default "3rdparty/fsp/CoffeeLakeFspBinPkg/Fsp.fd" if SOC_INTEL_COFFEELAKE || SOC_INTEL_WHISKEYLAKE
-	default "3rdparty/fsp/CometLakeFspBinPkg/CometLake1/Fsp.fd" if SOC_INTEL_COMETLAKE_1
+	default "3rdparty/fsp/CometLakeFspBinPkg/CometLake1/Fsp.fd" if SOC_INTEL_COMETLAKE_1 || SOC_INTEL_COMETLAKE_1_2
 	default "3rdparty/fsp/CometLakeFspBinPkg/CometLake2/Fsp.fd" if SOC_INTEL_COMETLAKE_2
 	default "3rdparty/fsp/CometLakeFspBinPkg/CometLakeS/Fsp.fd" if SOC_INTEL_COMETLAKE_S
 	default "3rdparty/fsp/CometLakeFspBinPkg/CometLakeV/Fsp.fd" if SOC_INTEL_COMETLAKE_V
 
-config SOC_INTEL_CANNONLAKE_DEBUG_CONSENT
-	int "Debug Consent for CNL"
-	# USB DBC is more common for developers so make this default to 3 if
-	# SOC_INTEL_DEBUG_CONSENT=y
-	default 3 if SOC_INTEL_DEBUG_CONSENT
-	default 0
-	help
-	  This is to control debug interface on SOC.
-	  Setting non-zero value will allow to use DBC or DCI to debug SOC.
-	  PlatformDebugConsent in FspmUpd.h has the details.
+config FSP_FD_PATH_2
+	default "3rdparty/fsp/CometLakeFspBinPkg/CometLake2/Fsp.fd" if SOC_INTEL_COMETLAKE_1_2
 
 config PRERAM_CBMEM_CONSOLE_SIZE
 	hex

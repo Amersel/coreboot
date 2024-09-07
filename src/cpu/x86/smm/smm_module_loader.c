@@ -8,7 +8,9 @@
 #include <cpu/cpu.h>
 #include <cpu/x86/smm.h>
 #include <device/device.h>
+#include <device/mmio.h>
 #include <rmodule.h>
+#include <smmstore.h>
 #include <stdio.h>
 #include <string.h>
 #include <types.h>
@@ -113,11 +115,10 @@ static int smm_create_map(const uintptr_t smbase, const unsigned int num_cpus,
 		const size_t segment_number = i / cpus_per_segment;
 		cpus[i].smbase = smbase - SMM_CODE_SEGMENT_SIZE * segment_number
 			- needed_ss_size * (i % cpus_per_segment);
-		cpus[i].stub_code.offset = cpus[i].smbase + SMM_ENTRY_OFFSET;
-		cpus[i].stub_code.size = stub_size;
-		cpus[i].ss.offset = cpus[i].smbase + SMM_CODE_SEGMENT_SIZE
-			- params->cpu_save_state_size;
-		cpus[i].ss.size = params->cpu_save_state_size;
+		cpus[i].stub_code = region_create(cpus[i].smbase + SMM_ENTRY_OFFSET, stub_size);
+		cpus[i].ss = region_create(
+				cpus[i].smbase + SMM_CODE_SEGMENT_SIZE - params->cpu_save_state_size,
+				params->cpu_save_state_size);
 		cpus[i].active = 1;
 	}
 
@@ -259,6 +260,7 @@ static int smm_module_setup_stub(const uintptr_t smbase, const size_t smm_size,
 	stub_params->stack_top = stack_top;
 	stub_params->stack_size = g_stack_size;
 	stub_params->c_handler = (uintptr_t)params->handler;
+	stub_params->cr3 = params->cr3;
 
 	/* This runs on the BSP. All the APs are its siblings */
 	struct cpu_info *info = cpu_info();
@@ -317,12 +319,15 @@ int smm_setup_relocation_handler(struct smm_loader_params *params)
 }
 
 static void setup_smihandler_params(struct smm_runtime *mod_params,
-				    uintptr_t smram_base,
-				    uintptr_t smram_size,
 				    struct smm_loader_params *loader_params)
 {
-	mod_params->smbase = smram_base;
-	mod_params->smm_size = smram_size;
+	uintptr_t tseg_base;
+	size_t tseg_size;
+
+	smm_region(&tseg_base, &tseg_size);
+
+	mod_params->smbase = tseg_base;
+	mod_params->smm_size = tseg_size;
 	mod_params->save_state_size = loader_params->cpu_save_state_size;
 	mod_params->num_cpus = loader_params->num_cpus;
 	mod_params->gnvs_ptr = (uint32_t)(uintptr_t)acpi_get_gnvs();
@@ -336,7 +341,7 @@ static void setup_smihandler_params(struct smm_runtime *mod_params,
 	}
 
 	for (int i = 0; i < loader_params->num_cpus; i++)
-		mod_params->save_state_top[i] = region_end(&cpus[i].ss);
+		mod_params->save_state_top[i] = region_last(&cpus[i].ss) + 1;
 
 	if (CONFIG(RUNTIME_CONFIGURABLE_SMM_LOGLEVEL))
 		mod_params->smm_log_level = mainboard_set_smm_log_level();
@@ -345,16 +350,32 @@ static void setup_smihandler_params(struct smm_runtime *mod_params,
 
 	if (CONFIG(SMM_PCI_RESOURCE_STORE))
 		smm_pci_resource_store_init(mod_params);
+
+	if (CONFIG(SMMSTORE_V2)) {
+		struct smmstore_params_info info;
+		if (smmstore_get_info(&info) < 0) {
+			printk(BIOS_INFO, "SMMSTORE: Failed to get meta data\n");
+			return;
+		}
+
+		void *ptr = cbmem_add(CBMEM_ID_SMM_COMBUFFER, info.block_size);
+		if (!ptr) {
+			printk(BIOS_ERR, "SMMSTORE: Failed to add com buffer\n");
+			return;
+		}
+		mod_params->smmstore_com_buffer_base = (uintptr_t)ptr;
+		mod_params->smmstore_com_buffer_size = info.block_size;
+	}
 }
 
 static void print_region(const char *name, const struct region region)
 {
 	printk(BIOS_DEBUG, "%-12s [0x%zx-0x%zx]\n", name, region_offset(&region),
-	       region_end(&region));
+	       region_last(&region));
 }
 
-/* STM + Handler + (Stub + Save state) * CONFIG_MAX_CPUS + stacks */
-#define SMM_REGIONS_ARRAY_SIZE (1  + 1 + CONFIG_MAX_CPUS * 2 + 1)
+/* STM + Handler + (Stub + Save state) * CONFIG_MAX_CPUS + stacks + page tables*/
+#define SMM_REGIONS_ARRAY_SIZE (1  + 1 + CONFIG_MAX_CPUS * 2 + 1 + 1)
 
 static int append_and_check_region(const struct region smram,
 				   const struct region region,
@@ -363,7 +384,7 @@ static int append_and_check_region(const struct region smram,
 {
 	unsigned int region_counter = 0;
 	for (; region_counter < SMM_REGIONS_ARRAY_SIZE; region_counter++)
-		if (region_list[region_counter].size == 0)
+		if (region_sz(&region_list[region_counter]) == 0)
 			break;
 
 	if (region_counter >= SMM_REGIONS_ARRAY_SIZE) {
@@ -389,6 +410,39 @@ static int append_and_check_region(const struct region smram,
 	return 0;
 }
 
+#define _PRES (1ULL << 0)
+#define _RW   (1ULL << 1)
+#define _US   (1ULL << 2)
+#define _A    (1ULL << 5)
+#define _D    (1ULL << 6)
+#define _PS   (1ULL << 7)
+#define _GEN_DIR(a) (_PRES + _RW + _US + _A + (a))
+#define _GEN_PAGE(a) (_PRES + _RW + _US + _PS + _A +  _D + (a))
+#define PAGE_SIZE 8
+
+/* Return the PM4LE */
+static uintptr_t install_page_table(const uintptr_t handler_base)
+{
+	const bool one_g_pages = !!(cpuid_edx(0x80000001) & (1 << 26));
+	/* 4 1G pages or 4 PDPE entries with 512 * 2M pages */
+	const size_t pages_needed = one_g_pages ? 4 : 2048 + 4;
+	const uintptr_t pages_base = ALIGN_DOWN(handler_base - pages_needed * PAGE_SIZE, 4096);
+	const uintptr_t pm4le = ALIGN_DOWN(pages_base - 8, 4096);
+
+	if (one_g_pages) {
+		for (size_t i = 0; i < 4; i++)
+			write64p(pages_base + i * PAGE_SIZE, _GEN_PAGE(1ull * GiB * i));
+		write64p(pm4le, _GEN_DIR(pages_base));
+	} else {
+		for (size_t i = 0; i < 2048; i++)
+			write64p(pages_base + i * PAGE_SIZE, _GEN_PAGE(2ull * MiB * i));
+		write64p(pm4le, _GEN_DIR(pages_base + 2048 * PAGE_SIZE));
+		for (size_t i = 0; i < 4; i++)
+			write64p(pages_base + (2048 + i) * PAGE_SIZE, _GEN_DIR(pages_base + 4096 * i));
+	}
+	return pm4le;
+}
+
 /*
  *The SMM module is placed within the provided region in the following
  * manner:
@@ -398,6 +452,8 @@ static int append_and_check_region(const struct region smram,
  * +-----------------+
  * |  smi handler    |
  * |      ...        |
+ * +-----------------+
+ * |  page tables    |
  * +-----------------+ <- cpu0
  * |    stub code    | <- cpu1
  * |    stub code    | <- cpu2
@@ -425,16 +481,14 @@ int smm_load_module(const uintptr_t smram_base, const size_t smram_size,
 	if (rmodule_parse(&_binary_smm_start, &smi_handler))
 		return -1;
 
-	const struct region smram = { .offset = smram_base, .size = smram_size };
-	const uintptr_t smram_top = region_end(&smram);
+	const struct region smram = region_create(smram_base, smram_size);
+	const uintptr_t smram_top = region_last(&smram) + 1;
 
 	const size_t stm_size =
 		CONFIG(STM) ? CONFIG_MSEG_SIZE + CONFIG_BIOS_RESOURCE_LIST_SIZE : 0;
 
 	if (CONFIG(STM)) {
-		struct region stm = {};
-		stm.offset = smram_top - stm_size;
-		stm.size = stm_size;
+		struct region stm = region_create(smram_top - stm_size, stm_size);
 		if (append_and_check_region(smram, stm, region_list, "STM"))
 			return -1;
 		printk(BIOS_DEBUG, "MSEG size     0x%x\n", CONFIG_MSEG_SIZE);
@@ -446,14 +500,21 @@ int smm_load_module(const uintptr_t smram_base, const size_t smram_size,
 	const uintptr_t handler_base =
 		ALIGN_DOWN(smram_top - stm_size - handler_size,
 			   handler_alignment);
-	struct region handler = {
-		.offset = handler_base,
-		.size = handler_size
-	};
+	struct region handler = region_create(handler_base, handler_size);
 	if (append_and_check_region(smram, handler, region_list, "HANDLER"))
 		return -1;
 
-	uintptr_t stub_segment_base = handler_base - SMM_CODE_SEGMENT_SIZE;
+	uintptr_t stub_segment_base;
+	if (ENV_X86_64) {
+		uintptr_t pt_base = install_page_table(handler_base);
+		struct region page_tables = region_create(pt_base, handler_base - pt_base);
+		if (append_and_check_region(smram, page_tables, region_list, "PAGE TABLES"))
+			return -1;
+		params->cr3 = pt_base;
+		stub_segment_base = pt_base - SMM_CODE_SEGMENT_SIZE;
+	} else {
+		stub_segment_base = handler_base - SMM_CODE_SEGMENT_SIZE;
+	}
 
 	if (!smm_create_map(stub_segment_base, params->num_concurrent_save_states, params)) {
 		printk(BIOS_ERR, "%s: Error creating CPU map\n", __func__);
@@ -470,10 +531,8 @@ int smm_load_module(const uintptr_t smram_base, const size_t smram_size,
 			return -1;
 	}
 
-	struct region stacks = {
-		.offset = smram_base,
-		.size = params->num_concurrent_save_states * CONFIG_SMM_MODULE_STACK_SIZE
-	};
+	struct region stacks = region_create(smram_base,
+			params->num_concurrent_save_states * CONFIG_SMM_MODULE_STACK_SIZE);
 	printk(BIOS_DEBUG, "\n");
 	if (append_and_check_region(smram, stacks, region_list, "stacks"))
 		return -1;
@@ -483,7 +542,7 @@ int smm_load_module(const uintptr_t smram_base, const size_t smram_size,
 
 	struct smm_runtime *smihandler_params = rmodule_parameters(&smi_handler);
 	params->handler = rmodule_entry(&smi_handler);
-	setup_smihandler_params(smihandler_params, smram_base, smram_size, params);
+	setup_smihandler_params(smihandler_params, params);
 
 	return smm_module_setup_stub(stub_segment_base, smram_size, params);
 }

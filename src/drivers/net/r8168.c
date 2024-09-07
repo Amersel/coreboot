@@ -364,7 +364,7 @@ static void r8168_init(struct device *dev)
 static void r8168_net_fill_ssdt(const struct device *dev)
 {
 	struct drivers_net_config *config = dev->chip_info;
-	const char *path = acpi_device_path(dev->bus->dev);
+	const char *path = acpi_device_path(dev->upstream->dev);
 	u32 address;
 
 	if (!path || !config)
@@ -441,5 +441,5 @@ static const struct pci_driver r8168_driver __pci_driver = {
 };
 
 struct chip_operations drivers_net_ops = {
-	CHIP_NAME("Realtek r8168")
+	.name = "Realtek r8168",
 };

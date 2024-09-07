@@ -71,7 +71,7 @@ static const char *northbridge_acpi_name(const struct device *dev)
 struct device_operations ironlake_pci_domain_ops = {
 	.read_resources	= pci_domain_read_resources,
 	.set_resources	= pci_domain_set_resources,
-	.scan_bus	= pci_domain_scan_bus,
+	.scan_bus	= pci_host_bridge_scan_bus,
 #if CONFIG(HAVE_ACPI_TABLES)
 	.acpi_name	= northbridge_acpi_name,
 #endif
@@ -168,7 +168,6 @@ static void ironlake_init(void *const chip_info)
 	const struct device *const d0f0 = pcidev_on_root(0, 0);
 	if (d0f0)
 		pci_update_config32(d0f0, DEVEN, deven_mask, 0);
-
 }
 
 static struct device_operations mc_ops = {
@@ -217,6 +216,6 @@ struct device_operations ironlake_cpu_bus_ops = {
 };
 
 struct chip_operations northbridge_intel_ironlake_ops = {
-	CHIP_NAME("Intel Ironlake integrated Northbridge")
+	.name = "Intel Ironlake integrated Northbridge",
 	.init = ironlake_init,
 };

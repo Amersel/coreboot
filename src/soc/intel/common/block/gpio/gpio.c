@@ -167,6 +167,12 @@ static void gpio_configure_owner(const struct pad_config *cfg,
 		hostsw_own &= ~gpio_bitmask_within_group(comm, pin);
 
 	pcr_write32(comm->port, hostsw_own_offset, hostsw_own);
+
+	if (CONFIG(DEBUG_GPIO)) {
+		printk(BIOS_DEBUG, "HOST_OWN[0x%02x, %02zu]: Reg: 0x%x, Value = 0x%08x\n",
+			comm->port, relative_pad_in_comm(comm, cfg->pad), hostsw_own_offset,
+			pcr_read32(comm->port, hostsw_own_offset));
+	}
 }
 
 static void gpi_enable_gpe(const struct pad_config *cfg,
@@ -187,7 +193,7 @@ static void gpi_enable_gpe(const struct pad_config *cfg,
 	pcr_or32(comm->port, en_reg, en_value);
 
 	if (CONFIG(DEBUG_GPIO)) {
-		printk(BIOS_DEBUG, "GPE_EN[0x%02x, %02zd]: Reg: 0x%x, Value = 0x%x\n",
+		printk(BIOS_DEBUG, "GPE_EN[0x%02x, %02zu]: Reg: 0x%x, Value = 0x%08x\n",
 			comm->port, relative_pad_in_comm(comm, cfg->pad), en_reg,
 			pcr_read32(comm->port, en_reg));
 	}
@@ -212,6 +218,12 @@ static void gpi_enable_smi(const struct pad_config *cfg,
 
 	/* Set enable bits */
 	pcr_or32(comm->port, en_reg, en_value);
+
+	if (CONFIG(DEBUG_GPIO)) {
+		printk(BIOS_DEBUG, "SMI_EN[0x%02x, %02zu]: Reg: 0x%x, Value = 0x%08x\n",
+			comm->port, relative_pad_in_comm(comm, cfg->pad), en_reg,
+			pcr_read32(comm->port, en_reg));
+	}
 }
 
 static void gpi_enable_nmi(const struct pad_config *cfg,
@@ -237,6 +249,12 @@ static void gpi_enable_nmi(const struct pad_config *cfg,
 
 	/* Set enable bits */
 	pcr_or32(comm->port, en_reg, en_value);
+
+	if (CONFIG(DEBUG_GPIO)) {
+		printk(BIOS_DEBUG, "NMI_EN[0x%02x, %02zu]: Reg: 0x%x, Value = 0x%08x\n",
+			comm->port, relative_pad_in_comm(comm, cfg->pad), en_reg,
+			pcr_read32(comm->port, en_reg));
+	}
 }
 
 /* 120 GSIs is the default for IOxAPIC */
@@ -276,7 +294,8 @@ static void gpio_configure_itss(const struct pad_config *cfg, uint16_t port,
 	 * in the GPIO pad configuration so that a hardware active low
 	 * signal looks that way to the APIC (double inversion).
 	 */
-	if (!(cfg->pad_config[0] & PAD_CFG0_ROUTE_IOAPIC))
+	if (!(cfg->pad_config[0] & PAD_CFG0_ROUTE_SWAPPED) &&
+	    !(cfg->pad_config[0] & PAD_CFG0_ROUTE_IOAPIC))
 		return;
 
 	irq = pcr_read32(port, PAD_CFG1_OFFSET(pad_cfg_offset));
@@ -287,7 +306,8 @@ static void gpio_configure_itss(const struct pad_config *cfg, uint16_t port,
 		return;
 	}
 
-	if (CONFIG(SOC_INTEL_COMMON_BLOCK_GPIO_ITSS_POL_CFG))
+	if (CONFIG(SOC_INTEL_COMMON_BLOCK_GPIO_ITSS_POL_CFG) &&
+	    !(cfg->pad_config[0] & PAD_CFG0_ROUTE_SWAPPED))
 		itss_set_irq_polarity(irq, !!(cfg->pad_config[0] &
 					      PAD_CFG0_RX_POL_INVERT));
 
@@ -366,16 +386,17 @@ static void gpio_configure_pad(const struct pad_config *cfg)
 		/* Patch GPIO settings for SoC specifically */
 		soc_pad_conf = soc_gpio_pad_config_fixup(cfg, i, soc_pad_conf);
 
-		if (CONFIG(DEBUG_GPIO))
-			printk(BIOS_DEBUG,
-			"gpio_padcfg [0x%02x, %02d] DW%d [0x%08x : 0x%08x"
-			" : 0x%08x]\n",
-			comm->port, pin, i,
-			pad_conf,/* old value */
-			cfg->pad_config[i],/* value passed from gpio table */
-			soc_pad_conf);/*new value*/
 		pcr_write32(comm->port, PAD_CFG_OFFSET(config_offset, i),
 			soc_pad_conf);
+
+		if (CONFIG(DEBUG_GPIO))
+			printk(BIOS_DEBUG,
+			       "gpio_padcfg [0x%02x, %02d] DW%d [0x%08x : 0x%08x : 0x%08x : 0x%08x]\n",
+			       comm->port, pin, i,
+			       pad_conf,           /* old value */
+			       cfg->pad_config[i], /* value passed from gpio table */
+			       soc_pad_conf,       /* new value */
+			       pcr_read32(comm->port, PAD_CFG_OFFSET(config_offset, i))); /* updated value */
 	}
 
 	gpio_configure_itss(cfg, comm->port, config_offset);
@@ -808,7 +829,6 @@ void gpi_clear_get_smi_status(struct gpi_status *sts)
 
 	if (CONFIG(DEBUG_SMI))
 		print_gpi_status(sts);
-
 }
 
 int gpi_status_get(const struct gpi_status *sts, gpio_t pad)
@@ -1048,8 +1068,16 @@ bool gpio_get_vw_info(gpio_t pad, unsigned int *vw_index, unsigned int *vw_bit)
 	if (i == comm->num_vw_entries)
 		return false;
 
-	offset += pad - comm->vw_entries[i].first_pad;
-	*vw_index = comm->vw_base + offset / 8;
+	/* Adjust offset and calculate vw_index based on the mapping type */
+	if (comm->vw_map) {
+		offset = pad - comm->vw_entries[i].first_pad;
+		offset += comm->vw_map[i].start_pos;
+		*vw_index = comm->vw_map[i].base + offset / 8;
+	} else {
+		offset += pad - comm->vw_entries[i].first_pad;
+		offset += comm->vw_base;
+		*vw_index = offset / 8;
+	}
 	*vw_bit = offset % 8;
 
 	return true;

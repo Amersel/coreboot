@@ -71,10 +71,10 @@ struct spi_flash_part_id {
 	 */
 	uint16_t id[2];
 	/* Log based 2 total number of sectors. */
-	uint16_t nr_sectors_shift: 4;
+	uint16_t nr_sectors_shift : 4;
 	uint16_t fast_read_dual_output_support : 1;	/*  1-1-2 read */
 	uint16_t fast_read_dual_io_support : 1;		/*  1-2-2 read */
-	uint16_t _reserved_for_flags: 2;
+	uint16_t _reserved_for_flags : 2;
 	/* Block protection. Currently used by Winbond. */
 	uint16_t protection_granularity_shift : 5;
 	uint16_t bp_bits : 3;
@@ -112,7 +112,7 @@ extern const struct spi_flash_vendor_info spi_flash_atmel_vi;
 extern const struct spi_flash_vendor_info spi_flash_eon_vi;
 extern const struct spi_flash_vendor_info spi_flash_gigadevice_vi;
 extern const struct spi_flash_vendor_info spi_flash_macronix_vi;
-/* Probing order matters between the spansion sequence. */
+/* Probing order matters between the Spansion sequence. */
 extern const struct spi_flash_vendor_info spi_flash_spansion_ext1_vi;
 extern const struct spi_flash_vendor_info spi_flash_spansion_ext2_vi;
 extern const struct spi_flash_vendor_info spi_flash_spansion_vi;
@@ -123,6 +123,7 @@ extern const struct spi_flash_vendor_info spi_flash_stmicro2_vi;
 extern const struct spi_flash_vendor_info spi_flash_stmicro3_vi;
 extern const struct spi_flash_vendor_info spi_flash_stmicro4_vi;
 extern const struct spi_flash_vendor_info spi_flash_winbond_vi;
+extern const struct spi_flash_vendor_info spi_flash_issi_vi;
 
 /* Page Programming Command Set with 0x20 Sector Erase command. */
 extern const struct spi_flash_ops_descriptor spi_flash_pp_0x20_sector_desc;

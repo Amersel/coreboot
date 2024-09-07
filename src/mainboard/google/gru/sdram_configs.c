@@ -5,11 +5,10 @@
 #include <console/console.h>
 #include <gpio.h>
 #include <soc/sdram.h>
-#include <string.h>
+#include <stdio.h>
 #include <types.h>
 
 static const char *sdram_configs[] = {
-
 	/* Samsung K4E6E304EB-EGCE */
 	[0] = "sdram-lpddr3-generic-4GB",
 

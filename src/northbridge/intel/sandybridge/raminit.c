@@ -1,10 +1,12 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
-#include <commonlib/region.h>
 #include <cf9_reset.h>
 #include <string.h>
+#include <cbfs.h>
 #include <arch/cpu.h>
+#include <device/device.h>
+#include <device/dram/ddr3.h>
 #include <device/mmio.h>
 #include <device/pci_ops.h>
 #include <device/smbus_host.h>
@@ -16,9 +18,10 @@
 #include <cpu/x86/msr.h>
 #include <types.h>
 
-#include "raminit_native.h"
+#include "raminit.h"
 #include "raminit_common.h"
 #include "sandybridge.h"
+#include "chip.h"
 
 /* FIXME: no support for 3-channel chipsets */
 
@@ -120,7 +123,7 @@ static void setup_sdram_meminfo(ramctr_timing *ctrl)
 }
 
 /* Return CRC16 match for all SPDs */
-static int verify_crc16_spds_ddr3(spd_raw_data *spd, ramctr_timing *ctrl)
+static int verify_crc16_spds_ddr3(spd_ddr3_raw_data *spd, ramctr_timing *ctrl)
 {
 	int channel, slot, spd_slot;
 	int match = 1;
@@ -129,25 +132,67 @@ static int verify_crc16_spds_ddr3(spd_raw_data *spd, ramctr_timing *ctrl)
 		for (slot = 0; slot < NUM_SLOTS; slot++) {
 			spd_slot = 2 * channel + slot;
 			match &= ctrl->spd_crc[channel][slot] ==
-				spd_ddr3_calc_unique_crc(spd[spd_slot], sizeof(spd_raw_data));
+				spd_ddr3_calc_unique_crc(spd[spd_slot], sizeof(spd_ddr3_raw_data));
 		}
 	}
 	return match;
 }
 
-void read_spd(spd_raw_data * spd, u8 addr, bool id_only)
+static void read_spd(spd_ddr3_raw_data *spd, u8 addr, bool id_only)
 {
 	int j;
 	if (id_only) {
-		for (j = 117; j < 128; j++)
+		for (j = SPD_DDR3_MOD_ID1; j < 128; j++)
 			(*spd)[j] = smbus_read_byte(addr, j);
 	} else {
-		for (j = 0; j < 256; j++)
+		for (j = 0; j < SPD_SIZE_MAX_DDR3; j++)
 			(*spd)[j] = smbus_read_byte(addr, j);
 	}
 }
 
-static void dram_find_spds_ddr3(spd_raw_data *spd, ramctr_timing *ctrl)
+static void mainboard_get_spd(spd_ddr3_raw_data *spd, bool id_only)
+{
+	const struct northbridge_intel_sandybridge_config *cfg = config_of_soc();
+	unsigned int i;
+
+	if (CONFIG(HAVE_SPD_IN_CBFS)) {
+		struct spd_info spdi = {0};
+
+		mb_get_spd_map(&spdi);
+
+		size_t spd_file_len;
+		uint8_t *spd_file = cbfs_map("spd.bin", &spd_file_len);
+
+		printk(BIOS_DEBUG, "SPD index %d\n", spdi.spd_index);
+
+		/* SPD file sanity check */
+		if (!spd_file)
+			die("SPD data %s!", "not found");
+
+		if (spd_file_len < ((spdi.spd_index + 1) * SPD_SIZE_MAX_DDR3))
+			die("SPD data %s!", "incomplete");
+
+		/*
+		 * Copy SPD data specified by spd_info.spd_index to all slots marked as
+		 * SPD_MEMORY_DOWN.
+		 *
+		 * Read SPD data from slots with a real SMBus address.
+		 */
+		for (i = 0; i < ARRAY_SIZE(spdi.addresses); i++) {
+			if (spdi.addresses[i] == SPD_MEMORY_DOWN)
+				memcpy(&spd[i], spd_file + (spdi.spd_index * SPD_SIZE_MAX_DDR3), SPD_SIZE_MAX_DDR3);
+			else if (spdi.addresses[i] != 0)
+				read_spd(&spd[i], spdi.addresses[i], id_only);
+		}
+	} else {
+		for (i = 0; i < ARRAY_SIZE(cfg->spd_addresses); i++) {
+			if (cfg->spd_addresses[i] != 0)
+				read_spd(&spd[i], cfg->spd_addresses[i], id_only);
+		}
+	} /* CONFIG(HAVE_SPD_IN_CBFS) */
+}
+
+static void dram_find_spds_ddr3(spd_ddr3_raw_data *spd, ramctr_timing *ctrl)
 {
 	int dimms = 0, ch_dimms;
 	int channel, slot, spd_slot;
@@ -209,7 +254,7 @@ static void dram_find_spds_ddr3(spd_raw_data *spd, ramctr_timing *ctrl)
 
 			/* Fill in CRC16 for MRC cache */
 			ctrl->spd_crc[channel][slot] =
-				spd_ddr3_calc_unique_crc(spd[spd_slot], sizeof(spd_raw_data));
+				spd_ddr3_calc_unique_crc(spd[spd_slot], sizeof(spd_ddr3_raw_data));
 
 			if (dimm->dram_type != SPD_MEMORY_TYPE_SDRAM_DDR3) {
 				/* Mark DIMM as invalid */
@@ -294,8 +339,8 @@ static void init_dram_ddr3(int s3resume, const u32 cpuid)
 {
 	int me_uma_size, cbmem_was_inited, fast_boot, err;
 	ramctr_timing ctrl;
-	spd_raw_data spds[4];
-	size_t mrc_size;
+	spd_ddr3_raw_data spds[4];
+	size_t mrc_size = 0;
 	ramctr_timing *ctrl_cached = NULL;
 
 	timestamp_add_now(TS_INITRAM_START);
@@ -332,7 +377,6 @@ static void init_dram_ddr3(int s3resume, const u32 cpuid)
 
 	/* Before reusing training data, assert that the CPU has not been replaced */
 	if (ctrl_cached && cpuid != ctrl_cached->cpu) {
-
 		/* It is not really worrying on a cold boot, but fatal when resuming from S3 */
 		printk(s3resume ? BIOS_ALERT : BIOS_NOTICE,
 				"CPUID %x differs from stored CPUID %x, CPU was replaced!\n",

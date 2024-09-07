@@ -22,8 +22,8 @@
 #include <soc/intel/common/vbt.h>
 #include <soc/interrupt.h>
 #include <soc/iomap.h>
-#include <soc/irq.h>
 #include <soc/itss.h>
+#include <soc/irq.h>
 #include <soc/pci_devs.h>
 #include <soc/ramstage.h>
 #include <soc/systemagent.h>
@@ -94,7 +94,7 @@ const char *soc_acpi_name(const struct device *dev)
 		return NULL;
 
 	/* Match functions 0 and 1 for possible GPUs on a secondary bus */
-	if (dev->bus && dev->bus->secondary > 0) {
+	if (dev->upstream && dev->upstream->secondary > 0) {
 		switch (PCI_FUNC(dev->path.pci.devfn)) {
 		case 0: return "DEV0";
 		case 1: return "DEV1";
@@ -189,7 +189,7 @@ void soc_init_pre_device(void *chip_info)
 struct device_operations pci_domain_ops = {
 	.read_resources   = &pci_domain_read_resources,
 	.set_resources    = &pci_domain_set_resources,
-	.scan_bus         = &pci_domain_scan_bus,
+	.scan_bus         = &pci_host_bridge_scan_bus,
 #if CONFIG(HAVE_ACPI_TABLES)
 	.acpi_name        = &soc_acpi_name,
 	.acpi_fill_ssdt   = ssdt_set_above_4g_pci,
@@ -212,7 +212,7 @@ static void soc_enable(struct device *dev)
 }
 
 struct chip_operations soc_intel_skylake_ops = {
-	CHIP_NAME("Intel 6th Gen")
+	.name = "Intel 6th Gen",
 	.enable_dev	= &soc_enable,
 	.init		= &soc_init_pre_device,
 };
@@ -529,5 +529,7 @@ __weak void mainboard_silicon_init_params(FSP_S_CONFIG *params)
 /* Handle FSP logo params */
 void soc_load_logo(FSPS_UPD *supd)
 {
-	bmp_load_logo(&supd->FspsConfig.LogoPtr, &supd->FspsConfig.LogoSize);
+	size_t logo_size;
+	supd->FspsConfig.LogoPtr = (uint32_t)(uintptr_t)bmp_load_logo(&logo_size);
+	supd->FspsConfig.LogoSize = (uint32_t)logo_size;
 }

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
 chip soc/intel/tigerlake
 	register "common_soc_config" = "{
 		// Touchpad I2C bus
@@ -10,7 +12,7 @@ chip soc/intel/tigerlake
 
 # ACPI (soc/intel/tigerlake/acpi.c)
 	# Enable Enhanced Intel SpeedStep
-	register "eist_enable" = "1"
+	register "eist_enable" = "true"
 
 # CPU (soc/intel/tigerlake/cpu.c)
 	# Power limits
@@ -75,8 +77,6 @@ chip soc/intel/tigerlake
 	register "pmc_gpe0_dw2" = "PMC_GPP_D"
 
 # Actual device tree
-	device cpu_cluster 0 on end
-
 	device domain 0 on
 		#From CPU EDS(575683)
 		device ref system_agent on end

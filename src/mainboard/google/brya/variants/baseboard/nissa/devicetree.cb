@@ -1,4 +1,8 @@
 fw_config
+	field AUDIO_CONFIG 28
+		option AMP_GPIO			0
+		option AMP_RT5650		1
+	end
 	field SD_BOOT 29
 		option SD_BOOT_ENABLE		0
 		option SD_BOOT_DISABLE		1
@@ -7,6 +11,7 @@ fw_config
 		option STORAGE_EMMC		0
 		option STORAGE_NVME		1
 		option STORAGE_UFS		2
+		option STORAGE_UNKNOWN		3
 	end
 end
 
@@ -24,7 +29,7 @@ chip soc/intel/alderlake
 	register "gen3_dec" = "0x00fc0901"
 
 	# S0ix enable
-	register "s0ix_enable" = "1"
+	register "s0ix_enable" = "true"
 
 	# DPTF enable
 	register "dptf_enable" = "1"
@@ -35,7 +40,7 @@ chip soc/intel/alderlake
 	register "cnvi_bt_core" = "true"
 
 	# eMMC HS400
-	register "emmc_enable_hs400_mode" = "1"
+	register "emmc_enable_hs400_mode" = "true"
 
 	#eMMC DLL tuning parameters
 	#Adding the intermediate eMMC DLL tuning override values
@@ -87,7 +92,7 @@ chip soc/intel/alderlake
 
 	# FIXME: To be enabled in future based on PNP impact data.
 	# Disable Package C-state demotion for nissa baseboard.
-	register "disable_package_c_state_demotion" = "1"
+	register "disable_package_c_state_demotion" = "true"
 
 	# Intel Common SoC Config
 	#+-------------------+---------------------------+
@@ -151,7 +156,38 @@ chip soc/intel/alderlake
 	}"
 
 	device domain 0 on
-		device ref igpu on end
+		# The timing values can be derived from datasheet of display panel
+		# You can use EDID string to identify the type of display on the board
+		# use below command to get display info from EDID
+		# strings /sys/devices/pci0000:00/0000:00:02.0/drm/card0/card0-eDP-1/edid
+
+		# refer to display PRM document (Volume 2b: Command Reference: Registers)
+		# for more info on display control registers
+		# https://01.org/linuxgraphics/documentation/hardware-specification-prms
+		#+-----------------------------+---------------------------------------+-----+
+		#| Intel docs                  | devicetree.cb                         | eDP |
+		#+-----------------------------+---------------------------------------+-----+
+		#| Power up delay              | `gpu_panel_power_up_delay`            | T3  |
+		#+-----------------------------+---------------------------------------+-----+
+		#| Power on to backlight on    | `gpu_panel_power_backlight_on_delay`  | T7  |
+		#+-----------------------------+---------------------------------------+-----+
+		#| Power Down delay            | `gpu_panel_power_down_delay`          | T10 |
+		#+-----------------------------+---------------------------------------+-----+
+		#| Backlight off to power down | `gpu_panel_power_backlight_off_delay` | T9  |
+		#+-----------------------------+---------------------------------------+-----+
+		#| Power Cycle Delay           | `gpu_panel_power_cycle_delay`         | T12 |
+		#+-----------------------------+---------------------------------------+-----+
+		device ref igpu on
+			register "panel_cfg" = "{
+			    .up_delay_ms = 200,
+			    .down_delay_ms = 50,
+			    .cycle_delay_ms = 500,
+			    .backlight_on_delay_ms = 1,
+			    .backlight_off_delay_ms = 200,
+			    .backlight_pwm_hz = 200,
+			}"
+			register "gfx" = "GMA_DEFAULT_PANEL(0)"
+		end
 		device ref dtt on end
 		device ref tcss_xhci on end
 		device ref xhci on end

@@ -5,10 +5,10 @@
 #include <acpi/acpi_pld.h>
 #include <console/console.h>
 #include <device/device.h>
-#include <device/path.h>
 #include <drivers/usb/acpi/chip.h>
 #include <gpio.h>
-#include <string.h>
+#include <stdio.h>
+
 #include "chip.h"
 #include "retimer.h"
 
@@ -460,7 +460,7 @@ static void usb4_retimer_enable(struct device *dev)
 }
 
 struct chip_operations drivers_intel_usb4_retimer_ops = {
-	CHIP_NAME("Intel USB4 Retimer")
+	.name = "Intel USB4 Retimer",
 	.enable_dev = usb4_retimer_enable
 };
 

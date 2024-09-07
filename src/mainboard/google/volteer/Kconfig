@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 config BOARD_GOOGLE_BASEBOARD_VOLTEER
 	def_bool n
 	select BOARD_ROMSIZE_KB_32768
@@ -180,7 +182,8 @@ config DRIVER_TPM_I2C_ADDR
 
 config INTEL_GMA_VBT_FILE
 	default "src/mainboard/\$(MAINBOARDDIR)/variants/\$(VARIANT_DIR)/data.vbt" \
-		if BOARD_GOOGLE_ELEMI || BOARD_GOOGLE_LINDAR || BOARD_GOOGLE_VOEMA
+		if BOARD_GOOGLE_ELEMI || BOARD_GOOGLE_LINDAR || \
+		   BOARD_GOOGLE_VOEMA || BOARD_GOOGLE_DROBIT
 	default "src/mainboard/\$(MAINBOARDDIR)/variants/baseboard/data.vbt" if INTEL_GMA_HAVE_VBT
 
 config MAINBOARD_DIR
@@ -238,6 +241,9 @@ config VARIANT_DIR
 
 config VARIANT_HAS_MIPI_CAMERA
 	bool
+	default n
+
+config USE_PM_ACPI_TIMER
 	default n
 
 endif # BOARD_GOOGLE_BASEBOARD_VOLTEER

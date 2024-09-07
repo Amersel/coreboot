@@ -4,6 +4,7 @@
 #include <console/console.h>
 #include <security/vboot/misc.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 #include <ux_locales.h>
 #include <vb2_api.h>
@@ -116,7 +117,7 @@ const char *ux_locales_get_text(const char *name)
 {
 	const char *data;
 	size_t size, offset, name_offset, next_name_offset, next;
-	uint32_t lang_id;
+	uint32_t lang_id = 0; /* default language English (0) */
 	unsigned char version;
 
 	data = locales_get_map(&size, false);
@@ -126,13 +127,15 @@ const char *ux_locales_get_text(const char *name)
 		return NULL;
 	}
 
-	/* Get the language ID from vboot API. */
-	lang_id = vb2api_get_locale_id(vboot_get_context());
-	/* Validity check: Language ID should smaller than LANG_ID_MAX. */
-	if (lang_id >= LANG_ID_MAX) {
-		printk(BIOS_WARNING, "%s: ID %d too big; fallback to 0.\n",
-		       __func__, lang_id);
-		lang_id = 0;
+	if (CONFIG(VBOOT)) {
+		/* Get the language ID from vboot API. */
+		lang_id = vb2api_get_locale_id(vboot_get_context());
+		/* Validity check: Language ID should smaller than LANG_ID_MAX. */
+		if (lang_id >= LANG_ID_MAX) {
+			printk(BIOS_WARNING, "%s: ID %d too big; fallback to 0.\n",
+			       __func__, lang_id);
+			lang_id = 0;
+		}
 	}
 
 	printk(BIOS_INFO, "%s: Search for %s with language ID: %u\n",

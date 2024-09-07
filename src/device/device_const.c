@@ -3,7 +3,6 @@
 #include <assert.h>
 #include <console/console.h>
 #include <device/device.h>
-#include <device/path.h>
 #include <device/pci_def.h>
 #include <device/pci_type.h>
 #include <fw_config.h>
@@ -34,7 +33,8 @@ static DEVTREE_CONST struct device *dev_find_slot(unsigned int bus,
 	result = 0;
 	for (dev = all_devices; dev; dev = dev->next) {
 		if ((dev->path.type == DEVICE_PATH_PCI) &&
-		    (dev->bus->secondary == bus) &&
+		    (dev->upstream->secondary == bus) &&
+		    (dev->upstream->segment_group == 0) &&
 		    (dev->path.pci.devfn == devfn)) {
 			result = dev;
 			break;
@@ -118,7 +118,7 @@ static int path_eq(const struct device_path *path1,
 		equal = (path1->apic.apic_id == path2->apic.apic_id);
 		break;
 	case DEVICE_PATH_DOMAIN:
-		equal = (path1->domain.domain == path2->domain.domain);
+		equal = (path1->domain.domain_id == path2->domain.domain_id);
 		break;
 	case DEVICE_PATH_CPU_CLUSTER:
 		equal = (path1->cpu_cluster.cluster
@@ -209,7 +209,7 @@ DEVTREE_CONST struct device *find_dev_nested_path(
 	if (nested_path_length == 1 || !child)
 		return child;
 
-	return find_dev_nested_path(child->link_list, nested_path + 1, nested_path_length - 1);
+	return find_dev_nested_path(child->downstream, nested_path + 1, nested_path_length - 1);
 }
 
 DEVTREE_CONST struct device *pcidev_path_behind(
@@ -233,8 +233,8 @@ DEVTREE_CONST struct device *pcidev_path_on_bus(unsigned int bus, pci_devfn_t de
 			dev = dev->next;
 			continue;
 		}
-		if (dev->bus->secondary == bus)
-			return pcidev_path_behind(dev->bus, devfn);
+		if (dev->upstream->secondary == bus && dev->upstream->segment_group == 0)
+			return pcidev_path_behind(dev->upstream, devfn);
 		dev = dev->next;
 	}
 	return NULL;
@@ -252,7 +252,7 @@ DEVTREE_CONST struct bus *pci_root_bus(void)
 	if (!pci_domain)
 		return NULL;
 
-	pci_root = pci_domain->link_list;
+	pci_root = pci_domain->downstream;
 	return pci_root;
 }
 
@@ -276,7 +276,7 @@ DEVTREE_CONST struct device *pcidev_path_behind_pci2pci_bridge(
 		return NULL;
 	}
 
-	return pcidev_path_behind(bridge->link_list, devfn);
+	return pcidev_path_behind(bridge->downstream, devfn);
 }
 
 DEVTREE_CONST struct device *pcidev_path_on_root_debug(pci_devfn_t devfn, const char *func)
@@ -316,7 +316,7 @@ DEVTREE_CONST struct device *dev_find_slot_on_smbus(unsigned int bus,
 	result = 0;
 	for (dev = all_devices; dev; dev = dev->next) {
 		if ((dev->path.type == DEVICE_PATH_I2C) &&
-		    (dev->bus->secondary == bus) &&
+		    (dev->upstream->secondary == bus) &&
 		    (dev->path.i2c.device == addr)) {
 			result = dev;
 			break;

@@ -94,12 +94,31 @@ static const struct pad_config nvme_disable_pads[] = {
 	PAD_NC_LOCK(GPP_E17, NONE, LOCK_CONFIG),
 };
 
+static const struct pad_config wifi_pcie_enable_pad[] = {
+	/* H3 : SX_EXIT_HOLDOFF => WLAN_PCIE_WAKE_ODL */
+	PAD_CFG_GPI_IRQ_WAKE(GPP_H3, NONE, PLTRST, LEVEL, INVERT),
+	/* D7  : SRCCLKREQ2# ==> WLAN_CLKREQ_ODL */
+	PAD_CFG_NF(GPP_D7, NONE, DEEP, NF1),
+	/* H20 : IMGCLKOUT1 ==> WLAN_PERST_L */
+	PAD_CFG_GPO_LOCK(GPP_H20, 1, LOCK_CONFIG),
+};
+
 static const struct pad_config stylus_disable_pads[] = {
 	/* F13 : SOC_PEN_DETECT_R_ODL */
 	PAD_NC_LOCK(GPP_F13, NONE, LOCK_CONFIG),
 	/* F15 : SOC_PEN_DETECT_ODL */
 	PAD_NC_LOCK(GPP_F15, NONE, LOCK_CONFIG),
 };
+
+void variant_update_soc_chip_config(struct soc_intel_alderlake_config *config)
+{
+	if (!fw_config_probe(FW_CONFIG(WIFI_CATEGORY, WIFI_6))) {
+		printk(BIOS_INFO, "CNVi bluetooth disabled by fw_config\n");
+		config->cnvi_bt_core = false;
+		printk(BIOS_INFO, "CNVi bluetooth audio offload disabled by fw_config\n");
+		config->cnvi_bt_audio_offload = false;
+	}
+}
 
 void fw_config_gpio_padbased_override(struct pad_config *padbased_table)
 {
@@ -115,6 +134,12 @@ void fw_config_gpio_padbased_override(struct pad_config *padbased_table)
 							ARRAY_SIZE(lte_disable_pads_nivviks)
 			);
 		}
+	}
+
+	if (fw_config_probe(FW_CONFIG(WIFI_CATEGORY, WIFI_7))) {
+		printk(BIOS_INFO, "Enable PCie based Wifi GPIO pins.\n");
+		gpio_padbased_override(padbased_table, wifi_pcie_enable_pad,
+						ARRAY_SIZE(wifi_pcie_enable_pad));
 	}
 
 	if (fw_config_probe(FW_CONFIG(SD_CARD, SD_ABSENT))) {

@@ -23,7 +23,6 @@
 #include <soc/romstage.h>
 #include <soc/soc_chip.h>
 #include <cpu/intel/cpu_ids.h>
-#include <timestamp.h>
 #include <string.h>
 #include <security/intel/txt/txt.h>
 #include <soc/pcr_ids.h>
@@ -151,12 +150,6 @@ static void save_dimm_info(void)
 	printk(BIOS_DEBUG, "%d DIMMs found\n", mem_info->dimm_cnt);
 }
 
-void cse_fw_update_misc_oper(void)
-{
-	if (ux_inform_user_of_update_operation("CSE update"))
-		elog_add_event_byte(ELOG_TYPE_FW_EARLY_SOL, ELOG_FW_EARLY_SOL_CSE_SYNC);
-}
-
 void cse_board_reset(void)
 {
 	early_graphics_stop();
@@ -222,6 +215,13 @@ void mainboard_romstage_entry(void)
 	if (!s3wake)
 		save_dimm_info();
 
+	if (CONFIG(ENABLE_EARLY_DMA_PROTECTION))
+		vtd_enable_dma_protection();
+
+	/* Keep eSOL active if CSE sync is pending at ramstage */
+	if (CONFIG(SOC_INTEL_CSE_LITE_SYNC_IN_RAMSTAGE) && is_cse_fw_update_required())
+		return;
+
 	/*
 	 * Turn-off early graphics configuration with two purposes:
 	 * - Clear any potentially still on-screen message
@@ -229,7 +229,4 @@ void mainboard_romstage_entry(void)
 	 *   RUN_FSP_GOP is selected
 	 */
 	early_graphics_stop();
-
-	if (CONFIG(ENABLE_EARLY_DMA_PROTECTION))
-		vtd_enable_dma_protection();
 }

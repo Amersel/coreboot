@@ -38,13 +38,13 @@ COREBOOT_MIRROR_URL="https://www.coreboot.org/releases/crossgcc-sources"
 GMP_VERSION=6.3.0
 MPFR_VERSION=4.2.1
 MPC_VERSION=1.3.1
-GCC_VERSION=11.4.0
-BINUTILS_VERSION=2.41
-IASL_VERSION="R06_28_23"
+GCC_VERSION=14.2.0
+BINUTILS_VERSION=2.43.1
+IASL_VERSION="20230628"
 # CLANG version number
-CLANG_VERSION=16.0.6
-CMAKE_VERSION=3.26.4
-NASM_VERSION=2.16.01
+CLANG_VERSION=18.1.8
+CMAKE_VERSION=3.30.2
+NASM_VERSION=2.16.03
 
 # Filename for each package
 GMP_ARCHIVE="gmp-${GMP_VERSION}.tar.xz"
@@ -52,13 +52,15 @@ MPFR_ARCHIVE="mpfr-${MPFR_VERSION}.tar.xz"
 MPC_ARCHIVE="mpc-${MPC_VERSION}.tar.gz"
 GCC_ARCHIVE="gcc-${GCC_VERSION}.tar.xz"
 BINUTILS_ARCHIVE="binutils-${BINUTILS_VERSION}.tar.xz"
-IASL_ARCHIVE="${IASL_VERSION}.tar.gz"
+IASL_ARCHIVE="acpica-unix-${IASL_VERSION}.tar.gz"
 # CLANG toolchain FILE locations
+LLD_ARCHIVE="lld-${CLANG_VERSION}.src.tar.xz"
 LLVM_ARCHIVE="llvm-${CLANG_VERSION}.src.tar.xz"
 CLANG_ARCHIVE="clang-${CLANG_VERSION}.src.tar.xz"
 CRT_ARCHIVE="compiler-rt-${CLANG_VERSION}.src.tar.xz"
 CTE_ARCHIVE="clang-tools-extra-${CLANG_VERSION}.src.tar.xz"
 LLVMCMAKE_ARCHIVE="cmake-${CLANG_VERSION}.src.tar.xz"
+LIBUNWIND_ARCHIVE="libunwind-${CLANG_VERSION}.src.tar.xz"
 CMAKE_ARCHIVE="cmake-${CMAKE_VERSION}.tar.gz"
 NASM_ARCHIVE="nasm-${NASM_VERSION}.tar.bz2"
 
@@ -72,20 +74,23 @@ MPFR_BASE_URL="https://ftpmirror.gnu.org/mpfr"
 MPC_BASE_URL="https://ftpmirror.gnu.org/mpc"
 GCC_BASE_URL="https://ftpmirror.gnu.org/gcc/gcc-${GCC_VERSION}"
 BINUTILS_BASE_URL="https://ftpmirror.gnu.org/binutils"
-IASL_BASE_URL="https://github.com/acpica/acpica/archive/refs/tags"
+IASL_BASE_URL="https://downloadmirror.intel.com/783534"
 # CLANG toolchain archive locations
 LLVM_BASE_URL="https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_VERSION}"
 CLANG_BASE_URL="https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_VERSION}"
 CRT_BASE_URL="https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_VERSION}"
 CTE_BASE_URL="https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_VERSION}"
 LLVMCMAKE_BASE_URL="https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_VERSION}"
+LLD_BASE_URL="https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_VERSION}"
+LIBUNWIND_BASE_URL="https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_VERSION}"
 CMAKE_BASE_URL="https://cmake.org/files/v${CMAKE_VERSION%.*}"
 NASM_BASE_URL="https://www.nasm.us/pub/nasm/releasebuilds/${NASM_VERSION}"
 
 ALL_ARCHIVES="$GMP_BASE_URL/$GMP_ARCHIVE $MPFR_BASE_URL/$MPFR_ARCHIVE $MPC_BASE_URL/$MPC_ARCHIVE \
 	$GCC_BASE_URL/$GCC_ARCHIVE $BINUTILS_BASE_URL/$BINUTILS_ARCHIVE $IASL_BASE_URL/$IASL_ARCHIVE \
-	$LLVM_BASE_URL/$LLVM_ARCHIVE $CLANG_BASE_URL/$CLANG_ARCHIVE $LLVMCMAKE_BASE_URL/$LLVMCMAKE_ARCHIVE \
-	$CRT_BASE_URL/$CRT_ARCHIVE $CTE_BASE_URL/$CTE_ARCHIVE $CMAKE_BASE_URL/$CMAKE_ARCHIVE $NASM_BASE_URL/$NASM_ARCHIVE"
+	$LLD_BASE_URL/$LLD_ARCHIVE $LLVM_BASE_URL/$LLVM_ARCHIVE $CLANG_BASE_URL/$CLANG_ARCHIVE \
+	$LLVMCMAKE_BASE_URL/$LLVMCMAKE_ARCHIVE $CRT_BASE_URL/$CRT_ARCHIVE $CTE_BASE_URL/$CTE_ARCHIVE \
+	$LIBUNWIND_BASE_URL/$LIBUNWIND_ARCHIVE $CMAKE_BASE_URL/$CMAKE_ARCHIVE $NASM_BASE_URL/$NASM_ARCHIVE"
 
 # GCC toolchain directories
 GMP_DIR="gmp-${GMP_VERSION}"
@@ -95,13 +100,15 @@ MPC_DIR="mpc-${MPC_VERSION}"
 GCC_DIR="gcc-${GCC_VERSION}"
 # shellcheck disable=SC2034
 BINUTILS_DIR="binutils-${BINUTILS_VERSION}"
-IASL_DIR="acpica-${IASL_VERSION}"
+IASL_DIR="acpica-unix-${IASL_VERSION}"
 # CLANG toolchain directories
+LLD_DIR="lld-${CLANG_VERSION}.src"
 LLVM_DIR="llvm-${CLANG_VERSION}.src"
 CLANG_DIR="clang-${CLANG_VERSION}.src"
 CRT_DIR="compiler-rt-${CLANG_VERSION}.src"
 CTE_DIR="clang-tools-extra-${CLANG_VERSION}.src"
 LLVMCMAKE_DIR="cmake-${CLANG_VERSION}.src"
+LIBUNWIND_DIR="libunwind-${CLANG_VERSION}.src"
 CMAKE_DIR="cmake-${CMAKE_VERSION}"
 NASM_DIR="nasm-${NASM_VERSION}"
 
@@ -722,7 +729,7 @@ build_BINUTILS() {
 		--enable-multilib \
 		--disable-docs \
 		--disable-texinfo \
-		${BINUTILS_OPTIONS} \
+		${TARGET_BINUTILS_OPTIONS} \
 		CFLAGS="$HOSTCFLAGS" \
 		CXXFLAGS="$HOSTCFLAGS" || touch .failed
 	# shellcheck disable=SC2086
@@ -774,6 +781,11 @@ build_cross_GCC() {
 	[ -n "$CXX" ] && $CXX --version | grep clang >/dev/null 2>&1 && \
 		CLANGCXXFLAGS="-fbracket-depth=1024"
 
+	# standard code model is medlow but all mainboards are compiled with medany code model
+	if [ "${TARGETARCH}" = "riscv64-elf" ]; then
+		CFLAGS_FOR_TARGET_EXTRA="-mcmodel=medany"
+	fi
+
 	# GCC does not honor HOSTCFLAGS at all. CFLAGS are used for
 	# both target and host object files.
 	# There's a work-around called CFLAGS_FOR_BUILD and CFLAGS_FOR_TARGET
@@ -783,7 +795,7 @@ build_cross_GCC() {
 	# using C++.
 	# shellcheck disable=SC2086
 	CC="$(hostcc target)" CXX="$(hostcxx target)" \
-		CFLAGS_FOR_TARGET="-O2 -Dinhibit_libc" \
+		CFLAGS_FOR_TARGET="${CFLAGS_FOR_TARGET_EXTRA} -O2 -Dinhibit_libc" \
 		CFLAGS="$HOSTCFLAGS $CLANGFLAGS" \
 		CFLAGS_FOR_BUILD="$HOSTCFLAGS $CLANGFLAGS" \
 		CXXFLAGS="$HOSTCFLAGS $CLANGCXXFLAGS" \
@@ -811,6 +823,7 @@ build_cross_GCC() {
 		--disable-libcc1 \
 		--disable-decimal-float \
 		${GCC_OPTIONS} \
+		${TARGET_GCC_OPTIONS} \
 		--enable-languages="${LANGUAGES}" \
 		--with-system-zlib \
 		--with-gmp="$DESTDIR$TARGETDIR" \
@@ -846,10 +859,11 @@ build_IASL() {
 	cd ../$IASL_DIR/generate/unix || exit 1
 	CFLAGS="$HOSTCFLAGS"
 	HOST="_LINUX"
-	test "$UNAME" = "Darwin" && HOST="_APPLE"
+	test "$UNAME" = "Darwin" && HOST="_APPLE" && OPT_LDFLAGS="-Wl,-no_fixup_chains"
 	test "$UNAME" = "FreeBSD" && HOST="_FreeBSD"
 	test "$UNAME" = "Cygwin" && HOST="_CYGWIN"
 	HOST="$HOST" CFLAGS="$CFLAGS" \
+	OPT_LDFLAGS="$OPT_LDFLAGS" \
 	OPT_CFLAGS="-O -D_FORTIFY_SOURCE=2 -D COREBOOT_TOOLCHAIN_VERSION='\"coreboot toolchain v$CROSSGCC_VERSION\"' " \
 	$MAKE $JOBS CC="$(hostcc host)" iasl acpibin acpidump acpiexec acpihelp acpisrc acpixtract
 	mkdir -p "$DESTDIR$TARGETDIR/bin/"
@@ -859,16 +873,18 @@ build_IASL() {
 
 build_LLVM() {
 
+	ln -nsf "$LLD_DIR" ../lld
 	ln -nsf "$LLVM_DIR" ../llvm
 	ln -nsf "$CLANG_DIR" ../clang
 	ln -nsf "$CTE_DIR" ../clang-tools-extra
 	ln -nsf "$CRT_DIR" ../compiler-rt
 	ln -nsf "$LLVMCMAKE_DIR" ../cmake
+	ln -nsf "$LIBUNWIND_DIR" ../libunwind
 
 	$CMAKE -G "Unix Makefiles" \
 		-DCMAKE_INSTALL_PREFIX="$DESTDIR$TARGETDIR" \
 		-DCLANG_VENDOR="coreboot toolchain v$CROSSGCC_VERSION - " \
-		-DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;compiler-rt" \
+		-DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;compiler-rt;lld" \
 		-DLLVM_INCLUDE_BENCHMARKS="OFF" \
 		-DLLVM_INCLUDE_TESTS="OFF" \
 		-DLLVM_INCLUDE_EXAMPLES="OFF" \
@@ -879,7 +895,7 @@ build_LLVM() {
 	$MAKE $JOBS || touch .failed
 	$MAKE install || touch .failed
 
-	rm -f ../llvm ../clang ../clang-tools-extra ../compiler-rt ../cmake
+	rm -f ../llvm ../clang ../clang-tools-extra ../compiler-rt ../cmake ../lld ../libunwind
 
 	cp -a ../$CLANG_DIR/tools/scan-build/* "$DESTDIR$TARGETDIR/bin"
 	cp -a ../$CLANG_DIR/tools/scan-view/* "$DESTDIR$TARGETDIR/bin"
@@ -995,8 +1011,8 @@ case "$TARGETARCH" in
 	i386-elf)		;;
 	i386-mingw32)		;;
 	riscv-elf)		TARGETARCH=riscv64-elf
-				GCC_OPTIONS="$GCC_OPTIONS --with-isa-spec=20191213"
-				BINUTILS_OPTIONS="$BINUTILS_OPTIONS --with-isa-spec=20191213";;
+				TARGET_GCC_OPTIONS="$TARGET_GCC_OPTIONS --with-isa-spec=20191213"
+				TARGET_BINUTILS_OPTIONS="$TARGET_BINUTILS_OPTIONS --with-isa-spec=20191213";;
 	powerpc64*-linux*)	;;
 	i386*)			TARGETARCH=i386-elf;;
 	arm*)			TARGETARCH=arm-eabi;;
@@ -1016,7 +1032,7 @@ case "$PACKAGE" in
 	CLANG|clang)
 		NAME="LLVM clang"
 		LLVM_VERSION=${CLANG_VERSION}
-		PACKAGES="CMAKE LLVM CLANG CRT CTE LLVMCMAKE"
+		PACKAGES="CMAKE LLVM CLANG CRT CTE LLVMCMAKE LLD LIBUNWIND"
 		CMAKE=${DESTDIR}${TARGETDIR}/bin/cmake
 		;;
 	IASL|iasl)
@@ -1060,7 +1076,7 @@ if searchtool wget "GNU" nofail > /dev/null; then
 		url=$1
 		printf "... ${red}  0%%"
 		wget --tries=3 "$url" 2>&1 | while read -r line; do
-			echo "$line" | grep -o "[0-9]\+%" | awk '{printf("\b\b\b\b%4s", $1)}'
+			echo "$line" | grep -o "\<[0-9]\{1,3\}%" | awk '{printf("\b\b\b\b%4s", $1)}'
 		done
 		printf "${NC}... "
 	}
@@ -1080,7 +1096,17 @@ if [ -n "$CC" ]; then
 	fi
 else
 	if searchtool gnatgcc "Free Software Foundation" nofail > /dev/null; then
+		# gnatgcc is deprecated and in recent GCC releases its purpose is
+		# fulfilled by the gcc binary. In case of a deprecated gnatgcc
+		# version is installed, it doesn't provide the expected output and
+		# hostcc_has_gnat1() fails. In this case, just set the value of CC
+		# to gcc.
+		# TODO: Remove this whole branch when time is appropriate as the
+		#       second branch fulfills our needs.
 		CC=gnatgcc
+		if ! hostcc_has_gnat1; then
+			CC=gcc
+		fi
 	elif searchtool gcc "Free Software Foundation" nofail > /dev/null; then
 		CC=gcc
 	else
@@ -1131,6 +1157,8 @@ if [ "$UNAME" = "Darwin" ]; then
 	# For some weird reason, 10.5 autodetects an ABI=64 though
 	# so we're setting the ABI explicitly here.
 	if [ "$(sysctl -n hw.optional.x86_64 2>/dev/null)" -eq 1 ] 2>/dev/null; then
+		OPTIONS="ABI=64"
+	elif [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" -eq 1 ] 2>/dev/null; then
 		OPTIONS="ABI=64"
 	else
 		OPTIONS="ABI=32"

@@ -13,6 +13,7 @@
 #include <soc/uart.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <symbols.h>
 #include <libbdk-boot/bdk-boot.h>
@@ -385,8 +386,7 @@ static struct device_operations soc_ops = {
 
 static void enable_soc_dev(struct device *dev)
 {
-	if (dev->path.type == DEVICE_PATH_DOMAIN &&
-		dev->path.domain.domain == 0) {
+	if (is_domain0(dev)) {
 		dev->ops = &pci_domain_ops_ecam0;
 	} else if (dev->path.type == DEVICE_PATH_CPU_CLUSTER) {
 		dev->ops = &soc_ops;
@@ -394,6 +394,6 @@ static void enable_soc_dev(struct device *dev)
 }
 
 struct chip_operations soc_cavium_cn81xx_ops = {
-	CHIP_NAME("SOC Cavium CN81XX")
+	.name = "SOC Cavium CN81XX",
 	.enable_dev = enable_soc_dev,
 };

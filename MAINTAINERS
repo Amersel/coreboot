@@ -130,13 +130,7 @@ F:	src/mainboard/acer/
 
 
 
-ADLINK MAINBOARDS
-S:	Orphan
-F:	src/mainboard/adlink/
-
-
-
-AMD family 17h and 19h reference boards
+AMD non-server family 17h and 19h reference boards
 M:	Felix Held <felix-coreboot@felixheld.de>
 M:	Jason Glenesk <jason.glenesk@gmail.com>
 M:	Fred Reitberger <reitbergerfred@gmail.com>
@@ -149,18 +143,18 @@ F:	src/mainboard/amd/majolica/
 F:	src/mainboard/amd/mandolin/
 F:	src/mainboard/amd/mayan/
 
+AMD server family 19h reference boards
+M:	Felix Held <felix-coreboot@felixheld.de>
+M:	Martin Roth <gaumless@gmail.com>
+M:	Varshit Pandya <pandyavarshit@gmail.com>
+S:	Maintained
+F:	src/mainboard/amd/onyx_poc/
+
 AMD reference boards outside of family 17h and 19h
 S:	Odd Fixes
 L:	amd_coreboot_org_changes@googlegroups.com
 F:	src/mainboard/amd/gardenia/
-F:	src/mainboard/amd/inagua/
-F:	src/mainboard/amd/olivehill/
 F:	src/mainboard/amd/pademelon/
-F:	src/mainboard/amd/parmer/
-F:	src/mainboard/amd/persimmon/
-F:	src/mainboard/amd/south_station/
-F:	src/mainboard/amd/thatcher/
-F:	src/mainboard/amd/union_station/
 
 
 
@@ -191,6 +185,11 @@ ASROCK G41C-GS MAINBOARD & VARIANTS
 M:	Angel Pons <th3fanbus@gmail.com>
 S:	Maintained
 F:	src/mainboard/asrock/g41c-gs/
+
+ASROCK Z97 EXTREME6 MAINBOARD
+M:	Angel Pons <th3fanbus@gmail.com>
+S:	Maintained
+F:	src/mainboard/asrock/z97_extreme6/
 
 
 
@@ -225,12 +224,6 @@ M:	Angel Pons <th3fanbus@gmail.com>
 M:	Vlado Cibic <vladocb@protonmail.com>
 S:	Maintained
 F:	src/mainboard/asus/p8z77-series/
-
-
-
-BAP MAINBOARDS
-S:	Orphan
-F:	src/mainboard/bap/
 
 
 
@@ -270,16 +263,12 @@ DELL MAINBOARDS
 S:	Orphan
 F:	src/mainboard/dell/
 
-DELL E6400 MAINBOARD
+DELL LATITUDE MAINBOARDS
 M:	Nicholas Chin <nic.c3.14@gmail.com>
 S:	Maintained
 F:	src/mainboard/dell/e6400/
-
-
-ELMEX MAINBOARDS
-S:	Orphan
-F:	src/mainboard/elmex/
-
+F:	src/mainboard/dell/snb_ivb_latitude/
+F:	src/mainboard/dell/e7240/
 
 
 EMULATION MAINBOARDS
@@ -332,18 +321,13 @@ F:	src/mainboard/gigabyte/ga-h61m-series/
 
 
 
-GIZMOSPHERE MAINBOARDS
-S:	Orphan
-F:	src/mainboard/gizmosphere/
-
-
-
 GOOGLE REX MAINBOARDS
 M:	Subrata Banik <subratabanik@google.com>
 M:	Tarun Tuli <tstuli@gmail.com>
 M:	Kapil Porwal <kapilporwal@google.com>
-M:	Jakub Czapiga <jacz@semihalf.com>
+M:	Jakub Czapiga <czapiga@google.com>
 M:	Eran Mitrani <mitrani@google.com>
+M:	Dinesh Gehlot <digehlot@google.com>
 S:	Maintained
 F:	src/mainboard/google/rex/
 
@@ -351,8 +335,17 @@ GOOGLE BRYA MAINBOARDS
 M:	Subrata Banik <subratabanik@google.com>
 M:	Nick Vaccaro <nvaccaro@chromium.org>
 M:	Eric Lai <ericllai@google.com>
+M:	Kapil Porwal <kapilporwal@google.com>
+M:	Dinesh Gehlot <digehlot@google.com>
+M:	Rishika Raj <rishikaraj@google.com>
+M:	Jayvik Desai <jayvik@google.com>
 S:	Maintained
 F:	src/mainboard/google/brya/
+
+GOOGLE FATCAT MAINBOARDS
+M:	Subrata Banik <subratabanik@google.com>
+M:	Pranava Y N <pranavayn@google.com>
+F:	src/mainboard/google/fatcat/
 
 GOOGLE HATCH MAINBOARDS
 M:	Subrata Banik <subratabanik@google.com>
@@ -422,14 +415,12 @@ M:	Vanessa Eusebio <vanessa.f.eusebio@intel.com>
 S:	Maintained
 F:	src/mainboard/intel/harcuvar/
 
+
+
 INVENTEC MAINBOARDS
 M:	Annie Chen <Chen.AnnieET@inventec.com>
 S:	Maintained
 F:	src/mainboard/inventec/
-
-JETWAY MAINBOARDS
-S:	Orphan
-F:	src/mainboard/jetway/
 
 
 
@@ -475,12 +466,6 @@ M:	Piotr Król <piotr.krol@3mdeb.com>
 M:	Michał Żygowski <michal.zygowski@3mdeb.com>
 S:	Maintained
 F:	src/mainboard/libretrend/lt1000/
-
-
-
-LIPPERT MAINBOARDS (acquired by Adlink)
-S:	Orphan
-F:	src/mainboard/lippert/
 
 
 
@@ -559,13 +544,14 @@ PRODRIVE ATLAS MAINBOARD
 M:	Angel Pons <th3fanbus@gmail.com>
 M:	Christian Walter <christian.walter@9elements.com>
 M:	Lean Sheng Tan <sheng.tan@9elements.com>
-S:	Maintained
+S:	Supported
 F:	src/mainboard/prodrive/atlas/
 
 PRODRIVE HERMES MAINBOARD
+M:	Angel Pons <th3fanbus@gmail.com>
 M:	Christian Walter <christian.walter@9elements.com>
 M:	Patrick Rudolph <patrick.rudolph@9elements.com>
-S:	Maintained
+S:	Supported
 F:	src/mainboard/prodrive/hermes/
 
 
@@ -603,12 +589,6 @@ F:	src/mainboard/sapphire/
 
 
 
-SCALEWAY MAINBOARDS
-S:	Orphan
-F:	src/mainboard/scaleway/
-
-
-
 SIEMENS CHILI MAINBAORD
 M:	Felix Singer <felixsinger@posteo.net>
 M:	Nico Huber <nico.h@gmx.de>
@@ -624,7 +604,8 @@ F:	src/mainboard/siemens/mc_ehl/
 
 
 SIFIVE MAINBOARDS
-S:	Orphan
+M:	Maximilian Brune <maximilian.brune@9elements.com>
+S:	Maintained
 F:	src/mainboard/sifive/
 
 
@@ -685,6 +666,7 @@ F:	src/mainboard/emulation/qemu-power8/
 
 RISC-V ARCHITECTURE
 M:	Ronald Minnich <rminnich@gmail.com>
+M:	Maximilian Brune <maximilian.brune@9elements.com>
 R:	Philipp Hug <philipp@hug.cx>
 S:	Maintained
 F:	src/arch/riscv/
@@ -695,6 +677,7 @@ F:	src/mainboard/sifive/
 F:	util/riscv/
 
 X86 ARCHITECTURE
+M:	Jérémy Compostella <jeremy.compostella@intel.com>
 S:	MAINTAINED
 F:	src/arch/x86/
 F:	src/cpu/x86/
@@ -785,6 +768,7 @@ F:	src/southbridge/amd/
 F:	src/include/cpu/amd/
 
 INTEL SUPPORT
+R:	Intel_Coreboot_Reviewers <intel_coreboot_reviewers@intel.com>
 S:	Maintained
 F:	src/vendorcode/intel/
 F:	src/cpu/intel/
@@ -801,8 +785,14 @@ F:	src/drivers/intel/fsp1_1/
 
 INTEL FSP 2.0
 M:	Andrey Petrov <andrey.petrov@gmail.com>
+M:	Ronak Kanabar <ronak.kanabar@intel.com>
 S:	Maintained
 F:	src/drivers/intel/fsp2_0/
+
+INTEL DPTF
+M:	Sumeet Pawnikar <sumeet.r.pawnikar@intel.com>
+S:	Maintained
+F:	src/drivers/intel/dptf/
 
 ################################################################################
 # Systems on a Chip
@@ -827,15 +817,12 @@ L:	amd_coreboot_org_changes@googlegroups.com
 S:	Maintained
 F:	src/soc/amd/common/
 
-AMD Picasso
+AMD Genoa Proof of Concept
 M:	Felix Held <felix-coreboot@felixheld.de>
-M:	Jason Glenesk <jason.glenesk@gmail.com>
-M:	Fred Reitberger <reitbergerfred@gmail.com>
-M:	Matt DeVillier <matt.devillier@amd.corp-partner.google.com>
-L:	amd_coreboot_org_changes@googlegroups.com
+M:	Martin Roth <gaumless@gmail.com>
+M:	Varshit Pandya <pandyavarshit@gmail.com>
 S:	Maintained
-F:	src/soc/amd/picasso/
-F:	src/vendorcode/amd/fsp/picasso/
+F:	src/soc/amd/genoa_poc/
 
 AMD Mendocino
 M:	Felix Held <felix-coreboot@felixheld.de>
@@ -846,6 +833,16 @@ L:	amd_coreboot_org_changes@googlegroups.com
 S:	Supported
 F:	src/soc/amd/mendocino/
 F:	src/vendorcode/amd/fsp/mendocino/
+
+AMD Picasso
+M:	Felix Held <felix-coreboot@felixheld.de>
+M:	Jason Glenesk <jason.glenesk@gmail.com>
+M:	Fred Reitberger <reitbergerfred@gmail.com>
+M:	Matt DeVillier <matt.devillier@amd.corp-partner.google.com>
+L:	amd_coreboot_org_changes@googlegroups.com
+S:	Maintained
+F:	src/soc/amd/picasso/
+F:	src/vendorcode/amd/fsp/picasso/
 
 AMD Phoenix
 M:	Felix Held <felix-coreboot@felixheld.de>
@@ -864,18 +861,13 @@ L:	amd_coreboot_org_changes@googlegroups.com
 S:	Odd Fixes
 F:	src/soc/amd/stoneyridge/
 
-INTEL METEORLAKE SOC
-M:	Subrata Banik <subratabanik@google.com>
-M:	Tarun Tuli <tstuli@gmail.com>
-M:	Kapil Porwal <kapilporwal@google.com>
-M:	Jakub Czapiga <jacz@semihalf.com>
-M:	Eran Mitrani <mitrani@google.com>
-S:	Maintained
-F:	src/soc/intel/meteorlake/
-
 INTEL ALDERLAKE SOC
 M:	Subrata Banik <subratabanik@google.com>
 M:	Nick Vaccaro <nvaccaro@chromium.org>
+M:	Kapil Porwal <kapilporwal@google.com>
+M:	Dinesh Gehlot <digehlot@google.com>
+M:	Rishika Raj <rishikaraj@google.com>
+M:	Jayvik Desai <jayvik@google.com>
 S:	Maintained
 F:	src/soc/intel/alderlake/
 
@@ -908,22 +900,44 @@ M:	Werner Zeh <werner.zeh@siemens.com>
 S:	Maintained
 F:	src/soc/intel/elkhartlake/
 
+INTEL METEORLAKE SOC
+M:	Subrata Banik <subratabanik@google.com>
+M:	Tarun Tuli <tstuli@gmail.com>
+M:	Kapil Porwal <kapilporwal@google.com>
+M:	Jakub Czapiga <czapiga@google.com>
+M:	Eran Mitrani <mitrani@google.com>
+M:	Dinesh Gehlot <digehlot@google.com>
+S:	Maintained
+F:	src/soc/intel/meteorlake/
+
+INTEL PANTHERLAKE SOC
+M:	Subrata Banik <subratabanik@google.com>
+M:	Kapil Porwal <kapilporwal@google.com>
+M:	Pranava Y N <pranavayn@google.com>
+S:	Maintained
+F:	src/soc/intel/pantherlake/
+
 INTEL TIGERLAKE SOC
 M:	Subrata Banik <subratabanik@google.com>
 M:	Nick Vaccaro <nvaccaro@chromium.org>
 S:	Maintained
 F:	src/soc/intel/tigerlake/
 
-INTEL Xeon Sacalable Processor Family
-M:	Jonathan Zhang <jonzhang@fb.com>
+INTEL Xeon Scalable Processor Family
+M:	Jonathan Zhang <jon.zhixiong.zhang@gmail.com>
 M:	Johnny Lin <Johnny_Lin@wiwynn.com>
 M:	Tim Chu <Tim.Chu@quantatw.com>
 M:	Arthur Heymans <arthur@aheymans.xyz>
 M:	Christian Walter <christian.walter@9elements.com>
+M:	Shuo Liu <shuo.liu@intel.com>
+M:	Patrick Rudolph <patrick.rudolph@9elements.com>
+M:	Lean Sheng Tan <sheng.tan@9elements.com>
 S:	Supported
 F:	src/soc/intel/xeon_sp/
 F:	src/vendorcode/intel/fsp/fsp2_0/skylake_sp/
 F:	src/vendorcode/intel/fsp/fsp2_0/copperlake_sp/
+F:	src/vendorcode/intel/fsp/fsp2_0/sapphirerapids_sp/
+F:	src/vendorcode/intel/fsp/fsp2_0/graniterapids/
 
 MEDIATEK SOCS
 M:	Hung-Te Lin <hungte@chromium.org>
@@ -962,7 +976,6 @@ COREINFO PAYLOAD
 F:	payloads/coreinfo/
 
 EXTERNAL PAYLOADS INTEGRATION
-M:	Stefan Reinauer <stefan.reinauer@coreboot.org>
 M:	Martin Roth <gaumless@gmail.com>
 F:	payloads/external/
 
@@ -1031,11 +1044,10 @@ S:	Supported
 F:	util/lint/
 
 IFDTOOL
-M:	Stefan Reinauer <stefan.reinauer@coreboot.org>
 F:	util/ifdtool/
 
 INTELTOOL
-M:	Stefan Reinauer <stefan.reinauer@coreboot.org>
+M:	Pratik Prajapati <pratikkumar.v.prajapati@intel.com>
 F:	util/inteltool/
 
 INTELMETOOL
@@ -1069,6 +1081,7 @@ F:	src/drivers/aspeed/common/
 F:	src/drivers/aspeed/ast2050/
 
 ACPI
+R:	Cliff Huang <cliff.huang@intel.com>
 M:	Lance Zhao <lance.zhao@gmail.com>
 M:	Tim Wawrzynczak <inforichland@gmail.com>
 S:	Supported
@@ -1159,7 +1172,7 @@ S:	Maintained
 F:	src/drivers/i2c/tas5825m/
 
 TESTS
-M:	Jakub Czapiga <jacz@semihalf.com>
+M:	Jakub Czapiga <czapiga@google.com>
 S:	Maintained
 F:	tests/
 F:	payloads/libpayload/tests/
@@ -1193,34 +1206,33 @@ MISSING: SPI
 # *** Infrastructure Owners ***
 # This is intended to let people know who they should contact for issues with various infrastructure pieces.
 # Hardware
-#	Owners: Stefan, Patrick
+#	Owners: Patrick
 #	Backups:
 
 # Web Server
-#	Owners: Stefan, Patrick
+#	Owners: Patrick
 #	Backups:
 
 # Website
 #	Owners: Martin
-#	Backups: Patrick, Stefan
+#	Backups: Patrick
 
 # Documentation Website
 #	Owners: Patrick
 #	Backups:
 
 CODE OF CONDUCT
-M:	Stefan Reinauer <stefan.reinauer@coreboot.org>
 M:	Ronald Minnich <rminnich@gmail.com>
 M:	Martin Roth <martin@coreboot.org>
 S:	Maintained
 F:	Documentation/community/code_of_conduct.md
 
 # Wiki
-#	Owners: Stefan, Patrick
+#	Owners: Patrick
 #	Backups:
 
 # Gerrit
-#	Owners: Stefan, Patrick
+#	Owners: Patrick
 #	Backups: Martin
 
 # Jenkins
@@ -1232,9 +1244,9 @@ F:	Documentation/community/code_of_conduct.md
 #	Backups: Martin,
 
 # Mailing List
-#	Owners: Stefan, Patrick
-#	Backups: Martin,
+#	Owners: Patrick
+#	Backups: Martin
 
 # Software Freedom Conservancy
 #	Main contact: Martin
-#	“Official” contact: Stefan
+#	“Official” contact: David, Matt, Werner

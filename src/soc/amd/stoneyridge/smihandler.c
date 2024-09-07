@@ -3,6 +3,7 @@
 #include <acpi/acpi.h>
 #include <amdblocks/acpi.h>
 #include <amdblocks/acpimmio.h>
+#include <amdblocks/psp.h>
 #include <amdblocks/smi.h>
 #include <amdblocks/smm.h>
 #include <arch/hlt.h>
@@ -21,7 +22,7 @@
  */
 static void stoneyridge_fch_apmc_smi_handler(void)
 {
-	const uint8_t cmd = inb(pm_acpi_smi_cmd_port());
+	const uint8_t cmd = apm_get_apmc();
 
 	switch (cmd) {
 	case APM_CNT_ACPI_ENABLE:
@@ -136,6 +137,7 @@ static void fch_slp_typ_handler(void)
 static const struct smi_sources_t smi_sources[] = {
 	{ .type = SMITYPE_SMI_CMD_PORT, .handler = stoneyridge_fch_apmc_smi_handler },
 	{ .type = SMITYPE_SLP_TYP, .handler = fch_slp_typ_handler},
+	{ .type = SMITYPE_PSP, .handler = psp_smi_handler },
 };
 
 void *get_smi_source_handler(int source)

@@ -5,6 +5,33 @@
 config SUPERIO_ITE_COMMON_PRE_RAM
 	bool
 
+config SUPERIO_ITE_COMMON_GPIO_PRE_RAM
+	bool
+	help
+	  Enable generic pre-ram driver for configuring ITE SIO GPIOs.
+	  It applies only to ITE SIOs not ITE ECs using LDN 7 (typically)
+	  to configure GPIO Simple I/O mode.
+
+if SUPERIO_ITE_COMMON_GPIO_PRE_RAM
+
+config SUPERIO_ITE_COMMON_NUM_GPIO_SETS
+	int
+	help
+	  The maximum number of GPIO sets supported by ITE SIO chip.
+	  Each SIO chip must set this config option to a proper values
+	  if it intends to enable SUPERIO_ITE_COMMON_GPIO_PRE_RAM.
+
+config SUPERIO_ITE_COMMON_GPIO_LED_FREQ_5BIT
+	bool
+	default n
+	help
+	  Selected ITE SIOs control the GPIO LED frequency using 5 bits
+	  instead of two. The LED register layout is also different for
+	  these chips. Select this if the SIO GP LED Frequency control
+	  field has 5 bits and support duty cycle as well.
+
+endif
+
 # Generic ITE environment controller driver
 config SUPERIO_ITE_ENV_CTRL
 	bool
@@ -47,5 +74,22 @@ config SUPERIO_ITE_ENV_CTRL_EXT_ANY_TMPIN
 	help
 	  Temperature can be read to any TMPIN from an external sensor via SST/PECI
 	  (instead of TMPIN3 only).
+
+config SUPERIO_ITE_ENV_CTRL_NO_FULLSPEED_SETTING
+	bool
+	help
+	  Fan controller does not support running at full speed when limit
+	  temperature is reached.
+
+config SUPERIO_ITE_ENV_CTRL_FAN_VECTOR
+	bool
+	help
+	  Special fan control that will assist the smart control
+
+config SUPERIO_ITE_ENV_CTRL_FAN_VECTOR_RANGED
+	bool
+	depends on SUPERIO_ITE_ENV_CTRL_FAN_VECTOR
+	help
+	  Range and negative slope support
 
 endif

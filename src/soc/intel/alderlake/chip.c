@@ -15,7 +15,6 @@
 #include <intelblocks/xdci.h>
 #include <soc/hsphy.h>
 #include <soc/intel/common/vbt.h>
-#include <soc/itss.h>
 #include <soc/p2sb.h>
 #include <soc/pci_devs.h>
 #include <soc/pcie.h>
@@ -167,16 +166,16 @@ const char *soc_acpi_name(const struct device *dev)
 /*
  * SoC override API to identify if ISH Firmware existed inside CSE FPT.
  *
- * SoC with UFS enabled would like to keep ISH enabled as well, hence
- * identifying the UFS enabled device is enough to conclude that the ISH
- * partition also is available.
+ * Identifying the ISH enabled device is required to conclude that the ISH
+ * partition also is available (because ISH may be default enabled for non-UFS
+ * platforms as well starting with Alder Lake).
  */
 bool soc_is_ish_partition_enabled(void)
 {
-	struct device *ufs = pcidev_path_on_root(PCH_DEVFN_UFS);
-	uint16_t ufs_pci_id = ufs ? pci_read_config16(ufs, PCI_DEVICE_ID) : 0xFFFF;
+	struct device *ish = pcidev_path_on_root(PCH_DEVFN_ISH);
+	uint16_t ish_pci_id = ish ? pci_read_config16(ish, PCI_DEVICE_ID) : 0xFFFF;
 
-	if (ufs_pci_id == 0xFFFF)
+	if (ish_pci_id == 0xFFFF)
 		return false;
 
 	return true;
@@ -248,7 +247,7 @@ static void cpu_set_north_irqs(struct device *dev)
 static struct device_operations pci_domain_ops = {
 	.read_resources   = &pci_domain_read_resources,
 	.set_resources    = &pci_domain_set_resources,
-	.scan_bus         = &pci_domain_scan_bus,
+	.scan_bus         = &pci_host_bridge_scan_bus,
 #if CONFIG(HAVE_ACPI_TABLES)
 	.acpi_name        = &soc_acpi_name,
 	.acpi_fill_ssdt   = ssdt_set_above_4g_pci,
@@ -286,7 +285,7 @@ static void soc_enable(struct device *dev)
 }
 
 struct chip_operations soc_intel_alderlake_ops = {
-	CHIP_NAME("Intel Alderlake")
+	.name = "Intel Alderlake",
 	.enable_dev	= &soc_enable,
 	.init		= &soc_init_pre_device,
 };

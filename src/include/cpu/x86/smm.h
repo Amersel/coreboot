@@ -33,8 +33,17 @@
 
 #define SMM_PCI_RESOURCE_STORE_NUM_RESOURCES 6
 
+/*
+ * SMI Transfer Monitor (STM) descriptor reserved in SMM save state.
+ */
+#if CONFIG(STM)
+#define STM_PSD_SIZE ALIGN_UP(sizeof(TXT_PROCESSOR_SMM_DESCRIPTOR), 0x100)
+#else
+#define STM_PSD_SIZE 0
+#endif
+
 /* Send cmd to APM_CNT with HAVE_SMI_HANDLER checking. */
-int apm_control(u8 cmd);
+enum cb_err apm_control(u8 cmd);
 u8 apm_get_apmc(void);
 
 void io_trap_handler(int smif);
@@ -64,6 +73,8 @@ extern unsigned char _binary_smm_end[];
 
 struct smm_pci_resource_info {
 	pci_devfn_t pci_addr;
+	uint16_t vendor_id;
+	uint16_t device_id;
 	uint16_t class_device;
 	uint8_t class_prog;
 	struct resource resources[SMM_PCI_RESOURCE_STORE_NUM_RESOURCES];
@@ -82,6 +93,8 @@ struct smm_runtime {
 #endif
 	uintptr_t save_state_top[CONFIG_MAX_CPUS];
 	int smm_log_level;
+	uintptr_t smmstore_com_buffer_base;
+	size_t smmstore_com_buffer_size;
 } __packed;
 
 struct smm_module_params {
@@ -98,6 +111,7 @@ struct smm_stub_params {
 	u32 stack_size;
 	u32 stack_top;
 	u32 c_handler;
+	u32 cr3;
 	/* The apic_id_to_cpu provides a mapping from APIC id to CPU number.
 	 * The CPU number is indicated by the index into the array by matching
 	 * the default APIC id and value at the index. The stub loader
@@ -128,7 +142,10 @@ bool smm_region_overlaps_handler(const struct region *r);
 /* Returns true if the memory pointed to overlaps with SMM reserved memory. */
 static inline bool smm_points_to_smram(const void *ptr, const size_t len)
 {
-	const struct region r = {(uintptr_t)ptr, len};
+	struct region r;
+
+	if (region_create_untrusted(&r, (uintptr_t)ptr, len) != CB_SUCCESS)
+		return true; /* Play it safe and pretend it overlaps if we can't tell. */
 
 	return smm_region_overlaps_handler(&r);
 }
@@ -154,6 +171,7 @@ struct smm_loader_params {
 	size_t num_concurrent_save_states;
 
 	smm_handler_t handler;
+	uint32_t cr3;
 };
 
 /* All of these return 0 on success, < 0 on failure. */
@@ -217,5 +235,7 @@ bool smm_pci_resource_store_fill_resources(struct smm_pci_resource_info *slots, 
 					   const struct device **devices, size_t num_devices);
 
 void smm_pci_resource_store_init(struct smm_runtime *smm_runtime);
+
+void smm_get_smmstore_com_buffer(uintptr_t *base, size_t *size);
 
 #endif /* CPU_X86_SMM_H */

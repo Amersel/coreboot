@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <assert.h>
 #include <device/mmio.h>
 #include <gpio.h>
 
@@ -113,23 +114,16 @@ void gpio_output(gpio_t gpio, int value)
 	gpio_set_mode(gpio, GPIO_MODE);
 }
 
-enum {
-	MAX_EINT_REG_BITS = 32,
-};
-
-static void pos_bit_calc_for_eint(gpio_t gpio, u32 *pos, u32 *bit)
-{
-	*pos = gpio.id / MAX_EINT_REG_BITS;
-	*bit = gpio.id % MAX_EINT_REG_BITS;
-}
-
 int gpio_eint_poll(gpio_t gpio)
 {
 	u32 pos;
 	u32 bit;
 	u32 status;
+	struct eint_regs *mtk_eint;
 
-	pos_bit_calc_for_eint(gpio, &pos, &bit);
+	gpio_calc_eint_pos_bit(gpio, &pos, &bit);
+	mtk_eint = gpio_get_eint_reg(gpio);
+	assert(mtk_eint);
 
 	status = (read32(&mtk_eint->sta.regs[pos]) >> bit) & 0x1;
 
@@ -143,8 +137,12 @@ void gpio_eint_configure(gpio_t gpio, enum gpio_irq_type type)
 {
 	u32 pos;
 	u32 bit, mask;
+	struct eint_regs *mtk_eint;
 
-	pos_bit_calc_for_eint(gpio, &pos, &bit);
+	gpio_calc_eint_pos_bit(gpio, &pos, &bit);
+	mtk_eint = gpio_get_eint_reg(gpio);
+	assert(mtk_eint);
+
 	mask = 1 << bit;
 
 	/* Make it an input first. */
@@ -191,8 +189,10 @@ int gpio_set_driving(gpio_t gpio, uint8_t drv)
 	const struct gpio_drv_info *adv_info = get_gpio_driving_adv_info(gpio.id);
 	void *reg, *reg_adv, *reg_addr;
 
-	if (!info)
+	if (!info) {
+		printk(BIOS_ERR, "%s: raw_id %u is out of range\n", __func__, gpio.id);
 		return -1;
+	}
 
 	if (!is_valid_drv(drv))
 		return -1;
@@ -223,8 +223,10 @@ int gpio_get_driving(gpio_t gpio)
 	const struct gpio_drv_info *info = get_gpio_driving_info(gpio.id);
 	void *reg;
 
-	if (!info)
+	if (!info) {
+		printk(BIOS_ERR, "%s: raw_id %u is out of range\n", __func__, gpio.id);
 		return -1;
+	}
 
 	if (info->width == 0)
 		return -1;
@@ -239,8 +241,10 @@ int gpio_set_driving_adv(gpio_t gpio, enum gpio_drv_adv drv)
 	const struct gpio_drv_info *adv_info = get_gpio_driving_adv_info(gpio.id);
 	void *reg_adv;
 
-	if (!adv_info)
+	if (!adv_info) {
+		printk(BIOS_ERR, "%s: raw_id %u is out of range\n", __func__, gpio.id);
 		return -1;
+	}
 
 	if (!is_valid_drv_adv(drv))
 		return -1;
@@ -268,8 +272,10 @@ int gpio_get_driving_adv(gpio_t gpio)
 	void *reg_adv;
 	uint32_t drv;
 
-	if (!adv_info)
+	if (!adv_info) {
+		printk(BIOS_ERR, "%s: raw_id %u is out of range\n", __func__, gpio.id);
 		return -1;
+	}
 
 	if (adv_info->width == 0)
 		return -1;

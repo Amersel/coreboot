@@ -60,7 +60,7 @@ void smm_region(uintptr_t *start, size_t *size)
 void fill_postcar_frame(struct postcar_frame *pcf)
 {
 	/* FSP does not seem to bother w.r.t. alignment when asked to place cbmem_top() */
-	uintptr_t top_of_ram = ALIGN_UP((uintptr_t)cbmem_top(), 8 * MiB);
+	const uintptr_t top_of_ram = ALIGN_UP(cbmem_top(), 8 * MiB);
 
 	/*
 	 * We need to make sure ramstage will be run cached. At this
@@ -74,7 +74,7 @@ void fill_postcar_frame(struct postcar_frame *pcf)
 	 * Store the top_of_ram (ramtop) into the CMOS if SOC_INTEL_COMMON_BASECODE_RAMTOP
 	 * config is enabled.
 	 */
-	if (ENV_ROMSTAGE && CONFIG(SOC_INTEL_COMMON_BASECODE_RAMTOP))
+	if (ENV_CREATES_CBMEM && CONFIG(SOC_INTEL_COMMON_BASECODE_RAMTOP))
 		update_ramtop(top_of_ram);
 
 	postcar_frame_add_mtrr(pcf, top_of_ram - 16 * MiB, 16 * MiB, MTRR_TYPE_WRBACK);

@@ -13,7 +13,6 @@
 #include <acpi/acpigen.h>
 
 /* Rmodules don't like weak symbols. */
-void __weak map_oprom_vendev_rev(u32 *vendev, u8 *rev) { return; }
 u32 __weak map_oprom_vendev(u32 vendev) { return vendev; }
 
 void vga_oprom_preload(void)
@@ -40,34 +39,26 @@ static void *cbfs_boot_map_optionrom(uint16_t vendor, uint16_t device)
 	return cbfs_map(name, NULL);
 }
 
-static void *cbfs_boot_map_optionrom_revision(uint16_t vendor, uint16_t device, uint8_t rev)
-{
-	char name[20] = "pciXXXX,XXXX,XX.rom";
-
-	snprintf(name, sizeof(name), "pci%04hx,%04hx,%02hhx.rom", vendor, device, rev);
-
-	return cbfs_map(name, NULL);
-}
-
 struct rom_header *pci_rom_probe(const struct device *dev)
 {
 	struct rom_header *rom_header = NULL;
 	struct pci_data *rom_data;
-	u8 rev = pci_read_config8(dev, PCI_REVISION_ID);
-	u8 mapped_rev = rev;
 	u32 vendev = (dev->vendor << 16) | dev->device;
 	u32 mapped_vendev = vendev;
 
 	/* If the ROM is in flash, then don't check the PCI device for it. */
-	if (CONFIG(CHECK_REV_IN_OPROM_NAME)) {
-		map_oprom_vendev_rev(&mapped_vendev, &mapped_rev);
-		rom_header = cbfs_boot_map_optionrom_revision(mapped_vendev >> 16,
-							      mapped_vendev & 0xffff,
-							      mapped_rev);
-	} else {
-		mapped_vendev = map_oprom_vendev(vendev);
-		rom_header = cbfs_boot_map_optionrom(mapped_vendev >> 16,
-						     mapped_vendev & 0xffff);
+	mapped_vendev = map_oprom_vendev(vendev);
+	rom_header = cbfs_boot_map_optionrom(mapped_vendev >> 16, mapped_vendev & 0xffff);
+
+	/* Handle the case of VGA_BIOS_ID not being set to the remapped PCI ID. This is a
+	   workaround that should be removed once the underlying issue is fixed. */
+	if (!rom_header && vendev != mapped_vendev) {
+		rom_header = cbfs_boot_map_optionrom(vendev >> 16, vendev & 0xffff);
+		if (rom_header) {
+			printk(BIOS_NOTICE, "VGA_BIOS_ID should be the remapped PCI ID "
+					    "%04hx,%04hx in the VBIOS file\n",
+			       mapped_vendev >> 16, mapped_vendev & 0xffff);
+		}
 	}
 
 	if (rom_header) {
@@ -169,10 +160,8 @@ struct rom_header *pci_rom_load(struct device *dev,
 	 * devices have a mismatch between the hardware and the ROM.
 	 */
 	if ((dev->class >> 8) == PCI_CLASS_DISPLAY_VGA) {
-#if !CONFIG(MULTIPLE_VGA_ADAPTERS)
 		extern struct device *vga_pri; /* Primary VGA device (device.c). */
 		if (dev != vga_pri) return NULL; /* Only one VGA supported. */
-#endif
 		if ((void *)PCI_VGA_RAM_IMAGE_START != rom_header) {
 			printk(BIOS_DEBUG,
 			       "Copying VGA ROM Image from %p to 0x%x, 0x%x bytes\n",
@@ -232,6 +221,10 @@ ati_rom_acpi_fill_vfct(const struct device *device, acpi_vfct_t *vfct_struct,
 		printk(BIOS_ERR, "%s failed\n", __func__);
 		return current;
 	}
+	if (device->upstream->segment_group) {
+		printk(BIOS_ERR, "VFCT only supports GPU in first PCI segment group.\n");
+		return current;
+	}
 
 	printk(BIOS_DEBUG, "           Copying %sVBIOS image from %p\n",
 			rom == (struct rom_header *)
@@ -241,7 +234,7 @@ ati_rom_acpi_fill_vfct(const struct device *device, acpi_vfct_t *vfct_struct,
 
 	header->DeviceID = device->device;
 	header->VendorID = device->vendor;
-	header->PCIBus = device->bus->secondary;
+	header->PCIBus = device->upstream->secondary;
 	header->PCIFunction = PCI_FUNC(device->path.pci.devfn);
 	header->PCIDevice = PCI_SLOT(device->path.pci.devfn);
 	header->ImageLength = rom->size * 512;

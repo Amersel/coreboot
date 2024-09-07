@@ -8,7 +8,7 @@
 		<nixpkgs/nixos/modules/installer/cd-dvd/iso-image.nix>
 	];
 
-	system.stateVersion = "22.11";
+	system.stateVersion = "24.05";
 
 	isoImage = {
 		makeEfiBootable = true;
@@ -33,7 +33,7 @@
 			"console=ttyS0,115200"
 			"console=tty0"
 			"iomem=relaxed"
-			"intel-spi.writeable=1"
+			"spi_intel.writeable=1"
 		];
 		# pkgs.linuxPackages == lts
 		# pkgs.linuxPackages_latest == stable
@@ -64,7 +64,6 @@
 		bluetooth = {
 			enable = true;
 			powerOnBoot = false;
-			package = pkgs.bluezFull;
 		};
 	};
 
@@ -75,7 +74,7 @@
 		];
 		openssh = {
 			enable = true;
-			permitRootLogin = "yes";
+			settings.PermitRootLogin = "yes";
 		};
 	};
 
@@ -105,6 +104,7 @@
 		acpica-tools
 		btrfs-progs
 		bzip2
+		cabextract
 		ccrypt
 		chipsec
 		coreboot-utils
@@ -119,6 +119,7 @@
 		efivar
 		exfat
 		f2fs-tools
+		flashprog
 		fuse
 		fuse3
 		fwts
@@ -130,11 +131,13 @@
 		hexdump
 		htop
 		i2c-tools
+		innoextract
 		intel-gpu-tools
 		inxi
 		iotools
 		jfsutils
 		jq
+		lm_sensors
 		mdadm
 		minicom
 		mkpasswd
@@ -164,13 +167,15 @@
 		testdisk
 		tmate
 		tmux
+		tpm-tools
+		tpm2-tools
 		uefitool
 		uefitoolPackages.old-engine
+		unshield
 		unzip
 		upterm
 		usbutils
 		wget
-		xfsprogs.bin
 		zfs
 		zip
 		zstd

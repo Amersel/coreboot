@@ -16,6 +16,7 @@
 #include <intelblocks/pmclib.h>
 #include <smbios.h>
 #include <soc/pm.h>
+#include <stdio.h>
 #include <string.h>
 #include <types.h>
 
@@ -111,7 +112,7 @@ static void update_board_layout(void)
 			continue;
 		layout.cpu_count++;
 		if (!layout.cpu_name[0])
-			strcpy(layout.cpu_name, cpu->name);
+			strncpy(layout.cpu_name, cpu->name, sizeof(layout.cpu_name));
 	}
 
 	if (cpuid_get_max_func() >= 0x16)

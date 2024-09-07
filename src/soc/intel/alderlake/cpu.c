@@ -11,6 +11,7 @@
 #include <device/pci_ids.h>
 #include <cpu/x86/mp.h>
 #include <cpu/x86/msr.h>
+#include <cpu/intel/microcode.h>
 #include <cpu/intel/smm_reloc.h>
 #include <cpu/intel/turbo.h>
 #include <cpu/intel/common/common.h>
@@ -240,6 +241,7 @@ enum adl_cpu_type get_adl_cpu_type(void)
 		PCI_DID_INTEL_ADL_N_ID_2,
 		PCI_DID_INTEL_ADL_N_ID_3,
 		PCI_DID_INTEL_ADL_N_ID_4,
+		PCI_DID_INTEL_ADL_N_ID_5,
 	};
 
 	const uint16_t rpl_hx_mch_ids[] = {
@@ -267,6 +269,9 @@ enum adl_cpu_type get_adl_cpu_type(void)
 		PCI_DID_INTEL_RPL_P_ID_3,
 		PCI_DID_INTEL_RPL_P_ID_4,
 		PCI_DID_INTEL_RPL_P_ID_5,
+		PCI_DID_INTEL_RPL_P_ID_6,
+		PCI_DID_INTEL_RPL_P_ID_7,
+		PCI_DID_INTEL_RPL_P_ID_8,
 	};
 
 	const uint16_t mchid = pci_s_read_config16(PCI_DEV(0, PCI_SLOT(SA_DEVFN_ROOT),
@@ -328,4 +333,25 @@ uint8_t get_supported_lpm_mask(void)
 		printk(BIOS_ERR, "Unknown ADL CPU type: %d\n", type);
 		return 0;
 	}
+}
+
+int soc_skip_ucode_update(u32 current_patch_id, u32 new_patch_id)
+{
+	if (!CONFIG(CHROMEOS))
+		return 0;
+	/*
+	 * Locked RO Descriptor Implications:
+	 *
+	 * - A locked descriptor signals the RO binary is fixed; the FIT will load the
+	 *   RO's microcode during system reset.
+	 * - Attempts to load newer microcode from the RW CBFS will cause a boot-time
+	 *   delay (~60ms, core-dependent), as the microcode must be reloaded on BSP+APs.
+	 * - The kernel can load microcode updates without impacting AP FW boot time.
+	 * - Skipping RW CBFS microcode loading is low-risk when the RO is locked,
+	 *   prioritizing fast boot times.
+	 */
+	if (CONFIG(LOCK_MANAGEMENT_ENGINE) && current_patch_id)
+		return 1;
+
+	return 0;
 }

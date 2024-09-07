@@ -4,6 +4,7 @@
 #define __COREBOOT_SRC_DRIVERS_SPI_TPM_TPM_H
 
 #include <drivers/tpm/cr50.h>
+#include <security/tpm/tis.h>
 #include <security/tpm/tss_errors.h>
 #include <stddef.h>
 #include <spi-generic.h>
@@ -11,7 +12,7 @@
 #define TPM_LOCALITY_0_SPI_BASE 0x00d40000
 
 /*
- * A tpm device descriptor, values read from the appropriate device regisrers
+ * A TPM device descriptor, values read from the appropriate device registers
  * are cached here.
  */
 struct tpm2_info {
@@ -33,7 +34,7 @@ tpm_result_t tpm2_init(struct spi_slave *spi_if);
  * Each command processing consists of sending the command to the TPM, by
  * writing it into the FIFO register, then polling the status register until
  * the TPM is ready to respond, then reading the response from the FIFO
- * regitster. The size of the response can be gleaned from the 6 byte header.
+ * register. The size of the response can be gleaned from the 6 byte header.
  *
  * This function places the response into the tpm2_response buffer and returns
  * the size of the response.
@@ -43,5 +44,7 @@ size_t tpm2_process_command(const void *tpm2_command, size_t command_size,
 
 /* Get information about previously initialized TPM device. */
 void tpm2_get_info(struct tpm2_info *info);
+
+tis_sendrecv_fn spi_tis_probe(enum tpm_family *family);
 
 #endif  /* ! __COREBOOT_SRC_DRIVERS_SPI_TPM_TPM_H */

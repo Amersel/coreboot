@@ -56,6 +56,9 @@ static const uint32_t action_keymaps[] = {
 	[PS2_KEY_MICMUTE] = KEYMAP(0x9b, KEY_MICMUTE),			/* e01b */
 	[PS2_KEY_KBD_BKLIGHT_TOGGLE] = KEYMAP(0x9e, KEY_KBDILLUMTOGGLE),	/* e01e */
 	[PS2_KEY_MENU] = KEYMAP(0xdd, KEY_CONTROLPANEL),	/* e0d5 */
+	[PS2_KEY_DICTATE] = KEYMAP(0xa7, KEY_DICTATE),		/* e027*/
+	[PS2_KEY_ACCESSIBILITY] = KEYMAP(0xa9, KEY_ACCESSIBILITY),	/* e029 */
+	[PS2_KEY_DO_NOT_DISTURB] = KEYMAP(0xa8, KEY_DO_NOT_DISTURB),	/* e028 */
 };
 
 /* Keymap for numeric keypad keys */
@@ -66,7 +69,6 @@ static uint32_t numeric_keypad_keymaps[] = {
 	KEYMAP(0xc7, KEY_HOME),
 	KEYMAP(0xcf, KEY_END),
 	/* Row-1 */
-	KEYMAP(0xd3, KEY_DELETE),
 	KEYMAP(0xb5, KEY_KPSLASH),
 	KEYMAP(0x37, KEY_KPASTERISK),
 	KEYMAP(0x4a, KEY_KPMINUS),
@@ -96,6 +98,7 @@ static uint32_t numeric_keypad_keymaps[] = {
 static uint32_t rest_of_keymaps[] = {
 	/* Row-0 */
 	KEYMAP(0x01, KEY_ESC),
+	KEYMAP(0xd3, KEY_DELETE),
 	/* Row-1 */
 	KEYMAP(0x29, KEY_GRAVE),
 	KEYMAP(0x02, KEY_1),
@@ -210,6 +213,7 @@ static void ssdt_generate_keymap(struct acpi_dp *dp, uint8_t num_top_row_keys,
 				 bool can_send_function_keys,
 				 bool has_numeric_keypad,
 				 bool has_scrnlock_key,
+				 bool has_assistant_key,
 				 bool has_alpha_num_punct_keys)
 {
 	struct acpi_dp *dp_array;
@@ -243,6 +247,13 @@ static void ssdt_generate_keymap(struct acpi_dp *dp, uint8_t num_top_row_keys,
 			acpi_dp_add_integer(dp_array, NULL, keymap);
 		}
 
+		/* Add the Fn-key */
+		if (CONFIG_ACPI_FNKEY_GEN_SCANCODE != 0) {
+			acpi_dp_add_integer(dp_array, NULL, KEYMAP(CONFIG_ACPI_FNKEY_GEN_SCANCODE,
+								   KEY_FN));
+			total++;
+		}
+
 		total += num_top_row_keys;
 	}
 
@@ -262,6 +273,12 @@ static void ssdt_generate_keymap(struct acpi_dp *dp, uint8_t num_top_row_keys,
 		total++;
 	}
 
+	/* Add the keymap for the assistant key if present */
+	if (has_assistant_key) {
+		acpi_dp_add_integer(dp_array, NULL, KEYMAP(0x5c, KEY_ASSISTANT));
+		total++;
+	}
+
 	/* Provide alphanumeric and punctuation keys (rest of the keyboard) if
 	 * present
 	 */
@@ -270,9 +287,10 @@ static void ssdt_generate_keymap(struct acpi_dp *dp, uint8_t num_top_row_keys,
 			keymap = rest_of_keymaps[i];
 			acpi_dp_add_integer(dp_array, NULL, keymap);
 		}
+
+		total += ARRAY_SIZE(rest_of_keymaps);
 	}
 
-	total += ARRAY_SIZE(rest_of_keymaps);
 	printk(BIOS_INFO, "PS2K: Passing %u keymaps to kernel\n", total);
 
 	acpi_dp_add_array(dp, dp_array);
@@ -283,6 +301,7 @@ void acpigen_ps2_keyboard_dsd(const char *scope, uint8_t num_top_row_keys,
 			      bool can_send_function_keys,
 			      bool has_numeric_keypad,
 			      bool has_scrnlock_key,
+			      bool has_assistant_key,
 			      bool has_alpha_num_punct_keys)
 {
 	struct acpi_dp *dsd;
@@ -304,7 +323,8 @@ void acpigen_ps2_keyboard_dsd(const char *scope, uint8_t num_top_row_keys,
 	ssdt_generate_physmap(dsd, num_top_row_keys, action_keys);
 	ssdt_generate_keymap(dsd, num_top_row_keys, action_keys,
 			     can_send_function_keys, has_numeric_keypad,
-			     has_scrnlock_key, has_alpha_num_punct_keys);
+			     has_scrnlock_key, has_assistant_key,
+			     has_alpha_num_punct_keys);
 	acpi_dp_write(dsd);
 	acpigen_pop_len(); /* Scope */
 }

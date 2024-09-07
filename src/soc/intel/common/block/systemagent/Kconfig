@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 config SOC_INTEL_COMMON_BLOCK_SA
 	bool
 	select SOC_INTEL_COMMON_BASECODE
@@ -40,5 +42,17 @@ config HAVE_PAM0_REGISTER
 	default y
 	help
 	  Specify if the SOC has a PAM0 register
+
+config HAVE_CAPID_A_REGISTER
+	bool
+	default y
+	help
+	  Specify if the SOC has the CAPID0_A register that holds DRAM infomations.
+
+config HAVE_BDSM_BGSM_REGISTER
+	bool
+	default y
+	help
+	  Specify if the SOC has BDSM and BGSM registres.
 
 endif

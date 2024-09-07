@@ -15,8 +15,12 @@ void set_bootsplash(unsigned char *framebuffer, unsigned int x_resolution,
 		    unsigned int y_resolution, unsigned int bytes_per_line,
 		    unsigned int fb_resolution);
 
-
-void bmp_load_logo(uint32_t *logo_ptr, uint32_t *logo_size);
+/*
+ * Allow platform-specific BMP logo overrides via HAVE_CUSTOM_BMP_LOGO config.
+ * For example: Introduce configurable BMP logo for customization on platforms like ChromeOS
+ */
+const char *bmp_logo_filename(void);
+void *bmp_load_logo(size_t *logo_size);
 void bmp_release_logo(void);
 
 #endif

@@ -11,15 +11,17 @@
 bool i2c_dev_detect(struct device *dev, unsigned int addr)
 {
 	struct i2c_msg seg = { .flags = 0, .slave = addr, .buf = NULL, .len = 0 };
+	if (!dev)
+		return false;
 	return dev->ops->ops_i2c_bus->transfer(dev, &seg, 1) == 0;
 }
 
 struct bus *i2c_link(const struct device *const dev)
 {
-	if (!dev || !dev->bus)
+	if (!dev || !dev->upstream)
 		return NULL;
 
-	struct bus *link = dev->bus;
+	struct bus *link = dev->upstream;
 	while (link) {
 		struct device *const parent = link->dev;
 
@@ -27,8 +29,8 @@ struct bus *i2c_link(const struct device *const dev)
 		    (parent->ops->ops_i2c_bus || parent->ops->ops_smbus_bus))
 			break;
 
-		if (parent && parent->bus && link != parent->bus)
-			link = parent->bus;
+		if (parent && parent->upstream && link != parent->upstream)
+			link = parent->upstream;
 		else
 			link = NULL;
 	}

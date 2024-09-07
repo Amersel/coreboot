@@ -4,11 +4,11 @@
 #ifndef __LIB_FIT_H__
 #define __LIB_FIT_H__
 
+#include <commonlib/device_tree.h>
+#include <commonlib/list.h>
+#include <program_loading.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <device_tree.h>
-#include <list.h>
-#include <program_loading.h>
 
 struct fit_image_node {
 	const char *name;

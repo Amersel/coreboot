@@ -1,7 +1,7 @@
 chip soc/intel/tigerlake
 # CPU
 	# Enable Enhanced Intel SpeedStep
-	register "eist_enable"			= "1"
+	register "eist_enable"			= "true"
 
 	# Graphics
 	# Not used but timings left for reference
@@ -63,8 +63,6 @@ chip soc/intel/tigerlake
 	register "PcieClkSrcClkReq[6]"		= "PCIE_CLK_NOTUSED"
 
 # Actual device tree.
-	device cpu_cluster 0 on end
-
 	device domain 0 on
 		device ref igpu		on  end
 		device ref dptf		on  end
@@ -133,7 +131,6 @@ chip soc/intel/tigerlake
 		device ref uart2	on  end
 		device ref pcie_rp9	on
 			register "HybridStorageMode"		= "0"
-			register "PcieRpEnable[8]"		= "1"
 			register "PcieRpLtrEnable[8]"		= "1"
 			register "PcieClkSrcUsage[3]"		= "0x08"
 			register "PcieClkSrcClkReq[3]"		= "3"
@@ -192,6 +189,7 @@ chip soc/intel/tigerlake
 			end
 		end
 		device ref hda		on
+			subsystemid 0x10ec 0x1200
 			register "PchHdaAudioLinkHdaEnable"	= "1"
 		end
 		device ref smbus	on  end

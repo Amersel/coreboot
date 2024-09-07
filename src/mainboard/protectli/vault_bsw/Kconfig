@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 if BOARD_PROTECTLI_FW2B || BOARD_PROTECTLI_FW4B
 
 config BOARD_SPECIFIC_OPTIONS
@@ -27,10 +29,6 @@ config MAINBOARD_PART_NUMBER
 	default "FW2B" if BOARD_PROTECTLI_FW2B
 	default "FW4B" if BOARD_PROTECTLI_FW4B
 
-config MAINBOARD_VENDOR
-	string
-	default "Protectli"
-
 config DIMM_MAX
 	default 1
 
@@ -57,7 +55,7 @@ config VGA_BIOS_ID
 	default "8086,22b0"
 	help
 	  The VGA_BIOS_ID for the C0 version of the video bios is hardcoded
-	  in soc/intel/braswell/Makefile.inc as 8086,22b1
+	  in soc/intel/braswell/Makefile.mk as 8086,22b1
 
 endif #RUN_FSP_GOP
 

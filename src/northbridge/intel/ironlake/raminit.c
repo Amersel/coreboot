@@ -11,7 +11,6 @@
 #include <cpu/x86/cache.h>
 #include <cbmem.h>
 #include <cf9_reset.h>
-#include <ip_checksum.h>
 #include <option.h>
 #include <device/pci_def.h>
 #include <device/device.h>
@@ -1553,7 +1552,6 @@ static void read_4090(struct raminfo *info)
 							      rank), 9)
 						    + (i == 1) * 11;	// !!!!
 					}
-
 }
 
 static u32 get_etalon2(int flip, u32 addr)
@@ -2760,7 +2758,6 @@ static void do_ram_training(struct raminfo *info)
 								 timings);
 						totalrank++;
 					}
-
 		}
 	} else {
 		for (reg_178 = reg178_center - 12;

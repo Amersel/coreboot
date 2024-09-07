@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 config CPU_INTEL_MODEL_6FX
 	bool
 	select ARCH_X86
@@ -10,3 +12,4 @@ config CPU_INTEL_MODEL_6FX
 	select CPU_INTEL_COMMON
 	select CPU_INTEL_COMMON_TIMEBASE
 	select SETUP_XIP_CACHE
+	select EDK2_USE_LAPIC_TIMER if PAYLOAD_EDK2

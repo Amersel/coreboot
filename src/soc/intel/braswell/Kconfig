@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 config SOC_INTEL_BRASWELL
 	bool
 	select ACPI_COMMON_MADT_IOAPIC
@@ -37,6 +39,7 @@ config SOC_INTEL_BRASWELL
 	select SOUTHBRIDGE_INTEL_COMMON_SPI_SILVERMONT
 	select NO_CBFS_MCACHE
 	select TCO_SPACE_NOT_YET_SPLIT
+	select NEED_SMALL_2MB_PAGE_TABLES
 	help
 	  Braswell M/D part support.
 
@@ -97,6 +100,9 @@ config DCACHE_RAM_SIZE
 	  and/or romstage. Note DCACHE_RAM_SIZE and DCACHE_RAM_MRC_VAR_SIZE
 	  must add up to a power of 2.
 
+config PRERAM_CBFS_CACHE_SIZE
+	default 0x0
+
 config ENABLE_BUILTIN_COM1
 	bool "Enable builtin COM1 Serial Port"
 	default n
@@ -111,6 +117,9 @@ config DISABLE_HPET
 	help
 	 Enable this to disable the HPET support
 	 Solves the Linux MP-BIOS bug timer not connected.
+
+config HPET_MIN_TICKS
+	default 0x80
 
 config USE_GOOGLE_FSP
 	bool

@@ -369,7 +369,6 @@ static void put_packet(char *buffer)
 		stub_flush();
 
 	} while ((stub_getc() & 0x7f) != '+');
-
 }
 #endif /* CONFIG_GDB_STUB */
 
@@ -380,6 +379,7 @@ void x86_exception(struct eregs *info);
 void x86_exception(struct eregs *info)
 {
 #if CONFIG(GDB_STUB)
+	/* TODO implement 64bit mode */
 	int signo;
 	memcpy(gdb_stub_registers, info, 8*sizeof(uint32_t));
 	gdb_stub_registers[PC] = info->eip;

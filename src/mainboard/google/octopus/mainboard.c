@@ -14,7 +14,6 @@
 #include <ec/ec.h>
 #include <intelblocks/xhci.h>
 #include <nhlt.h>
-#include <smbios.h>
 #include <soc/cpu.h>
 #include <soc/gpio.h>
 #include <soc/nhlt.h>
@@ -179,7 +178,7 @@ static void audio_codec_device_update(void)
 {
 	struct device *audio_dev = NULL;
 	struct bus *audio_i2c_bus =
-		pcidev_path_on_root(PCH_DEVFN_I2C5)->link_list;
+		pcidev_path_on_root(PCH_DEVFN_I2C5)->downstream;
 	enum ssfc_audio_codec codec = ssfc_get_audio_codec();
 
 	while ((audio_dev = dev_bus_each_child(audio_i2c_bus, audio_dev))) {

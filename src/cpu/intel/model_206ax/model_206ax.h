@@ -46,6 +46,7 @@
 #define MSR_LT_LOCK_MEMORY		0x2e7
 #define MSR_PLATFORM_INFO		0xce
 #define  PLATFORM_INFO_SET_TDP		(1 << 29)
+#define  PLATFORM_INFO_SET_TURBO_LIMIT	(1 << 28)
 
 #define MSR_MISC_PWR_MGMT		0x1aa
 #define  MISC_PWR_MGMT_EIST_HW_DIS	(1 << 0)
@@ -73,8 +74,10 @@
 #define  PKG_POWER_LIMIT_TIME_MASK	0x7f
 
 #define MSR_PP0_CURRENT_CONFIG		0x601
+#define  PP0_CURRENT_LIMIT_LOCK		(1U << 31)
 #define  PP0_CURRENT_LIMIT		(112 << 3) /* 112 A */
 #define MSR_PP1_CURRENT_CONFIG		0x602
+#define  PP1_CURRENT_LIMIT_LOCK		(1U << 31)
 #define  PP1_CURRENT_LIMIT_SNB		(35 << 3) /* 35 A */
 #define  PP1_CURRENT_LIMIT_IVB		(50 << 3) /* 50 A */
 #define MSR_PKG_POWER_SKU_UNIT		0x606
@@ -129,7 +132,6 @@ void intel_model_206ax_finalize_smm(void);
 /* Configure power limits for turbo mode */
 void set_power_limits(u8 power_limit_1_time);
 int cpu_config_tdp_levels(void);
-int get_platform_id(void);
 
 static inline u8 cpu_stepping(void)
 {

@@ -12,6 +12,8 @@
 #include <timer.h>
 #include <types.h>
 
+#include "tpm.h"
+
 #define RECV_TIMEOUT            (1 * 1000)  /* 1 second */
 #define XMIT_TIMEOUT            (1 * 1000)  /* 1 second */
 #define SLEEP_DURATION          1000        /* microseconds */
@@ -22,18 +24,8 @@ struct tpm_output_header {
 	uint32_t return_code;
 } __packed;
 
-tpm_result_t tis_open(void)
-{
-	return TPM_SUCCESS;
-}
-
-tpm_result_t tis_init(void)
-{
-	return TPM_SUCCESS;
-}
-
-tpm_result_t tis_sendrecv(const uint8_t *sendbuf, size_t sbuf_size,
-		uint8_t *recvbuf, size_t *rbuf_len)
+static tpm_result_t i2c_tis_sendrecv(const uint8_t *sendbuf, size_t sbuf_size,
+				     uint8_t *recvbuf, size_t *rbuf_len)
 {
 	size_t hdr_bytes;
 	struct tpm_output_header *header;
@@ -115,4 +107,21 @@ tpm_result_t tis_sendrecv(const uint8_t *sendbuf, size_t sbuf_size,
 
 	/* Successful transfer */
 	return TPM_SUCCESS;
+}
+
+tis_sendrecv_fn i2c_tis_probe(enum tpm_family *family)
+{
+	/*
+	 * Can't query version or really anything as the device doesn't support
+	 * much through this interface (can't specify address on accesses).
+	 *
+	 * Hence the assumption is that whatever TPM version is enabled at
+	 * compile-time defines what the device supports. The check is written
+	 * in a way to give TPM 1 preference even if support for both versions
+	 * is compiled in.
+	 */
+	if (family != NULL)
+		*family = CONFIG(TPM1) ? TPM_1 : TPM_2;
+
+	return &i2c_tis_sendrecv;
 }

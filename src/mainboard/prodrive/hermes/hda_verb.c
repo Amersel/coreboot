@@ -12,22 +12,22 @@ const u32 cim_verb_data[] = {
 	AZALIA_SUBVENDOR(0, 0x1d336700),
 
 	/* Pin widgets */
-	AZALIA_PIN_CFG(0, 0x11, 0x411111f0), /* SPDIF-OUT2 - disabled */
-	AZALIA_PIN_CFG(0, 0x12, 0x411111f0), /* digital MIC - disabled */
-	AZALIA_PIN_CFG(0, 0x14, 0x01014430), /* PORT D - rear line out */
-	AZALIA_PIN_CFG(0, 0x16, 0x411111f0), /* PORT G - disabled */
-	AZALIA_PIN_CFG(0, 0x17, 0x411111f0), /* PORT H - disabled */
-	AZALIA_PIN_CFG(0, 0x18, 0x01a19c50), /* PORT B - rear mic in */
-	AZALIA_PIN_CFG(0, 0x1c, 0x411111f0), /* CD audio - disabled */
-	AZALIA_PIN_CFG(0, 0x1d, 0x4004c601), /* BEEPIN */
-	AZALIA_PIN_CFG(0, 0x1e, 0x01452160), /* SPDIF-OUT */
-	AZALIA_PIN_CFG(0, 0x1f, 0x01c52170), /* SPDIF-IN */
+	AZALIA_PIN_CFG(0, 0x11, AZALIA_PIN_CFG_NC(0)), /* SPDIF-OUT2 - disabled */
+	AZALIA_PIN_CFG(0, 0x12, AZALIA_PIN_CFG_NC(0)), /* Digital MIC - disabled */
+	AZALIA_PIN_CFG(0, 0x14, 0x01014430),           /* Port D - rear line out */
+	AZALIA_PIN_CFG(0, 0x16, AZALIA_PIN_CFG_NC(0)), /* Port G - disabled */
+	AZALIA_PIN_CFG(0, 0x17, AZALIA_PIN_CFG_NC(0)), /* Port H - disabled */
+	AZALIA_PIN_CFG(0, 0x18, 0x01a19c50),           /* Port B - rear mic in */
+	AZALIA_PIN_CFG(0, 0x1c, AZALIA_PIN_CFG_NC(0)), /* CD audio - disabled */
+	AZALIA_PIN_CFG(0, 0x1d, 0x4004c601),           /* BEEPIN */
+	AZALIA_PIN_CFG(0, 0x1e, 0x01452160),           /* SPDIF-OUT */
+	AZALIA_PIN_CFG(0, 0x1f, 0x01c52170),           /* SPDIF-IN */
 
 	/* Config for R02 and older */
-	AZALIA_PIN_CFG(0, 0x19, 0x02214c40), /* port F - front hp out */
-	AZALIA_PIN_CFG(0, 0x1a, 0x901001f0), /* port C - internal speaker */
-	AZALIA_PIN_CFG(0, 0x1b, 0x01813c10), /* port E - rear line in/mic - Blue */
-	AZALIA_PIN_CFG(0, 0x15, 0x02a19c20), /* port A - audio hdr input */
+	AZALIA_PIN_CFG(0, 0x19, 0x02214c40), /* Port F - front hp out */
+	AZALIA_PIN_CFG(0, 0x1a, 0x901001f0), /* Port C - internal speaker */
+	AZALIA_PIN_CFG(0, 0x1b, 0x01813c10), /* Port E - rear line in/mic - Blue */
+	AZALIA_PIN_CFG(0, 0x15, 0x02a19c20), /* Port A - audio hdr input */
 
 	/*
 	 * VerbTable: CFL Display Audio Codec
@@ -67,10 +67,10 @@ const u32 pc_beep_verbs[0] = {};
 AZALIA_ARRAY_SIZES;
 
 static const u32 r04_verb_data[] = {
-	AZALIA_PIN_CFG(0, 0x19, 0x02a19c20), /* PORT F - front mic in */
-	AZALIA_PIN_CFG(0, 0x1a, 0x01813c51), /* PORT C - rear line in (mic support) */
-	AZALIA_PIN_CFG(0, 0x1b, 0x411111f0), /* PORT E - disabled */
-	AZALIA_PIN_CFG(0, 0x15, 0x411111f0), /* PORT A - disabled */
+	AZALIA_PIN_CFG(0, 0x19, 0x02a19c20),           /* Port F - front mic in */
+	AZALIA_PIN_CFG(0, 0x1a, 0x01813c51),           /* Port C - rear line in (mic support) */
+	AZALIA_PIN_CFG(0, 0x1b, AZALIA_PIN_CFG_NC(0)), /* Port E - disabled */
+	AZALIA_PIN_CFG(0, 0x15, AZALIA_PIN_CFG_NC(0)), /* Port A - disabled */
 };
 
 static u32 get_port_c_vref_cfg(uint8_t blue_rear_vref)
@@ -95,15 +95,15 @@ static u32 get_port_b_vref_cfg(uint8_t pink_rear_vref)
 	switch (pink_rear_vref) {
 	default:
 	case 0:
-		return 0x411110f0; /* Disabled (Hi-Z) */
+		return 0; /* Disabled (Hi-Z) */
 	case 1:
-		return 0x411111f0; /* 50% of LDO out */
+		return 1; /* 50% of LDO out */
 	case 2:
-		return 0x411114f0; /* 80% of LDO out */
+		return 4; /* 80% of LDO out */
 	case 3:
-		return 0x411115f0; /* 100% of LDO out */
+		return 5; /* 100% of LDO out */
 	case 4:
-		return 0x411112f0; /* Ground */
+		return 2; /* Ground */
 	}
 }
 
@@ -145,7 +145,7 @@ static void mainboard_r0x_configure_alc888(u8 *base, u32 viddid)
 		 * persist after codec resets, a custom Realtek driver (ab)uses NID 0x12
 		 * to restore port B Vref after resetting the codec.
 		 */
-		AZALIA_PIN_CFG(0, 0x12, port_b_vref_cfg),
+		AZALIA_PIN_CFG(0, 0x12, 0x411110f0 | port_b_vref_cfg << 8),
 		AZALIA_PIN_CFG(0, 0x19, front_mic_cfg),
 		AZALIA_PIN_CFG(0, 0x1b, front_panel_cfg),
 		0x0205000d, /* Pin 37 vrefo hidden register - used as port C vref */

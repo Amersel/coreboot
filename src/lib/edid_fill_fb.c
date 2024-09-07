@@ -6,7 +6,7 @@
 #include <framebuffer_info.h>
 #include <string.h>
 #include <stdlib.h>
-#include <list.h>
+#include <commonlib/list.h>
 
 struct fb_info {
 	struct list_node node;
@@ -146,6 +146,13 @@ fb_add_framebuffer_info(uintptr_t fb_addr, uint32_t x_resolution,
 		printk(BIOS_ERR, "%s: failed to add framebuffer info\n", __func__);
 
 	return info;
+}
+
+/* Wrapper for Ada to have a simpler function signature */
+int fb_add_framebuffer_info_simple(uintptr_t fb_addr, uint32_t x_res, uint32_t y_res,
+				   uint32_t bytes_per_line, uint8_t bits_per_pixel)
+{
+	return fb_add_framebuffer_info(fb_addr, x_res, y_res, bytes_per_line, bits_per_pixel) != NULL;
 }
 
 void fb_set_orientation(struct fb_info *info, enum lb_fb_orientation orientation)

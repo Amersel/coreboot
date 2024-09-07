@@ -112,8 +112,8 @@ chip soc/amd/picasso
 	# See AMD 55570-B1 Table 13: PCI Device ID Assignments.
 	device domain 0 on
 		subsystemid 0x1022 0x1510 inherit
-		device pci 8.1 on
-			device pci 0.5 on
+		device ref internal_bridge_a on
+			device ref acp on
 				chip drivers/amd/i2s_machine_dev
 					register "hid" = ""AMDI5682""
 					# DMIC select GPIO for ACP machine device
@@ -148,11 +148,11 @@ chip soc/amd/picasso
 				end
 			end # Audio
 		end
-		device pci 14.3 on
+		device ref lpc_bridge on
 			chip ec/google/chromeec
-				device pnp 0c09.0 on
+				device ref cros_ec on
 					chip ec/google/chromeec/i2c_tunnel
-						device generic 0.0 on
+						device ref cros_ec_i2c_8 on
 							chip drivers/i2c/generic
 								register "hid" = ""10EC5682""
 								register "name" = ""RT58""
@@ -166,11 +166,10 @@ chip soc/amd/picasso
 								register "property_list[1].type" = "ACPI_DP_TYPE_STRING"
 								register "property_list[1].name" = ""realtek,mclk-name""
 								register "property_list[1].string" = ""oscout1""
-								device i2c 1a on end
+								device i2c 1a on
+									probe AUDIO_CODEC_SOURCE AUDIO_CODEC_ALC5682
+								end
 							end
-							probe AUDIO_CODEC_SOURCE AUDIO_CODEC_ALC5682
-						end
-						device generic 1.0 on
 							chip drivers/i2c/generic
 								register "hid" = ""RTL5682""
 								register "name" = ""RT58""
@@ -184,9 +183,10 @@ chip soc/amd/picasso
 								register "property_list[1].type" = "ACPI_DP_TYPE_STRING"
 								register "property_list[1].name" = ""realtek,mclk-name""
 								register "property_list[1].string" = ""oscout1""
-								device i2c 1a on end
+								device i2c 1a on
+									probe AUDIO_CODEC_SOURCE AUDIO_CODEC_ALC5682I_VS
+								end
 							end
-							probe AUDIO_CODEC_SOURCE AUDIO_CODEC_ALC5682I_VS
 						end
 					end
 				end

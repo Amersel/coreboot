@@ -109,7 +109,6 @@ enum sata_speed_limit {
 };
 
 struct soc_intel_elkhartlake_config {
-
 	/* Common struct containing soc config data required by common code */
 	struct soc_intel_common_config common_soc_config;
 
@@ -129,7 +128,7 @@ struct soc_intel_elkhartlake_config {
 	uint32_t gen4_dec;
 
 	/* Enable S0iX support */
-	int s0ix_enable;
+	bool s0ix_enable;
 	/* Enable DPTF support */
 	int dptf_enable;
 
@@ -212,7 +211,6 @@ struct soc_intel_elkhartlake_config {
 	uint8_t PchHdaAudioLinkSndwEnable[MAX_HD_AUDIO_SNDW_LINKS];
 
 	/* PCIe Root Ports */
-	uint8_t PcieRpEnable[CONFIG_MAX_ROOT_PORTS];
 	uint8_t PcieRpHotPlug[CONFIG_MAX_ROOT_PORTS];
 
 	/* PCIe output clocks type to PCIe devices.
@@ -260,8 +258,7 @@ struct soc_intel_elkhartlake_config {
 	uint8_t Heci2Enable;
 	uint8_t Heci3Enable;
 
-	/* Enable/Disable EIST. 1b:Enabled, 0b:Disabled */
-	uint8_t eist_enable;
+	bool eist_enable;
 
 	/*
 	 * SerialIO device mode selection:

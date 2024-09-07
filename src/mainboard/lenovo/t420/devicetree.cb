@@ -15,6 +15,20 @@ chip northbridge/intel/sandybridge
 	register "gpu_cpu_backlight" = "0x1155"
 	register "gpu_pch_backlight" = "0x06100610"
 
+	register "spd_addresses" = "{0x50, 0, 0x51, 0}"
+	chip cpu/intel/model_206ax
+		# Values obtained from vendor BIOS
+		register "tcc_offset" = "3"
+		register "pl1_mw" = "35000"
+		register "pl2_mw" = "43750"
+		register "pp0_current_limit" = "97"
+		register "pp1_current_limit" = "32"
+		register "pp0_psi[VR12_PSI2]" = "{VR12_ALL_PHASES, 5}"
+		register "pp0_psi[VR12_PSI3]" = "{VR12_ALL_PHASES, 1}"
+		register "pp1_psi[VR12_PSI2]" = "{VR12_ALL_PHASES, 5}"
+		register "pp1_psi[VR12_PSI3]" = "{VR12_ALL_PHASES, 1}"
+		device cpu_cluster 0 on end
+	end
 	device domain 0 on
 		subsystemid 0x17aa 0x21ce inherit
 
@@ -48,6 +62,24 @@ chip northbridge/intel/sandybridge
 			# device specific SPI configuration
 			register "spi_uvscc" = "0x2005"
 			register "spi_lvscc" = "0x2005"
+
+			# OC3 set in BIOS to port 2-7, OC7 set in BIOS to port 10-13
+			register "usb_port_config" = "{
+				{1, 1,  0}, /* P0: system port 4, OC0 */
+				{1, 1,  1}, /* P1: system port 2 (EHCI debug), OC 1 */
+				{1, 1, -1}, /* P2: HALF MINICARD (WLAN) no oc */
+				{1, 0, -1}, /* P3: WWAN, no OC */
+				{1, 0, -1}, /* P4: smartcard, no OC */
+				{1, 1, -1}, /* P5: ExpressCard, no OC */
+				{0, 0, -1}, /* P6: empty */
+				{0, 0, -1}, /* P7: empty */
+				{1, 1,  4}, /* P8: system port 3, OC4*/
+				{1, 1,  5}, /* P9: system port 1 (EHCI debug), OC 5 */
+				{1, 0, -1}, /* P10: fingerprint reader, no OC */
+				{1, 0, -1}, /* P11: bluetooth, no OC. */
+				{1, 1, -1}, /* P12: docking, no OC */
+				{1, 1, -1}  /* P13: camera (LCD), no OC */
+				}"
 
 			device ref mei1 on  end # Management Engine Interface 1
 			device ref mei2 off end # Management Engine Interface 2

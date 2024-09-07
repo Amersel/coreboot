@@ -3,10 +3,11 @@
 config CPU_QEMU_X86
 	bool
 	select ARCH_X86
-	select HAVE_EXP_X86_64_SUPPORT
+	select HAVE_X86_64_SUPPORT
 	select UDELAY_TSC
 	select TSC_MONOTONIC_TIMER
 	select UNKNOWN_TSC_RATE
+	select NEED_SMALL_2MB_PAGE_TABLES	# QEMU doesn't support 1GB pages
 
 if CPU_QEMU_X86
 
@@ -29,6 +30,11 @@ config CPU_QEMU_X86_TSEG_SMM
 	select SMM_TSEG
 
 endchoice
+
+config SMM_TSEG_SIZE
+	hex
+	depends on SMM_TSEG
+	default 0x100000
 
 config MAX_CPUS
 	int

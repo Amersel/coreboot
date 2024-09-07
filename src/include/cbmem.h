@@ -57,7 +57,7 @@ void cbmem_initialize_empty_id_size(u32 id, u64 size);
 /* The assumption is made that the result of cbmem_top_romstage fits in the size
    of uintptr_t in the ramstage. */
 extern uintptr_t _cbmem_top_ptr;
-void *cbmem_top(void);
+uintptr_t cbmem_top(void);
 /* With CONFIG_RAMSTAGE_CBMEM_TOP_ARG set, the result of cbmem_top is passed via
  * calling arguments to the next stage and saved in the global _cbmem_top_ptr
  * global variable. Only a romstage callback needs to be implemented by the
@@ -102,7 +102,7 @@ void cbmem_run_init_hooks(int is_recovery);
 /* Add the cbmem memory used to the memory map at boot. */
 void cbmem_add_bootmem(void);
 /* Return the cbmem memory used */
-void cbmem_get_region(void **baseptr, size_t *size);
+int cbmem_get_region(void **baseptr, size_t *size);
 void cbmem_list(void);
 void cbmem_add_records_to_cbtable(struct lb_header *header);
 
@@ -136,28 +136,12 @@ void cbmem_add_records_to_cbtable(struct lb_header *header);
 #define CBMEM_READY_HOOK_EARLY(x)	_CBMEM_INIT_HOOK_UNUSED(x)
 #endif
 
-/*
- * Returns 0 for the stages where we know that cbmem does not come online.
- * Even if this function returns 1 for romstage, depending upon the point in
- * bootup, cbmem might not actually be online.
- */
-static inline int cbmem_possibly_online(void)
-{
-	if (ENV_BOOTBLOCK)
-		return 0;
-
-	if (ENV_SEPARATE_VERSTAGE && !CONFIG(VBOOT_STARTS_IN_ROMSTAGE))
-		return 0;
-
-	return 1;
-}
-
 /* Returns 1 after running cbmem init hooks, 0 otherwise. */
 static inline int cbmem_online(void)
 {
 	extern int cbmem_initialized;
 
-	if (!cbmem_possibly_online())
+	if (!ENV_HAS_CBMEM)
 		return 0;
 
 	return cbmem_initialized;

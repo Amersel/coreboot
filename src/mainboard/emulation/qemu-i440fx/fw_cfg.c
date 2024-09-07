@@ -44,7 +44,10 @@ static int fw_cfg_present(void)
 
 static void fw_cfg_select(uint16_t entry)
 {
-	outw(entry, FW_CFG_PORT_CTL);
+	if (fw_ver & FW_CFG_VERSION_DMA)
+		fw_cfg_dma(FW_CFG_DMA_CTL_SELECT | entry << 16, NULL, 0);
+	else
+		outw(entry, FW_CFG_PORT_CTL);
 }
 
 static void fw_cfg_read(void *dst, int dstlen)
@@ -341,6 +344,7 @@ err:
 /* ---------------------------------------------------------------------- */
 /* pick up smbios information from fw_cfg                                 */
 
+#if CONFIG(GENERATE_SMBIOS_TABLES)
 static const char *type1_manufacturer;
 static const char *type1_product_name;
 static const char *type1_version;
@@ -361,9 +365,9 @@ static void fw_cfg_smbios_init(void)
 
 	fw_cfg_get(FW_CFG_SMBIOS_ENTRIES, &count, sizeof(count));
 	for (i = 0; i < count; i++) {
-		insb(FW_CFG_PORT_DATA, &entry, sizeof(entry));
+		fw_cfg_read(&entry, sizeof(entry));
 		buf = malloc(entry.length - sizeof(entry));
-		insb(FW_CFG_PORT_DATA, buf, entry.length - sizeof(entry));
+		fw_cfg_read(buf, entry.length - sizeof(entry));
 		if (entry.headertype == SMBIOS_FIELD_ENTRY &&
 		    entry.tabletype == 1) {
 			switch (entry.fieldoffset) {
@@ -504,6 +508,7 @@ void smbios_system_set_uuid(u8 *uuid)
 	fw_cfg_smbios_init();
 	memcpy(uuid, type1_uuid, 16);
 }
+#endif /* CONFIG(GENERATE_SMBIOS_TABLES) */
 
 /*
  * Configure DMA setup

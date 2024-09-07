@@ -8,6 +8,19 @@
 
 #define PCH_PMC_EPOC			0x18EC
 
+/*
+ * GPE1 support is introduced in PTL. The existing standard GPE
+ * functions will cover GPE1 when SOC_INTEL_COMMON_BLOCK_ACPI_HAVE_GPE1 is
+ * selected. In addition, the following SOC GPE1 defines are required in common
+ * code but not present in older platform headers. Therefore, the dummy entries
+ * are added here for platforms without GPE1 support.
+ */
+#if !CONFIG(SOC_INTEL_COMMON_BLOCK_ACPI_HAVE_GPE1)
+#define GPE1_STS(x) (0x0 + ((x) * 4))
+#define GPE1_EN(x) (0x0 + ((x) * 4))
+#define GPE1_REG_MAX 0
+#endif
+
 /**
  * enum pch_pmc_xtal - External crystal oscillator frequency.
  * @XTAL_24_MHZ: 24 MHz external crystal.
@@ -267,5 +280,11 @@ uint8_t get_pm_pwr_cyc_dur(uint8_t slp_s4_min_assert, uint8_t slp_s3_min_assert,
 
 /* API to set ACPI mode */
 void pmc_set_acpi_mode(void);
+
+/*
+ * This function reads and prints SoC QDF information using PMC interface
+ * if SOC_QDF_DYNAMIC_READ_PMC config is enabled.
+ */
+void pmc_dump_soc_qdf_info(void);
 
 #endif /* SOC_INTEL_COMMON_BLOCK_PMCLIB_H */

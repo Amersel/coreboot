@@ -8,7 +8,7 @@
 #include <cbmem.h>
 #include <cbfs.h>
 #include <cf9_reset.h>
-#include <ip_checksum.h>
+#include <device/dram/ddr3.h>
 #include <memory_info.h>
 #include <mrc_cache.h>
 #include <device/device.h>
@@ -220,14 +220,14 @@ static void setup_sdram_meminfo(struct pei_data *pei_data)
 				dimm->dimm_num = slot;
 				dimm->bank_locator = ch * 2;
 				memcpy(dimm->serial,
-					&pei_data->spd_data[ch][slot][SPD_DIMM_SERIAL_NUM],
-					SPD_DIMM_SERIAL_LEN);
+					&pei_data->spd_data[ch][slot][SPD_DDR3_SERIAL_NUM],
+					SPD_DDR3_SERIAL_LEN);
 				memcpy(dimm->module_part_number,
-					&pei_data->spd_data[ch][slot][SPD_DIMM_PART_NUM],
-					SPD_DIMM_PART_LEN);
+					&pei_data->spd_data[ch][slot][SPD_DDR3_PART_NUM],
+					SPD_DDR3_PART_LEN);
 				dimm->mod_id =
-					(pei_data->spd_data[ch][slot][SPD_DIMM_MOD_ID2] << 8) |
-					(pei_data->spd_data[ch][slot][SPD_DIMM_MOD_ID1] & 0xff);
+					(pei_data->spd_data[ch][slot][SPD_DDR3_MOD_ID2] << 8) |
+					(pei_data->spd_data[ch][slot][SPD_DDR3_MOD_ID1] & 0xff);
 				dimm->mod_type = SPD_DDR3_DIMM_TYPE_SO_DIMM;
 				dimm->bus_width = MEMORY_BUS_WIDTH_64;
 				dimm_cnt++;
@@ -246,7 +246,6 @@ static void setup_sdram_meminfo(struct pei_data *pei_data)
 }
 
 #include <device/smbus_host.h>
-#define SPD_LEN 256
 
 /* Copy SPD data for on-board memory */
 static void copy_spd(struct pei_data *pei_data, struct spd_info *spdi)
@@ -262,20 +261,21 @@ static void copy_spd(struct pei_data *pei_data, struct spd_info *spdi)
 	if (!spd_file)
 		die("SPD data not found.");
 
-	if (spd_file_len < ((spdi->spd_index + 1) * SPD_LEN)) {
+	if (spd_file_len < ((spdi->spd_index + 1) * SPD_SIZE_MAX_DDR3)) {
 		printk(BIOS_ERR, "SPD index override to 0 - old hardware?\n");
 		spdi->spd_index = 0;
 	}
 
-	if (spd_file_len < SPD_LEN)
+	if (spd_file_len < SPD_SIZE_MAX_DDR3)
 		die("Missing SPD data.");
 
 	/* MRC only uses index 0, but coreboot uses the other indices */
-	memcpy(pei_data->spd_data[0], spd_file + (spdi->spd_index * SPD_LEN), SPD_LEN);
+	memcpy(pei_data->spd_data[0], spd_file + (spdi->spd_index * SPD_SIZE_MAX_DDR3),
+		SPD_SIZE_MAX_DDR3);
 
 	for (size_t i = 1; i < ARRAY_SIZE(spdi->addresses); i++) {
 		if (spdi->addresses[i] == SPD_MEMORY_DOWN)
-			memcpy(pei_data->spd_data[i], pei_data->spd_data[0], SPD_LEN);
+			memcpy(pei_data->spd_data[i], pei_data->spd_data[0], SPD_SIZE_MAX_DDR3);
 	}
 }
 
@@ -332,7 +332,7 @@ void perform_raminit(const int s3resume)
 
 	struct pei_data pei_data = {
 		.pei_version		= PEI_VERSION,
-		.board_type		= get_pch_platform_type(),
+		.board_type		= (enum board_type)get_pch_platform_type(),
 		.usbdebug		= CONFIG(USBDEBUG),
 		.pciexbar		= CONFIG_ECAM_MMCONF_BASE_ADDRESS,
 		.smbusbar		= CONFIG_FIXED_SMBUS_IO_BASE,
@@ -374,9 +374,8 @@ void perform_raminit(const int s3resume)
 	/* Broadwell MRC uses ACPI values for boot_mode */
 	pei_data.boot_mode = s3resume ? ACPI_S3 : ACPI_S0;
 
-	/* Obtain the SPD addresses from mainboard code */
 	struct spd_info spdi = {0};
-	mb_get_spd_map(&spdi);
+	get_spd_info(&spdi, cfg);
 
 	/*
 	 * Read the SPDs over SMBus in coreboot code so that the data can be used to

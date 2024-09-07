@@ -4,7 +4,8 @@
 #include <acpi/acpi_device.h>
 #include <assert.h>
 #include <device/device.h>
-#include <string.h>
+#include <stdio.h>
+
 #include "chip.h"
 #include <gpio.h>
 #include <console/console.h>
@@ -90,6 +91,6 @@ static void i2c_hid_enable(struct device *dev)
 }
 
 struct chip_operations drivers_i2c_hid_ops = {
-	CHIP_NAME("I2C HID Device")
+	.name = "I2C HID Device",
 	.enable_dev = i2c_hid_enable
 };

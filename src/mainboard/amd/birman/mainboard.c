@@ -1,11 +1,12 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
+#include <amdblocks/acpi.h>
 #include <amdblocks/amd_pci_util.h>
 #include <commonlib/helpers.h>
 #include <device/device.h>
-#include <soc/acpi.h>
 #include <types.h>
 #include "gpio.h"
+#include "update_devicetree.h"
 
 /* TODO: Update for birman */
 
@@ -58,6 +59,9 @@ const struct fch_irq_routing *mb_get_fch_irq_mapping(size_t *length)
 static void mainboard_init(void *chip_info)
 {
 	mainboard_program_gpios();
+
+	if (CONFIG(BOARD_AMD_BIRMAN_PHOENIX_OPENSIL))
+		mainboard_update_devicetree_opensil();
 }
 
 struct chip_operations mainboard_ops = {

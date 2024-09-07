@@ -4,7 +4,6 @@
 #include <console/console.h>
 #include <fsp/api.h>
 #include <fsp/fsp_gop_blt.h>
-#include <lib.h>
 #include <stdlib.h>
 
 static bool is_bmp_image_valid(efi_bmp_image_header *header)
@@ -134,7 +133,7 @@ static uint32_t get_color_map_num(efi_bmp_image_header *header)
 
 /* Fill BMP image into BLT buffer format */
 static void *fill_blt_buffer(efi_bmp_image_header *header,
-	uint32_t logo_ptr, uint32_t blt_buffer_size)
+	uintptr_t logo_ptr, size_t blt_buffer_size)
 {
 	efi_graphics_output_blt_pixel *gop_blt_buffer;
 	efi_graphics_output_blt_pixel *gop_blt_ptr;
@@ -152,7 +151,7 @@ static void *fill_blt_buffer(efi_bmp_image_header *header,
 		die("%s: out of memory. Consider increasing the `CONFIG_HEAP_SIZE`\n",
 			 __func__);
 
-	bmp_image = ((UINT8 *)logo_ptr) + header->ImageOffset;
+	bmp_image = ((uint8_t *)logo_ptr) + header->ImageOffset;
 	bmp_image_header = bmp_image;
 	gop_blt_buffer = gop_blt_ptr;
 	bmp_color_map = (efi_bmp_color_map *)(logo_ptr + sizeof(efi_bmp_image_header));
@@ -234,17 +233,19 @@ static void *fill_blt_buffer(efi_bmp_image_header *header,
 }
 
 /* Convert a *.BMP graphics image to a GOP blt buffer */
-void fsp_convert_bmp_to_gop_blt(uint32_t *logo, uint32_t *logo_size,
-	uint32_t *blt_ptr, uint32_t *blt_size,
+void fsp_convert_bmp_to_gop_blt(efi_uintn_t *logo, uint32_t *logo_size,
+	efi_uintn_t *blt_ptr, efi_uintn_t *blt_size,
 	uint32_t *pixel_height, uint32_t *pixel_width)
 {
-	uint32_t logo_ptr, logo_ptr_size, blt_buffer_size;
+	uintptr_t logo_ptr;
+	size_t logo_ptr_size, blt_buffer_size;
 	efi_bmp_image_header *bmp_header;
 
 	if (!logo || !logo_size || !blt_ptr || !blt_size || !pixel_height || !pixel_width)
 		return;
 
-	bmp_load_logo(&logo_ptr, &logo_ptr_size);
+	logo_ptr = (uintptr_t)bmp_load_logo(&logo_ptr_size);
+
 	if (!logo_ptr || logo_ptr_size < sizeof(efi_bmp_image_header)) {
 		printk(BIOS_ERR, "%s: BMP Image size is too small.\n", __func__);
 		return;
@@ -266,5 +267,5 @@ void fsp_convert_bmp_to_gop_blt(uint32_t *logo, uint32_t *logo_size,
 	*blt_size = blt_buffer_size;
 	*pixel_height = bmp_header->PixelHeight;
 	*pixel_width = bmp_header->PixelWidth;
-	*blt_ptr = (uint32_t)fill_blt_buffer(bmp_header, logo_ptr, blt_buffer_size);
+	*blt_ptr = (uintptr_t)fill_blt_buffer(bmp_header, logo_ptr, blt_buffer_size);
 }

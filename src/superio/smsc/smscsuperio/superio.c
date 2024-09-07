@@ -216,7 +216,6 @@ static void enable_dev(struct device *dev)
 	u8 test7;
 
 	if (first_time) {
-
 		pnp_enter_conf_mode_55(dev);
 
 		/* Read the device ID and revision of the Super I/O chip. */
@@ -281,6 +280,6 @@ static void enable_dev(struct device *dev)
 }
 
 struct chip_operations superio_smsc_smscsuperio_ops = {
-	CHIP_NAME("Various SMSC Super I/Os")
+	.name = "Various SMSC Super I/Os",
 	.enable_dev = enable_dev
 };

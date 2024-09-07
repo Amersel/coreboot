@@ -19,8 +19,6 @@ OBJECTS = cpuinfo_module.o cpuid.S.o pci_module.o coreboot_module.o \
 OBJS    = $(patsubst %,$(obj)/%,$(OBJECTS))
 TARGET  = $(obj)/coreinfo.elf
 
-ARCH := x86_32
-
 all: real-all
 
 include ../libpayload/Makefile.payload
@@ -70,7 +68,7 @@ $(obj)/config.h:
 
 $(shell mkdir -p $(objk)/lxdialog $(KCONFIG_SPLITCONFIG))
 
-include $(srck)/Makefile.inc
+include $(srck)/Makefile.mk
 
 .PHONY: $(PHONY) prepare all real-all defaultbuild
 

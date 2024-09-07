@@ -5,9 +5,7 @@
 
 /* Device 0:0.0 PCI configuration space */
 
-
 /* DPR register in case CONFIG_SA_ENABLE_DPR is selected by SoC */
-#define DPR		0x5c
 #define  DPR_EPM	(1 << 2)
 #define  DPR_PRS	(1 << 1)
 #define  DPR_SIZE_MASK	0xff0
@@ -31,6 +29,15 @@
 /* Device 0:0.0 MMIO space */
 #define MCH_PAIR	0x5418
 
+#define PCIEXBAR_LENGTH_MASK		0xE /* bits 1-3 */
+#define PCIEXBAR_LENGTH_MASK_LSB	1 /* used to shift right */
+#define DSM_LENGTH_MASK			0xFF00 /* bits 8-15 */
+#define DSM_LENGTH_MASK_LSB		8 /* used to shift right */
+#define GSM_LENGTH_MASK			0xC0 /* bits 6-7 */
+#define GSM_LENGTH_MASK_LSB		6 /* used to shift right */
+#define DPR_LENGTH_MASK			0xFF0 /* bits 4-11 */
+#define DPR_LENGTH_MASK_LSB		4 /* used to shift right */
+
 /*
  * IMR register in case CONFIG(SA_ENABLE_IMR) is selected by SoC.
  *
@@ -51,7 +58,9 @@
 enum {
 	SA_TOUUD_REG,
 	SA_TOLUD_REG,
+#if CONFIG(HAVE_BDSM_BGSM_REGISTER)
 	SA_BGSM_REG,
+#endif
 	SA_TSEG_REG,
 	/* Must be last. */
 	MAX_MAP_ENTRIES

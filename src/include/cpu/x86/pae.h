@@ -35,19 +35,15 @@ void paging_set_default_pat(void);
  * failure. */
 int paging_enable_for_car(const char *pdpt_name, const char *pt_name);
 
-/* Identity map the region indicated by 'base' and 'size'. Both 'base' and
- * 'size' need to be 4KiB or 2 MiB aligned. 'pat' should be one of the
- * PAT defines above. 0 is returned on success, < 0 on failure. */
-int paging_identity_map_addr(uintptr_t base, size_t size, int pat);
+/* To be used with memset_pae and pae_map_2M_page */
+#define PAE_VMEM_ALIGN (2 * MiB)
+#define PAE_VMEM_SIZE (2 * MiB)
+#define PAE_PGTL_ALIGN (4 * KiB)
+#define PAE_PGTL_SIZE (20 * KiB)
 
-#define MAPPING_ERROR ((void *)0xffffffffUL)
-void *map_2M_page(unsigned long page);
+int init_pae_pagetables(void *pgtbl);
 
-/* To be used with memset_pae */
-#define MEMSET_PAE_VMEM_ALIGN (2 * MiB)
-#define MEMSET_PAE_VMEM_SIZE (2 * MiB)
-#define MEMSET_PAE_PGTL_ALIGN (4 * KiB)
-#define MEMSET_PAE_PGTL_SIZE (20 * KiB)
+void pae_map_2M_page(void *pgtbl, uint64_t paddr, void *vmem_addr);
 
 int memset_pae(uint64_t dest, unsigned char pat, uint64_t length, void *pgtbl,
 	       void *vmem_addr);

@@ -13,7 +13,6 @@
 #include <device/pci_ids.h>
 #include <string.h>
 #include <stdlib.h>
-#include <lib.h>
 #include <cpu/x86/mp.h>
 #include <Porting.h>
 #include <Topology.h>
@@ -25,78 +24,14 @@
 #include <southbridge/amd/pi/hudson/pci_devs.h>
 #include <amdblocks/cpu.h>
 
-#define MAX_NODE_NUMS MAX_NODES
 #define PCIE_CAP_AER		BIT(5)
 #define PCIE_CAP_ACS		BIT(6)
 
-static struct device *__f0_dev[MAX_NODE_NUMS];
-static struct device *__f1_dev[MAX_NODE_NUMS];
-static struct device *__f2_dev[MAX_NODE_NUMS];
-static struct device *__f4_dev[MAX_NODE_NUMS];
-static unsigned int fx_devs = 0;
-
-static struct device *get_node_pci(u32 nodeid, u32 fn)
-{
-	return pcidev_on_root(DEV_CDB + nodeid, fn);
-}
-
-static struct device *get_mc_dev(void)
-{
-	return pcidev_on_root(DEV_CDB, 0);
-}
-
-static unsigned int get_node_nums(void)
-{
-	static unsigned int node_nums;
-
-	if (node_nums)
-		return node_nums;
-
-	node_nums = ((pci_read_config32(get_mc_dev(), 0x60) >> 4) & 7) + 1; //NodeCnt[2:0]
-
-	return node_nums;
-}
-
-static void get_fx_devs(void)
-{
-	int i;
-	for (i = 0; i < MAX_NODE_NUMS; i++) {
-		__f0_dev[i] = get_node_pci(i, 0);
-		__f1_dev[i] = get_node_pci(i, 1);
-		__f2_dev[i] = get_node_pci(i, 2);
-		__f4_dev[i] = get_node_pci(i, 4);
-		if (__f0_dev[i] != NULL && __f1_dev[i] != NULL)
-			fx_devs = i + 1;
-	}
-	if (__f1_dev[0] == NULL || __f0_dev[0] == NULL || fx_devs == 0) {
-		die("Cannot find 0:0x18.[0|1]\n");
-	}
-	printk(BIOS_DEBUG, "fx_devs = 0x%x\n", fx_devs);
-}
-
-static void f1_write_config32(unsigned int reg, u32 value)
-{
-	int i;
-	if (fx_devs == 0)
-		get_fx_devs();
-	for (i = 0; i < fx_devs; i++) {
-		struct device *dev;
-		dev = __f1_dev[i];
-		if (dev && dev->enabled) {
-			pci_write_config32(dev, reg, value);
-		}
-	}
-}
-
-static int get_dram_base_limit(u32 nodeid, resource_t *basek, resource_t *limitk)
+static int get_dram_base_limit(resource_t *basek, resource_t *limitk)
 {
 	u32 temp;
 
-	if (fx_devs == 0)
-		get_fx_devs();
-
-
-	temp = pci_read_config32(__f1_dev[nodeid], 0x40 + (nodeid << 3)); //[39:24] at [31:16]
+	temp = pci_read_config32(DEV_PTR(ht_1), 0x40); //[39:24] at [31:16]
 	if (!(temp & 1))
 		return 0; // this memory range is not enabled
 	/*
@@ -108,29 +43,11 @@ static int get_dram_base_limit(u32 nodeid, resource_t *basek, resource_t *limitk
 	 * BKDG address[39:0] <= {DramLimit[39:24], FF_FFFFh} converted as above but
 	 * ORed with 0xffff to get real limit before shifting.
 	 */
-	temp = pci_read_config32(__f1_dev[nodeid], 0x44 + (nodeid << 3)); //[39:24] at [31:16]
+	temp = pci_read_config32(DEV_PTR(ht_1), 0x44); //[39:24] at [31:16]
 	*limitk = ((temp & 0xffff0000) | 0xffff) >> (10 - 8);
 	*limitk += 1; // round up last byte
 
 	return 1;
-}
-
-static u32 amdfam16_nodeid(struct device *dev)
-{
-	return (dev->path.pci.devfn >> 3) - DEV_CDB;
-}
-
-static void set_vga_enable_reg(u32 nodeid, u32 linkn)
-{
-	u32 val;
-
-	val =  1 | (nodeid << 4) | (linkn << 12);
-	/* it will routing
-	 * (1)mmio 0xa0000:0xbffff
-	 * (2)io   0x3b0:0x3bb, 0x3c0:0x3df
-	 */
-	f1_write_config32(0xf4, val);
-
 }
 
 static void add_fixed_resources(struct device *dev, int index)
@@ -143,14 +60,11 @@ static void add_fixed_resources(struct device *dev, int index)
 	mmio_resource_kb(dev, index++, VGA_MMIO_BASE >> 10, VGA_MMIO_SIZE >> 10);
 	reserved_ram_resource_kb(dev, index++, 0xc0000 >> 10, (0x100000 - 0xc0000) >> 10);
 
-	if (fx_devs == 0)
-		get_fx_devs();
-
 	/* Check if CC6 save area is enabled (bit 18 CC6SaveEn)  */
-	if (pci_read_config32(__f2_dev[0], 0x118) & (1 << 18)) {
+	if (pci_read_config32(DEV_PTR(ht_2), 0x118) & (1 << 18)) {
 		/* Add CC6 DRAM UC resource residing at DRAM Limit of size 16MB as per BKDG */
 		resource_t basek, limitk;
-		if (!get_dram_base_limit(0, &basek, &limitk))
+		if (!get_dram_base_limit(&basek, &limitk))
 			return;
 		mmio_resource_kb(dev, index++, limitk, 16 * 1024);
 	}
@@ -171,52 +85,9 @@ static void nb_read_resources(struct device *dev)
 	add_fixed_resources(dev, 0);
 }
 
-static void create_vga_resource(struct device *dev, unsigned int nodeid)
-{
-	struct bus *link;
-	unsigned int sblink;
-
-	sblink = (pci_read_config32(get_mc_dev(), 0x64) >> 8) & 7; // don't forget sublink1
-
-	/* find out which link the VGA card is connected,
-	 * we only deal with the 'first' vga card */
-	for (link = dev->link_list; link; link = link->next) {
-		if (link->bridge_ctrl & PCI_BRIDGE_CTL_VGA) {
-#if CONFIG(MULTIPLE_VGA_ADAPTERS)
-			extern struct device *vga_pri; // the primary vga device, defined in device.c
-			printk(BIOS_DEBUG, "VGA: vga_pri bus num = %d bus range [%d,%d]\n", vga_pri->bus->secondary,
-					link->secondary, link->subordinate);
-			/* We need to make sure the vga_pri is under the link */
-			if ((vga_pri->bus->secondary >= link->secondary) &&
-			    (vga_pri->bus->secondary <= link->subordinate))
-#endif
-				break;
-		}
-	}
-
-	/* no VGA card installed */
-	if (link == NULL)
-		return;
-
-	printk(BIOS_DEBUG, "VGA: %s (aka node %d) link %d has VGA device\n", dev_path(dev), nodeid, sblink);
-	set_vga_enable_reg(nodeid, sblink);
-}
-
-static void nb_set_resources(struct device *dev)
-{
-	unsigned int nodeid;
-
-	/* Find the nodeid */
-	nodeid = amdfam16_nodeid(dev);
-
-	create_vga_resource(dev, nodeid); //TODO: do we need this?
-
-	pci_dev_set_resources(dev);
-}
-
 static void northbridge_init(struct device *dev)
 {
-	register_new_ioapic((u8 *)IO_APIC2_ADDR);
+	register_new_ioapic(IO_APIC2_ADDR);
 }
 
 static unsigned long acpi_fill_hest(acpi_hest_t *hest)
@@ -248,7 +119,7 @@ static unsigned long acpi_fill_ivrs_ioapic(acpi_ivrs_t *ivrs, unsigned long curr
 	ivhd_ioapic->dte_setting = IVHD_DTE_LINT_1_PASS | IVHD_DTE_LINT_0_PASS |
 				   IVHD_DTE_SYS_MGT_NO_TRANS | IVHD_DTE_NMI_PASS |
 				   IVHD_DTE_EXT_INT_PASS | IVHD_DTE_INIT_PASS;
-	ivhd_ioapic->handle = get_ioapic_id(VIO_APIC_VADDR);
+	ivhd_ioapic->handle = get_ioapic_id(IO_APIC_ADDR);
 	ivhd_ioapic->source_dev_id = PCI_DEVFN(SMBUS_DEV, SMBUS_FUNC);
 	ivhd_ioapic->variety = IVHD_SPECIAL_DEV_IOAPIC;
 	current += sizeof(ivrs_ivhd_special_t);
@@ -257,7 +128,7 @@ static unsigned long acpi_fill_ivrs_ioapic(acpi_ivrs_t *ivrs, unsigned long curr
 	ivhd_ioapic->type = IVHD_DEV_8_BYTE_EXT_SPECIAL_DEV;
 	ivhd_ioapic->reserved = 0x0000;
 	ivhd_ioapic->dte_setting = 0x00;
-	ivhd_ioapic->handle = get_ioapic_id((u8 *)IO_APIC2_ADDR);
+	ivhd_ioapic->handle = get_ioapic_id(IO_APIC2_ADDR);
 	ivhd_ioapic->source_dev_id = PCI_DEVFN(0, 1);
 	ivhd_ioapic->variety = IVHD_SPECIAL_DEV_IOAPIC;
 	current += sizeof(ivrs_ivhd_special_t);
@@ -314,7 +185,7 @@ static unsigned long add_ivhd_dev_entry(struct device *parent, struct device *de
 		ivrs_ivhd_generic_t *ivhd_entry = (ivrs_ivhd_generic_t *)*current;
 
 		ivhd_entry->type = type;
-		ivhd_entry->dev_id = dev->path.pci.devfn | (dev->bus->secondary << 8);
+		ivhd_entry->dev_id = dev->path.pci.devfn | (dev->upstream->secondary << 8);
 		ivhd_entry->dte_setting = data;
 		*current += sizeof(ivrs_ivhd_generic_t);
 	} else if (type == IVHD_DEV_8_BYTE_ALIAS_SELECT) {
@@ -323,12 +194,12 @@ static unsigned long add_ivhd_dev_entry(struct device *parent, struct device *de
 		ivrs_ivhd_alias_t *ivhd_entry = (ivrs_ivhd_alias_t *)*current;
 
 		ivhd_entry->type = type;
-		ivhd_entry->dev_id = dev->path.pci.devfn | (dev->bus->secondary << 8);
+		ivhd_entry->dev_id = dev->path.pci.devfn | (dev->upstream->secondary << 8);
 		ivhd_entry->dte_setting = data;
 		ivhd_entry->reserved1 = 0;
 		ivhd_entry->reserved2 = 0;
 		ivhd_entry->source_dev_id = parent->path.pci.devfn |
-					    (parent->bus->secondary << 8);
+					    (parent->upstream->secondary << 8);
 		*current += sizeof(ivrs_ivhd_alias_t);
 	}
 
@@ -363,7 +234,6 @@ static void add_ivhd_device_entries(struct device *parent, struct device *dev,
 				    unsigned long *current, uint16_t *ivhd_length)
 {
 	struct device *sibling;
-	struct bus *link;
 
 	if (!root_level) {
 		root_level = malloc(sizeof(int8_t));
@@ -371,8 +241,7 @@ static void add_ivhd_device_entries(struct device *parent, struct device *dev,
 	}
 
 	if (dev->path.type == DEVICE_PATH_PCI) {
-
-		if ((dev->bus->secondary == 0x0) &&
+		if ((dev->upstream->secondary == 0x0) &&
 		    (dev->path.pci.devfn == 0x0))
 			*root_level = depth;
 
@@ -382,11 +251,11 @@ static void add_ivhd_device_entries(struct device *parent, struct device *dev,
 		}
 	}
 
-	for (link = dev->link_list; link; link = link->next)
-		for (sibling = link->children; sibling; sibling =
-		     sibling->sibling)
+	if (dev->downstream) {
+		for (sibling = dev->downstream->children; sibling; sibling = sibling->sibling)
 			add_ivhd_device_entries(dev, sibling, depth + 1, depth, root_level,
 						current, ivhd_length);
+	}
 
 	free(root_level);
 }
@@ -419,12 +288,12 @@ static unsigned long acpi_fill_ivrs11(unsigned long current, acpi_ivrs_t *ivrs_a
 	ivhd_11->flags = ivrs_agesa->ivhd.flags & 0x3f;
 	ivhd_11->length = sizeof(struct acpi_ivrs_ivhd_11);
 	/* BDF <bus>:00.2 */
-	ivhd_11->device_id = 0x02 | (nb_dev->bus->secondary << 8);
+	ivhd_11->device_id = 0x02 | (nb_dev->upstream->secondary << 8);
 	/* PCI Capability block 0x40 (type 0xf, "Secure device") */
 	ivhd_11->capability_offset = 0x40;
 	ivhd_11->iommu_base_low = ivrs_agesa->ivhd.iommu_base_low;
 	ivhd_11->iommu_base_high = ivrs_agesa->ivhd.iommu_base_high;
-	ivhd_11->pci_segment_group = 0x0000;
+	ivhd_11->pci_segment_group = nb_dev->upstream->segment_group;
 	ivhd_11->iommu_info = ivrs_agesa->ivhd.iommu_info;
 	ivhd_11->iommu_attributes.perf_counters =
 		(IOMMU_MMIO32(ivhd_11->iommu_base_low + 0x4000) >> 7) & 0xf;
@@ -487,12 +356,12 @@ static unsigned long acpi_fill_ivrs(acpi_ivrs_t *ivrs, unsigned long current)
 		ivrs->ivhd.flags = ivrs_agesa->ivhd.flags;
 		ivrs->ivhd.length = sizeof(struct acpi_ivrs_ivhd);
 		/* BDF <bus>:00.2 */
-		ivrs->ivhd.device_id = 0x02 | (nb_dev->bus->secondary << 8);
+		ivrs->ivhd.device_id = 0x02 | (nb_dev->upstream->secondary << 8);
 		/* PCI Capability block 0x40 (type 0xf, "Secure device") */
 		ivrs->ivhd.capability_offset = 0x40;
 		ivrs->ivhd.iommu_base_low = ivrs_agesa->ivhd.iommu_base_low;
 		ivrs->ivhd.iommu_base_high = ivrs_agesa->ivhd.iommu_base_high;
-		ivrs->ivhd.pci_segment_group = 0x0000;
+		ivrs->ivhd.pci_segment_group = nb_dev->upstream->segment_group;
 		ivrs->ivhd.iommu_info = ivrs_agesa->ivhd.iommu_info;
 		ivrs->ivhd.iommu_feature_info = ivrs_agesa->ivhd.iommu_feature_info;
 		/* Enable EFR if supported */
@@ -633,26 +502,14 @@ static unsigned long agesa_write_acpi_tables(const struct device *device,
 	return current;
 }
 
-static struct device_operations northbridge_operations = {
+struct device_operations amd_pi_northbridge_ops = {
 	.read_resources	  = nb_read_resources,
-	.set_resources	  = nb_set_resources,
+	.set_resources	  = pci_dev_set_resources,
 	.enable_resources = pci_dev_enable_resources,
 	.init		  = northbridge_init,
 	.ops_pci           = &pci_dev_ops_pci,
 	.acpi_fill_ssdt   = northbridge_fill_ssdt_generator,
 	.write_acpi_tables = agesa_write_acpi_tables,
-};
-
-static const struct pci_driver family16_northbridge __pci_driver = {
-	.ops	= &northbridge_operations,
-	.vendor = PCI_VID_AMD,
-	.device = PCI_DID_AMD_16H_MODEL_303F_NB_HT,
-};
-
-static const struct pci_driver family10_northbridge __pci_driver = {
-	.ops	= &northbridge_operations,
-	.vendor = PCI_VID_AMD,
-	.device = PCI_DID_AMD_10H_NB_HT,
 };
 
 static void fam16_finalize(void *chip_info)
@@ -695,13 +552,6 @@ static void fam16_finalize(void *chip_info)
 	}
 }
 
-struct chip_operations northbridge_amd_pi_00730F01_ops = {
-	CHIP_NAME("AMD FAM16 Northbridge")
-	.enable_dev = 0,
-	.final = fam16_finalize,
-};
-
-#if CONFIG_HW_MEM_HOLE_SIZEK != 0
 struct hw_mem_hole_info {
 	unsigned int hole_startk;
 	int node_id;
@@ -709,58 +559,33 @@ struct hw_mem_hole_info {
 static struct hw_mem_hole_info get_hw_mem_hole_info(void)
 {
 	struct hw_mem_hole_info mem_hole;
-	int i;
-	mem_hole.hole_startk = CONFIG_HW_MEM_HOLE_SIZEK;
 	mem_hole.node_id = -1;
-	for (i = 0; i < get_node_nums(); i++) {
-		resource_t basek, limitk;
-		u32 hole;
-		if (!get_dram_base_limit(i, &basek, &limitk))
-			continue; // no memory on this node
-		hole = pci_read_config32(__f1_dev[i], 0xf0);
+
+	resource_t basek, limitk;
+	if (get_dram_base_limit(&basek, &limitk)) { // memory on this node
+		u32 hole = pci_read_config32(DEV_PTR(ht_1), 0xf0);
 		if (hole & 2) { // we find the hole
 			mem_hole.hole_startk = (hole & (0xff << 24)) >> 10;
-			mem_hole.node_id = i; // record the node No with hole
-			break; // only one hole
-		}
-	}
-
-	/* We need to double check if there is special set on base reg and limit reg
-	 * are not continuous instead of hole, it will find out its hole_startk.
-	 */
-	if (mem_hole.node_id == -1) {
-		resource_t limitk_pri = 0;
-		for (i = 0; i < get_node_nums(); i++) {
-			resource_t base_k, limit_k;
-			if (!get_dram_base_limit(i, &base_k, &limit_k))
-				continue; // no memory on this node
-			if (base_k > 4 * 1024 * 1024) break; // don't need to go to check
-			if (limitk_pri != base_k) { // we find the hole
-				mem_hole.hole_startk = (unsigned int)limitk_pri; // must be below 4G
-				mem_hole.node_id = i;
-				break; //only one hole
-			}
-			limitk_pri = limit_k;
+			mem_hole.node_id = 0; // record the node No with hole
 		}
 	}
 	return mem_hole;
 }
-#endif
 
 static void domain_read_resources(struct device *dev)
 {
 	unsigned long mmio_basek;
-	int i, idx;
-#if CONFIG_HW_MEM_HOLE_SIZEK != 0
+	unsigned long idx = 0;
 	struct hw_mem_hole_info mem_hole;
-#endif
+	resource_t basek = 0;
+	resource_t limitk = 0;
+	resource_t sizek;
 
 	pci_domain_read_resources(dev);
 
 	/* TOP_MEM MSR is our boundary between DRAM and MMIO under 4G */
 	mmio_basek = get_top_of_mem_below_4gb() >> 10;
 
-#if CONFIG_HW_MEM_HOLE_SIZEK != 0
 	/* if the hw mem hole is already set in raminit stage, here we will compare
 	 * mmio_basek and hole_basek. if mmio_basek is bigger that hole_basek and will
 	 * use hole_basek as mmio_basek and we don't need to reset hole.
@@ -773,60 +598,48 @@ static void domain_read_resources(struct device *dev)
 	if ((mem_hole.node_id !=  -1) && (mmio_basek > mem_hole.hole_startk)) {
 		mmio_basek = mem_hole.hole_startk;
 	}
-#endif
 
-	idx = 0x10;
-	for (i = 0; i < get_node_nums(); i++) {
-		resource_t basek, limitk, sizek; // 4 1T
+	get_dram_base_limit(&basek, &limitk);
+	sizek = limitk - basek;
 
-		if (!get_dram_base_limit(i, &basek, &limitk))
-			continue; // no memory on this node
+	printk(BIOS_DEBUG, "basek=%08llx, limitk=%08llx, sizek=%08llx,\n",
+			   basek, limitk, sizek);
 
+	/* See if we need a hole from 0xa0000 (640K) to 0xfffff (1024K) */
+	if (basek < 640 && sizek > 1024) {
+		ram_resource_kb(dev, idx++, basek, 640 - basek);
+		basek = 1024;
 		sizek = limitk - basek;
-
-		printk(BIOS_DEBUG, "node %d: basek=%08llx, limitk=%08llx, sizek=%08llx,\n",
-				   i, basek, limitk, sizek);
-
-		/* See if we need a hole from 0xa0000 (640K) to 0xfffff (1024K) */
-		if (basek < 640 && sizek > 1024) {
-			ram_resource_kb(dev, (idx | i), basek, 640 - basek);
-			idx += 0x10;
-			basek = 1024;
-			sizek = limitk - basek;
-		}
-
-		printk(BIOS_DEBUG, "node %d: basek=%08llx, limitk=%08llx, sizek=%08llx,\n",
-				   i, basek, limitk, sizek);
-
-		/* split the region to accommodate pci memory space */
-		if ((basek < 4 * 1024 * 1024) && (limitk > mmio_basek)) {
-			if (basek <= mmio_basek) {
-				unsigned int pre_sizek;
-				pre_sizek = mmio_basek - basek;
-				if (pre_sizek > 0) {
-					ram_resource_kb(dev, (idx | i), basek, pre_sizek);
-					idx += 0x10;
-					sizek -= pre_sizek;
-				}
-				basek = mmio_basek;
-			}
-			if ((basek + sizek) <= 4 * 1024 * 1024) {
-				sizek = 0;
-			}
-			else {
-				uint64_t topmem2 = get_top_of_mem_above_4gb();
-				basek = 4 * 1024 * 1024;
-				sizek = topmem2 / 1024 - basek;
-			}
-		}
-
-		ram_resource_kb(dev, (idx | i), basek, sizek);
-		idx += 0x10;
-		printk(BIOS_DEBUG, "node %d: mmio_basek=%08lx, basek=%08llx, limitk=%08llx\n",
-				i, mmio_basek, basek, limitk);
 	}
 
-	add_uma_resource_below_tolm(dev, 7);
+	printk(BIOS_DEBUG, "basek=%08llx, limitk=%08llx, sizek=%08llx,\n",
+			   basek, limitk, sizek);
+
+	/* split the region to accommodate pci memory space */
+	if ((basek < 4 * 1024 * 1024) && (limitk > mmio_basek)) {
+		if (basek <= mmio_basek) {
+			unsigned int pre_sizek;
+			pre_sizek = mmio_basek - basek;
+			if (pre_sizek > 0) {
+				ram_resource_kb(dev, idx++, basek, pre_sizek);
+				sizek -= pre_sizek;
+			}
+			basek = mmio_basek;
+		}
+		if ((basek + sizek) <= 4 * 1024 * 1024) {
+			sizek = 0;
+		} else {
+			uint64_t topmem2 = get_top_of_mem_above_4gb();
+			basek = 4 * 1024 * 1024;
+			sizek = topmem2 / 1024 - basek;
+		}
+	}
+
+	ram_resource_kb(dev, idx++, basek, sizek);
+	printk(BIOS_DEBUG, "mmio_basek=%08lx, basek=%08llx, limitk=%08llx\n",
+			mmio_basek, basek, limitk);
+
+	add_uma_resource_below_tolm(dev, idx++);
 }
 
 static const char *domain_acpi_name(const struct device *dev)
@@ -837,10 +650,10 @@ static const char *domain_acpi_name(const struct device *dev)
 	return NULL;
 }
 
-static struct device_operations pci_domain_ops = {
+struct device_operations amd_fam16_mod30_pci_domain_ops = {
 	.read_resources	  = domain_read_resources,
 	.set_resources	  = pci_domain_set_resources,
-	.scan_bus	  = pci_domain_scan_bus,
+	.scan_bus	  = pci_host_bridge_scan_bus,
 	.acpi_name        = domain_acpi_name,
 };
 
@@ -869,26 +682,16 @@ void generate_cpu_entries(const struct device *device)
 	}
 }
 
-static struct device_operations cpu_bus_ops = {
+struct device_operations amd_fam16_mod30_cpu_bus_ops = {
 	.read_resources	= noop_read_resources,
 	.set_resources	= noop_set_resources,
 	.init		= mp_cpu_bus_init,
 	.acpi_fill_ssdt	= generate_cpu_entries,
 };
 
-static void root_complex_enable_dev(struct device *dev)
-{
-	/* Set the operations if it is a special bus type */
-	if (dev->path.type == DEVICE_PATH_DOMAIN) {
-		dev->ops = &pci_domain_ops;
-	} else if (dev->path.type == DEVICE_PATH_CPU_CLUSTER) {
-		dev->ops = &cpu_bus_ops;
-	}
-}
-
-struct chip_operations northbridge_amd_pi_00730F01_root_complex_ops = {
-	CHIP_NAME("AMD FAM16 Root Complex")
-	.enable_dev = root_complex_enable_dev,
+struct chip_operations northbridge_amd_pi_00730F01_ops = {
+	.name = "AMD FAM16 Root Complex",
+	.final = fam16_finalize,
 };
 
 /*********************************************************************

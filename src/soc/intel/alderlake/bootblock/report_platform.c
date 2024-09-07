@@ -16,6 +16,7 @@
 #include <device/pci.h>
 #include <device/pci_ids.h>
 #include <device/pci_ops.h>
+#include <intelblocks/car_lib.h>
 #include <soc/bootblock.h>
 #include <soc/pci_devs.h>
 
@@ -61,6 +62,7 @@ static struct {
 	{ PCI_DID_INTEL_ADL_N_ID_2, "Alderlake-N" },
 	{ PCI_DID_INTEL_ADL_N_ID_3, "Alderlake-N" },
 	{ PCI_DID_INTEL_ADL_N_ID_4, "Alderlake-N" },
+	{ PCI_DID_INTEL_ADL_N_ID_5, "Alderlake-N" },
 	{ PCI_DID_INTEL_ADL_S_ID_1, "Alderlake-S (8+8)" },
 	{ PCI_DID_INTEL_ADL_S_ID_2, "Alderlake-S" },
 	{ PCI_DID_INTEL_ADL_S_ID_3, "Alderlake-S (8+4)" },
@@ -83,11 +85,14 @@ static struct {
 	{ PCI_DID_INTEL_RPL_HX_ID_6, "Raptorlake-HX (8+8)" },
 	{ PCI_DID_INTEL_RPL_HX_ID_7, "Raptorlake-HX (6+8)" },
 	{ PCI_DID_INTEL_RPL_HX_ID_8, "Raptorlake-HX (6+4)" },
-	{ PCI_DID_INTEL_RPL_P_ID_1, "Raptorlake-P" },
-	{ PCI_DID_INTEL_RPL_P_ID_2, "Raptorlake-P" },
-	{ PCI_DID_INTEL_RPL_P_ID_3, "Raptorlake-P" },
-	{ PCI_DID_INTEL_RPL_P_ID_4, "Raptorlake-P" },
-	{ PCI_DID_INTEL_RPL_P_ID_5, "Raptorlake-P" },
+	{ PCI_DID_INTEL_RPL_P_ID_1, "Raptorlake-P/H/H Refresh (6+8)" },
+	{ PCI_DID_INTEL_RPL_P_ID_2, "Raptorlake-P/H/H Refresh (4+8)" },
+	{ PCI_DID_INTEL_RPL_P_ID_3, "Raptorlake-U/U Refresh (2+8)" },
+	{ PCI_DID_INTEL_RPL_P_ID_4, "Raptorlake-U/U Refresh (2+4)" },
+	{ PCI_DID_INTEL_RPL_P_ID_5, "Raptorlake-U (1+4)" },
+	{ PCI_DID_INTEL_RPL_P_ID_6, "Raptorlake-PX (6+8)" },
+	{ PCI_DID_INTEL_RPL_P_ID_7, "Raptorlake-PX (4+8)" },
+	{ PCI_DID_INTEL_RPL_P_ID_8, "Raptorlake-H (4+4)" },
 	{ PCI_DID_INTEL_RPL_S_ID_1, "Raptorlake-S (8+16)" },
 	{ PCI_DID_INTEL_RPL_S_ID_2, "Raptorlake-S (8+0)" },
 	{ PCI_DID_INTEL_RPL_S_ID_3, "Raptorlake-S (8+8)" },
@@ -232,7 +237,9 @@ static struct {
 	{ PCI_DID_INTEL_RPL_S_GT0, "Raptorlake S GT0" },
 	{ PCI_DID_INTEL_RPL_S_GT1_1, "Raptorlake S GT1" },
 	{ PCI_DID_INTEL_RPL_S_GT1_2, "Raptorlake S GT1" },
-	{ PCI_DID_INTEL_RPL_S_GT1_3, "Raptorlake S GT1" }
+	{ PCI_DID_INTEL_RPL_S_GT1_3, "Raptorlake S GT1" },
+	{ PCI_DID_INTEL_TWL_GT1_1, "Twinlake GT1" },
+	{ PCI_DID_INTEL_TWL_GT1_2, "Twinlake GT1" },
 };
 
 static inline uint8_t get_dev_revision(pci_devfn_t dev)
@@ -243,21 +250,6 @@ static inline uint8_t get_dev_revision(pci_devfn_t dev)
 static inline uint16_t get_dev_id(pci_devfn_t dev)
 {
 	return pci_read_config16(dev, PCI_DEVICE_ID);
-}
-
-static void report_cache_info(void)
-{
-	int cache_level = CACHE_L3;
-	struct cpu_cache_info info;
-
-	if (!fill_cpu_cache_info(cache_level, &info))
-		return;
-
-	printk(BIOS_INFO, "Cache: Level %d: ", cache_level);
-	printk(BIOS_INFO, "Associativity = %zd Partitions = %zd Line Size = %zd Sets = %zd\n",
-		info.num_ways, info.physical_partitions, info.line_size, info.num_sets);
-
-	printk(BIOS_INFO, "Cache size = %zu MiB\n", get_cache_size(&info)/MiB);
 }
 
 static void report_cpu_info(void)
@@ -291,7 +283,7 @@ static void report_cpu_info(void)
 		"CPU: AES %ssupported, TXT %ssupported, VT %ssupported\n",
 		mode[aes], mode[txt], mode[vt]);
 
-	report_cache_info();
+	car_report_cache_info();
 }
 
 static void report_mch_info(void)

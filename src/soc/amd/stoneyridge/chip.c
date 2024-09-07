@@ -84,7 +84,7 @@ struct device_operations stoneyridge_pci_domain_ops = {
 	.read_resources	  = domain_read_resources,
 	.set_resources	  = pci_domain_set_resources,
 	.enable_resources = domain_enable_resources,
-	.scan_bus	  = pci_domain_scan_bus,
+	.scan_bus	  = pci_host_bridge_scan_bus,
 	.acpi_name	  = soc_acpi_name,
 };
 
@@ -100,7 +100,7 @@ static void soc_final(void *chip_info)
 }
 
 struct chip_operations soc_amd_stoneyridge_ops = {
-	CHIP_NAME("AMD StoneyRidge SOC")
+	.name = "AMD StoneyRidge SOC",
 	.init = soc_init,
 	.final = soc_final
 };

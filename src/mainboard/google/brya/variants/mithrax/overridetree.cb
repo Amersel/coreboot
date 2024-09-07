@@ -95,7 +95,9 @@ chip soc/intel/alderlake
 			chip drivers/gfx/generic
 				register "device_count" = "6"
 				# DDIA for eDP
-				register "device[0].name" = ""LCD""
+				register "device[0].name" = ""LCD0""
+				# Internal panel on the first port of the graphics chip
+				register "device[0].type" = "panel"
 				# DDIB for HDMI
 				register "device[1].name" = ""DD01""
 				# TCP0 (DP-1) is unused for any ports but still enumerated in the kernel, so GFX device is added for TCP0
@@ -295,8 +297,8 @@ chip soc/intel/alderlake
 		end
 		device ref pch_espi on
 			chip ec/google/chromeec
-				use conn1 as mux_conn[1]
-				use conn2 as mux_conn[0]
+				use conn1 as mux_conn[0]
+				use conn2 as mux_conn[1]
 				device pnp 0c09.0 on end
 			end
 		end
@@ -304,13 +306,13 @@ chip soc/intel/alderlake
 			chip drivers/intel/pmc_mux
 				device generic 0 on
 					chip drivers/intel/pmc_mux/conn
-						use usb2_port3 as usb2_port
-						use tcss_usb3_port3 as usb3_port
+						use usb2_port2 as usb2_port
+						use tcss_usb3_port2 as usb3_port
 						device generic 2 alias conn2 on end
 					end
 					chip drivers/intel/pmc_mux/conn
-						use usb2_port2 as usb2_port
-						use tcss_usb3_port2 as usb3_port
+						use usb2_port3 as usb2_port
+						use tcss_usb3_port3 as usb3_port
 						device generic 1 alias conn1 on end
 					end
 				end
@@ -325,14 +327,14 @@ chip soc/intel/alderlake
 						register "use_custom_pld" = "true"
 						register "custom_pld" = "ACPI_PLD_TYPE_C(RIGHT, LEFT, ACPI_PLD_GROUP(1, 1))"
 						register "usb_lpm_incapable" = "true"
-						device ref tcss_usb3_port2 on end
+						device ref tcss_usb3_port3 on end
 					end
 					chip drivers/usb/acpi
 						register "desc" = ""USB3 Type-C Port C2 (MLB)""
 						register "type" = "UPC_TYPE_C_USB2_SS_SWITCH"
 						register "use_custom_pld" = "true"
 						register "custom_pld" = "ACPI_PLD_TYPE_C(LEFT, LEFT, ACPI_PLD_GROUP(2, 1))"
-						device ref tcss_usb3_port3 on end
+						device ref tcss_usb3_port2 on end
 					end
 				end
 			end
@@ -345,14 +347,14 @@ chip soc/intel/alderlake
 						register "type" = "UPC_TYPE_C_USB2_SS_SWITCH"
 						register "use_custom_pld" = "true"
 						register "custom_pld" = "ACPI_PLD_TYPE_C(RIGHT, LEFT, ACPI_PLD_GROUP(1, 1))"
-						device ref usb2_port2 on end
+						device ref usb2_port3 on end
 					end
 					chip drivers/usb/acpi
 						register "desc" = ""USB2 Type-C Port C2 (MLB)""
 						register "type" = "UPC_TYPE_C_USB2_SS_SWITCH"
 						register "use_custom_pld" = "true"
 						register "custom_pld" = "ACPI_PLD_TYPE_C(LEFT, LEFT, ACPI_PLD_GROUP(2, 1))"
-						device ref usb2_port3 on end
+						device ref usb2_port2 on end
 					end
 					chip drivers/usb/acpi
 						register "desc" = ""USB2 Camera""

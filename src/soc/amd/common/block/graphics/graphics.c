@@ -2,14 +2,15 @@
 
 #include <acpi/acpi_device.h>
 #include <acpi/acpigen.h>
+#include <amdblocks/graphics.h>
 #include <amdblocks/vbios_cache.h>
 #include <boot/coreboot_tables.h>
 #include <bootmode.h>
 #include <bootstate.h>
 #include <console/console.h>
+#include <device/device.h>
 #include <device/pci.h>
 #include <fmap.h>
-#include <fsp/graphics.h>
 #include <security/vboot/vbios_cache_hash_tpm.h>
 #include <soc/intel/common/vbt.h>
 #include <timestamp.h>
@@ -113,6 +114,18 @@ static void generate_atif(const struct device *dev)
 	acpigen_pop_len(); /* Scope */
 }
 
+static void generate_acp(const struct device *dev)
+{
+	/* Scope (\_SB.PCI0.IGFX) */
+	acpigen_write_scope(acpi_device_path(dev));
+	acpigen_write_device("ACP");
+
+	acpigen_write_name_string("_HID", "BOOT0003");
+
+	acpigen_pop_len(); /* Device */
+	acpigen_pop_len(); /* Scope */
+}
+
 static void graphics_fill_ssdt(const struct device *dev)
 {
 	acpi_device_write_pci_dev(dev);
@@ -123,6 +136,9 @@ static void graphics_fill_ssdt(const struct device *dev)
 
 	if (CONFIG(SOC_AMD_COMMON_BLOCK_GRAPHICS_ATIF))
 		generate_atif(dev);
+
+	if (CONFIG(SOC_AMD_COMMON_BLOCK_GRAPHICS_ACP))
+		generate_acp(dev);
 }
 
 static const char *graphics_acpi_name(const struct device *dev)
@@ -177,15 +193,8 @@ static void graphics_set_resources(struct device *const dev)
 
 static void graphics_dev_init(struct device *const dev)
 {
-	if (CONFIG(RUN_FSP_GOP)) {
-		struct resource *res = probe_resource(dev, PCI_BASE_ADDRESS_0);
-
-		if (res && res->base)
-			fsp_report_framebuffer_info(res->base, LB_FB_ORIENTATION_NORMAL);
-		else
-			printk(BIOS_ERR, "%s: Unable to find resource for %s\n",
-			       __func__, dev_path(dev));
-	}
+	if (CONFIG(RUN_FSP_GOP))
+		fsp_graphics_init(dev);
 
 	/* Initialize PCI device, load/execute BIOS Option ROM */
 	pci_dev_init(dev);

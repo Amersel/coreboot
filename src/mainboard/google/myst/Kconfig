@@ -33,7 +33,7 @@ config BOARD_SPECIFIC_OPTIONS
 	# TODO (b/290763369): Enable APOB after resolving data_abort in ABL
 	select SOC_AMD_COMMON_BLOCK_APOB_NV_DISABLE
 	select SOC_AMD_COMMON_BLOCK_USE_ESPI
-	select SOC_AMD_PHOENIX
+	select SOC_AMD_PHOENIX_FSP
 	select SPI_FLASH_EXIT_4_BYTE_ADDR_MODE
 	select SYSTEM_TYPE_LAPTOP
 	select TPM_GOOGLE_TI50
@@ -87,11 +87,6 @@ config VBOOT_STARTS_BEFORE_BOOTBLOCK
 config VBOOT_STARTS_IN_BOOTBLOCK
 	bool
 	default y if VBOOT && !VBOOT_STARTS_BEFORE_BOOTBLOCK
-
-# TODO(b/277087492): Enable GSC CBFS verification
-config VBOOT_GSCVD
-	bool
-	default n
 
 # Override PSP_SOFTFUSE_BITS from soc/amd/phoenix.
 # The documentation of PSP_SOFTFUSE_BITS is available in #55758 doc (NDA).

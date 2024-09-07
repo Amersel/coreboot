@@ -5,6 +5,7 @@
 #include <console/console.h>
 #include <device/device.h>
 #include <intelblocks/pmc_ipc.h>
+#include <stdio.h>
 #include <soc/dptf.h>
 #include <soc/pci_devs.h>
 #include "chip.h"
@@ -158,6 +159,12 @@ static void write_imok(void)
 	acpigen_emit_byte(ARG0_OP);
 	acpigen_write_method_end();
 }
+
+static void write_dcfg_variable(const struct drivers_intel_dptf_config *config)
+{
+	acpigen_write_name_integer("DCFG", config->dcfg);
+}
+
 /* \_SB.DPTF */
 static void write_oem_variables(const struct drivers_intel_dptf_config *config)
 {
@@ -503,7 +510,7 @@ static void write_device_definitions(const struct device *dev)
 	enum dptf_participant p;
 
 	/* The CPU device gets an _ADR that matches the ACPI PCI address for 00:04.00 */
-	parent = dev && dev->bus ? dev->bus->dev : NULL;
+	parent = dev && dev->upstream ? dev->upstream->dev : NULL;
 	if (!parent || parent->path.type != DEVICE_PATH_PCI) {
 		printk(BIOS_ERR, "%s: DPTF objects must live under 00:04.0 PCI device\n",
 		       __func__);
@@ -520,6 +527,7 @@ static void write_device_definitions(const struct device *dev)
 	} else
 		write_fan(config, platform_info, DPTF_FAN);
 
+	write_dcfg_variable(config);
 	write_oem_variables(config);
 	write_imok();
 	write_generic_devices(config, platform_info);
@@ -636,6 +644,6 @@ static void dptf_enable_dev(struct device *dev)
 }
 
 struct chip_operations drivers_intel_dptf_ops = {
-	CHIP_NAME("Intel DPTF")
+	.name = "Intel DPTF",
 	.enable_dev = dptf_enable_dev,
 };

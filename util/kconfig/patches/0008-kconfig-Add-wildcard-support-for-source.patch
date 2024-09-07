@@ -8,7 +8,7 @@ wildcards (e.g. source src/mainboard/*/Kconfig) which
 makes automatic inclusion of all boards a tedious task
 and prevents us from implementing "drop in" boards.
 
-In our Makefile.inc files we already include mainboard
+In our Makefile.mk files we already include mainboard
 directories per wildcard, so let's add the infrastructure
 to do the same with Kconfig.
 

@@ -1,14 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <console/console.h>
-#include <delay.h>
 #include <device/mmio.h>
-#include <edid.h>
-#include <lib.h>
 #include <soc/clock.h>
 #include <soc/display/edp_reg.h>
 #include <soc/display/edp_phy.h>
-#include <string.h>
 #include <timer.h>
 
 static void edp_phy_ssc_en(bool en)

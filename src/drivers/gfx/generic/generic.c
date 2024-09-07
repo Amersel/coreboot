@@ -114,8 +114,14 @@ static void gfx_fill_ssdt_generator(const struct device *dev)
 	acpigen_write_method("_DOD", 0);
 	acpigen_emit_byte(RETURN_OP);
 	acpigen_write_package(config->device_count);
-	for (i = 0; i < config->device_count; i++)
-		acpigen_write_dword(config->device[i].addr);
+	for (i = 0; i < config->device_count; i++) {
+		/* Generate the Device ID if addr = 0 and type != 0 */
+		if (!config->device[i].addr && config->device[i].type)
+			/* Though not strictly necessary, set the display index and
+			   port attachment to the device index, to ensure uniqueness */
+			config->device[i].addr = (config->device[i].type << 8) | (i << 4) | (i);
+		acpigen_write_dword(DOD_DID_STD | DOD_FW_DETECT | config->device[i].addr);
+	}
 	acpigen_pop_len(); /* End Package. */
 	acpigen_pop_len(); /* End Method. */
 
@@ -131,6 +137,42 @@ static void gfx_fill_ssdt_generator(const struct device *dev)
 
 		if (config->device[i].use_pld)
 			acpigen_write_pld(&config->device[i].pld);
+
+		/* Generate ACPI brightness controls for LCD on Intel iGPU  */
+		if (CONFIG(INTEL_GMA_ACPI) && strcmp(config->device[i].name, "LCD0") == 0) {
+			/*
+			  Method (_BCL, 0, NotSerialized)
+			  {
+				Return (^^XBCL())
+			  }
+			*/
+			acpigen_write_method("_BCL", 0);
+			acpigen_emit_byte(RETURN_OP);
+			acpigen_emit_namestring("^^XBCL");
+			acpigen_pop_len();
+
+			/*
+			  Method (_BCM, 1, NotSerialized)
+			  {
+				^^XBCM(Arg0)
+			  }
+			*/
+			acpigen_write_method("_BCM", 1);
+			acpigen_emit_namestring("^^XBCM");
+			acpigen_emit_byte(ARG0_OP);
+			acpigen_pop_len();
+
+			/*
+			  Method (_BQC, 0, NotSerialized)
+			  {
+				Return (^^XBQC())
+			  }
+			*/
+			acpigen_write_method("_BQC", 0);
+			acpigen_emit_byte(RETURN_OP);
+			acpigen_emit_namestring("^^XBQC");
+			acpigen_pop_len();
+		}
 
 		acpigen_pop_len(); /* Device */
 	}
@@ -160,6 +202,6 @@ static void gfx_enable(struct device *dev)
 }
 
 struct chip_operations drivers_gfx_generic_ops = {
-	CHIP_NAME("Generic Graphics Device")
+	.name = "Generic Graphics Device",
 	.enable_dev = gfx_enable
 };

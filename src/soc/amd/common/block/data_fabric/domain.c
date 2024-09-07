@@ -1,39 +1,45 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <acpi/acpigen.h>
 #include <amdblocks/data_fabric.h>
 #include <amdblocks/root_complex.h>
 #include <arch/ioapic.h>
-#include <arch/vga.h>
 #include <console/console.h>
 #include <cpu/amd/mtrr.h>
 #include <cpu/cpu.h>
 #include <device/device.h>
+#include <device/pci.h>
 #include <device/pci_ops.h>
 #include <types.h>
 
 void amd_pci_domain_scan_bus(struct device *domain)
 {
-	uint8_t bus, limit;
+	uint8_t segment_group, bus, limit;
 
-	if (data_fabric_get_pci_bus_numbers(domain, &bus, &limit) != CB_SUCCESS) {
+	if (data_fabric_get_pci_bus_numbers(domain, &segment_group, &bus, &limit) != CB_SUCCESS) {
 		printk(BIOS_ERR, "No PCI bus numbers decoded to PCI root.\n");
 		return;
 	}
 
-	/* TODO: Check if bus >= CONFIG_ECAM_MMCONF_BUS_NUMBER and return in that case */
+	if (segment_group >= PCI_SEGMENT_GROUP_COUNT) {
+		printk(BIOS_ERR, "Skipping domain %u due to too large segment group %u.\n",
+		       dev_get_domain_id(domain), segment_group);
+		return;
+	}
 
-	/* Make sure to not report more than CONFIG_ECAM_MMCONF_BUS_NUMBER PCI buses */
-	limit = MIN(limit, CONFIG_ECAM_MMCONF_BUS_NUMBER - 1);
+	/* TODO: Check if bus >= PCI_BUSES_PER_SEGMENT_GROUP and return in that case */
+
+	/* Make sure to not report more than PCI_BUSES_PER_SEGMENT_GROUP PCI buses */
+	limit = MIN(limit, PCI_BUSES_PER_SEGMENT_GROUP - 1);
 
 	/* Set bus first number of PCI root */
-	domain->link_list->secondary = bus;
-	/* subordinate needs to be the same as secondary before pci_domain_scan_bus call. */
-	domain->link_list->subordinate = bus;
+	domain->downstream->secondary = bus;
+	/* subordinate needs to be the same as secondary before pci_host_bridge_scan_bus call. */
+	domain->downstream->subordinate = bus;
 	/* Tell allocator about maximum PCI bus number in domain */
-	domain->link_list->max_subordinate = limit;
+	domain->downstream->max_subordinate = limit;
+	domain->downstream->segment_group = segment_group;
 
-	pci_domain_scan_bus(domain);
+	pci_host_bridge_scan_bus(domain);
 }
 
 static void print_df_mmio_outside_of_cpu_mmio_error(unsigned int reg)
@@ -70,7 +76,7 @@ static bool is_mmio_region_valid(unsigned int reg, resource_t mmio_base, resourc
 	return true;
 }
 
-static void report_data_fabric_mmio(struct device *domain, unsigned int idx,
+static void report_data_fabric_mmio(struct device *domain, unsigned long idx,
 				    resource_t mmio_base, resource_t mmio_limit)
 {
 	struct resource *res;
@@ -81,7 +87,7 @@ static void report_data_fabric_mmio(struct device *domain, unsigned int idx,
 }
 
 /* Tell the resource allocator about the usable MMIO ranges configured in the data fabric */
-static void add_data_fabric_mmio_regions(struct device *domain, unsigned int *idx)
+static void add_data_fabric_mmio_regions(struct device *domain, unsigned long *idx)
 {
 	const signed int iohc_dest_fabric_id = get_iohc_fabric_id(domain);
 	union df_mmio_control ctrl;
@@ -132,7 +138,7 @@ static void add_data_fabric_mmio_regions(struct device *domain, unsigned int *id
 	}
 }
 
-static void report_data_fabric_io(struct device *domain, unsigned int idx,
+static void report_data_fabric_io(struct device *domain, unsigned long idx,
 				  resource_t io_base, resource_t io_limit)
 {
 	struct resource *res;
@@ -143,7 +149,7 @@ static void report_data_fabric_io(struct device *domain, unsigned int idx,
 }
 
 /* Tell the resource allocator about the usable I/O space */
-static void add_data_fabric_io_regions(struct device *domain, unsigned int *idx)
+static void add_data_fabric_io_regions(struct device *domain, unsigned long *idx)
 {
 	const signed int iohc_dest_fabric_id = get_iohc_fabric_id(domain);
 	union df_io_base base_reg;
@@ -183,106 +189,26 @@ static void add_data_fabric_io_regions(struct device *domain, unsigned int *idx)
 	}
 }
 
+static void add_pci_cfg_resources(struct device *domain, unsigned long *idx)
+{
+	fixed_io_range_reserved(domain, (*idx)++, PCI_IO_CONFIG_INDEX, PCI_IO_CONFIG_PORT_COUNT);
+	mmconf_resource(domain, (*idx)++);
+}
+
 void amd_pci_domain_read_resources(struct device *domain)
 {
-	unsigned int idx = 0;
+	unsigned long idx = 0;
 
 	add_data_fabric_io_regions(domain, &idx);
 
 	add_data_fabric_mmio_regions(domain, &idx);
 
 	read_non_pci_resources(domain, &idx);
-}
 
-static void write_ssdt_domain_io_producer_range_helper(const char *domain_name,
-						       resource_t base, resource_t limit)
-{
-	printk(BIOS_DEBUG, "%s _CRS: adding IO range [%llx-%llx]\n", domain_name, base, limit);
-	acpigen_resource_producer_io(base, limit);
-}
+	/* Only add the SoC's DRAM memory map and fixed resources once */
+	if (is_domain0(domain)) {
+		add_pci_cfg_resources(domain, &idx);
 
-static void write_ssdt_domain_io_producer_range(const char *domain_name,
-						resource_t base, resource_t limit)
-{
-	/*
-	 * Split the IO region at the PCI config IO ports so that the IO resource producer
-	 * won't cover the same IO ports that the IO resource consumer for the PCI config IO
-	 * ports in the same ACPI device already covers.
-	 */
-	if (base < PCI_IO_CONFIG_INDEX) {
-		write_ssdt_domain_io_producer_range_helper(domain_name,
-					base,
-					MIN(limit, PCI_IO_CONFIG_INDEX - 1));
+		read_soc_memmap_resources(domain, &idx);
 	}
-	if (limit > PCI_IO_CONFIG_LAST_PORT) {
-		write_ssdt_domain_io_producer_range_helper(domain_name,
-					MAX(base, PCI_IO_CONFIG_LAST_PORT + 1),
-					limit);
-	}
-}
-
-static void write_ssdt_domain_mmio_producer_range(const char *domain_name,
-						  resource_t base, resource_t limit)
-{
-	printk(BIOS_DEBUG, "%s _CRS: adding MMIO range [%llx-%llx]\n",
-	       domain_name, base, limit);
-	acpigen_resource_producer_mmio(base, limit,
-		MEM_RSRC_FLAG_MEM_READ_WRITE | MEM_RSRC_FLAG_MEM_ATTR_NON_CACHE);
-}
-
-void amd_pci_domain_fill_ssdt(const struct device *domain)
-{
-	const char *acpi_scope = acpi_device_path(domain);
-	printk(BIOS_DEBUG, "%s ACPI scope: '%s'\n", __func__, acpi_scope);
-	acpigen_write_scope(acpi_device_path(domain));
-
-	acpigen_write_name("_CRS");
-	acpigen_write_resourcetemplate_header();
-
-	/* PCI bus number range in domain */
-	printk(BIOS_DEBUG, "%s _CRS: adding busses [%x-%x]\n", acpi_device_name(domain),
-	       domain->link_list->secondary, domain->link_list->max_subordinate);
-	acpigen_resource_producer_bus_number(domain->link_list->secondary,
-					     domain->link_list->max_subordinate);
-
-	if (domain->link_list->secondary == 0) {
-		/* ACPI 6.4.2.5 I/O Port Descriptor */
-		acpigen_write_io16(PCI_IO_CONFIG_INDEX, PCI_IO_CONFIG_LAST_PORT, 1,
-				   PCI_IO_CONFIG_PORT_COUNT, 1);
-	}
-
-	struct resource *res;
-	for (res = domain->resource_list; res != NULL; res = res->next) {
-		if (!(res->flags & IORESOURCE_ASSIGNED))
-			continue;
-		/* Don't add MMIO producer ranges for reserved MMIO regions from non-PCI
-		   devices */
-		if ((res->flags & IORESOURCE_RESERVE))
-			continue;
-		switch (res->flags & IORESOURCE_TYPE_MASK) {
-		case IORESOURCE_IO:
-			write_ssdt_domain_io_producer_range(acpi_device_name(domain),
-							    res->base, res->limit);
-			break;
-		case IORESOURCE_MEM:
-			write_ssdt_domain_mmio_producer_range(acpi_device_name(domain),
-							      res->base, res->limit);
-			break;
-		default:
-			break;
-		}
-	}
-
-	if (domain->link_list->bridge_ctrl & PCI_BRIDGE_CTL_VGA) {
-		printk(BIOS_DEBUG, "%s _CRS: adding VGA resource\n", acpi_device_name(domain));
-		acpigen_resource_producer_mmio(VGA_MMIO_BASE, VGA_MMIO_LIMIT,
-			MEM_RSRC_FLAG_MEM_READ_WRITE | MEM_RSRC_FLAG_MEM_ATTR_CACHE);
-	}
-
-	acpigen_write_resourcetemplate_footer();
-
-	acpigen_write_BBN(domain->link_list->secondary);
-
-	/* Scope */
-	acpigen_pop_len();
 }

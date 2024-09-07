@@ -18,7 +18,6 @@
 #include <soc/intel/common/reset.h>
 #include <soc/intel/common/vbt.h>
 #include <soc/iomap.h>
-#include <soc/itss.h>
 #include <soc/p2sb.h>
 #include <soc/pci_devs.h>
 #include <soc/pcie.h>
@@ -151,6 +150,18 @@ static void soc_fill_gpio_pm_configuration(void)
 	gpio_pm_configure(value, TOTAL_GPIO_COMM);
 }
 
+/* Enable tracehub in device tree */
+static void soc_enable_tracehub(void)
+{
+	struct device *dev;
+
+	dev = pcidev_path_on_root(PCI_DEVFN_NPK);
+	if (dev) {
+		dev->enabled = 1;
+		printk(BIOS_DEBUG, "Tracehub is enabled.\n");
+	}
+}
+
 void soc_init_pre_device(void *chip_info)
 {
 	config_t *config = config_of_soc();
@@ -158,6 +169,9 @@ void soc_init_pre_device(void *chip_info)
 	/* Validate TBT image authentication */
 	config->tbt_authentication = ioe_p2sb_sbi_read(PID_IOM,
 					IOM_CSME_IMR_TBT_STATUS) & TBT_VALID_AUTHENTICATION;
+
+	if (CONFIG(SOC_INTEL_COMMON_BLOCK_TRACEHUB))
+		soc_enable_tracehub();
 
 	/* Perform silicon specific init. */
 	fsp_silicon_init();
@@ -169,6 +183,9 @@ void soc_init_pre_device(void *chip_info)
 
 	/* Swap enabled PCI ports in device tree if needed. */
 	pcie_rp_update_devicetree(get_pcie_rp_table());
+
+	/* Swap enabled TBT root ports in device tree if needed. */
+	pcie_rp_update_devicetree(get_tbt_pcie_rp_table());
 
 	/*
 	 * Earlier when coreboot used to send EOP at late as possible caused
@@ -203,7 +220,7 @@ static void cpu_set_north_irqs(struct device *dev)
 static struct device_operations pci_domain_ops = {
 	.read_resources   = &pci_domain_read_resources,
 	.set_resources    = &pci_domain_set_resources,
-	.scan_bus         = &pci_domain_scan_bus,
+	.scan_bus         = &pci_host_bridge_scan_bus,
 #if CONFIG(HAVE_ACPI_TABLES)
 	.acpi_name        = &soc_acpi_name,
 	.acpi_fill_ssdt   = ssdt_set_above_4g_pci,
@@ -261,7 +278,7 @@ static void soc_init_final_device(void *chip_info)
 }
 
 struct chip_operations soc_intel_meteorlake_ops = {
-	CHIP_NAME("Intel Meteorlake")
+	.name = "Intel Meteorlake",
 	.enable_dev	= &soc_enable,
 	.init		= &soc_init_pre_device,
 	.final		= &soc_init_final_device,

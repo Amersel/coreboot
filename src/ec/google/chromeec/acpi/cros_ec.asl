@@ -6,13 +6,24 @@ Device (CREC)
 	Name (_UID, 1)
 	Name (_DDN, "EC Command Device")
 #ifdef EC_ENABLE_WAKE_PIN
+#ifndef EC_ENABLE_SYNC_IRQ_GPIO
 	Name (_PRW, Package () { EC_ENABLE_WAKE_PIN, 0x5 })
+#else
+#define EC_SYNC_IRQ_WAKE_CAPABLE
+#endif
+#endif
+
+#ifdef EC_SYNC_IRQ_WAKE_CAPABLE
+	#define EC_SYNC_SHARE_TYPE ExclusiveAndWake
+#else
+	#define EC_SYNC_SHARE_TYPE Exclusive
 #endif
 
 #ifdef EC_ENABLE_SYNC_IRQ
 	Name (_CRS, ResourceTemplate ()
 	{
-		Interrupt (ResourceConsumer, Level, ActiveLow, Exclusive)
+		Interrupt (ResourceConsumer, Level, ActiveLow,
+			   EC_SYNC_SHARE_TYPE)
 		{
 			EC_SYNC_IRQ
 		}
@@ -22,8 +33,8 @@ Device (CREC)
 #ifdef EC_ENABLE_SYNC_IRQ_GPIO
 	Name (_CRS, ResourceTemplate ()
 	{
-		GpioInt (Level, ActiveLow, Exclusive, PullDefault, 0x0000,
-		         "\\_SB.GPIO", 0x00, ResourceConsumer, ,)
+		GpioInt (Level, ActiveLow, EC_SYNC_SHARE_TYPE, PullDefault,
+			 0x0000, "\\_SB.GPIO", 0x00, ResourceConsumer, ,)
 		{
 			EC_SYNC_IRQ
 		}

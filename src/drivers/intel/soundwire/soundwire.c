@@ -5,7 +5,6 @@
 #include <acpi/acpi_soundwire.h>
 #include <commonlib/helpers.h>
 #include <device/device.h>
-#include <device/path.h>
 #include <device/soundwire.h>
 #include <stdbool.h>
 
@@ -21,7 +20,7 @@ static bool link_enabled(const struct device *dev, unsigned int link)
 {
 	struct device *child;
 
-	for (child = dev->link_list->children; child; child = child->sibling) {
+	for (child = dev->downstream->children; child; child = child->sibling) {
 		if (child->enabled && child->path.type == DEVICE_PATH_GENERIC &&
 		    child->path.generic.id == link)
 			return true;
@@ -94,6 +93,6 @@ static void intel_soundwire_enable(struct device *dev)
 }
 
 struct chip_operations drivers_intel_soundwire_ops = {
-	CHIP_NAME("Intel SoundWire Controller")
+	.name = "Intel SoundWire Controller",
 	.enable_dev = intel_soundwire_enable
 };

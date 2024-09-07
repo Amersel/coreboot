@@ -29,7 +29,6 @@ static void f81803a_init(struct device *dev)
 		f81803a_pme_init(dev);
 		break;
 	}
-
 }
 
 static struct device_operations ops = {
@@ -57,6 +56,6 @@ static void enable_dev(struct device *dev)
 }
 
 struct chip_operations superio_fintek_f81803a_ops = {
-	CHIP_NAME("Fintek F81803A Super I/O")
+	.name = "Fintek F81803A Super I/O",
 	.enable_dev = enable_dev
 };

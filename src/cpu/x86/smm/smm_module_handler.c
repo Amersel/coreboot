@@ -9,6 +9,7 @@
 #include <cpu/x86/smm.h>
 #include <rmodule.h>
 #include <types.h>
+#include <security/intel/stm/SmmStm.h>
 
 #if CONFIG(SPI_FLASH_SMM)
 #include <spi-generic.h>
@@ -59,6 +60,12 @@ int get_console_loglevel(void)
 }
 #endif
 
+void smm_get_smmstore_com_buffer(uintptr_t *base, size_t *size)
+{
+	*base = smm_runtime.smmstore_com_buffer_base;
+	*size = smm_runtime.smmstore_com_buffer_size;
+}
+
 void smm_get_cbmemc_buffer(void **buffer_out, size_t *size_out)
 {
 	*buffer_out = smm_runtime.cbmemc;
@@ -103,7 +110,8 @@ void *smm_get_save_state(int cpu)
 	if (cpu > smm_runtime.num_cpus)
 		return NULL;
 
-	return (void *)(smm_runtime.save_state_top[cpu] - smm_runtime.save_state_size);
+	return (void *)(smm_runtime.save_state_top[cpu] -
+			(smm_runtime.save_state_size - STM_PSD_SIZE));
 }
 
 uint32_t smm_revision(void)
@@ -116,8 +124,8 @@ uint32_t smm_revision(void)
 
 bool smm_region_overlaps_handler(const struct region *r)
 {
-	const struct region r_smm = {smm_runtime.smbase, smm_runtime.smm_size};
-	const struct region r_aseg = {SMM_BASE, SMM_DEFAULT_SIZE};
+	const struct region r_smm = region_create(smm_runtime.smbase, smm_runtime.smm_size);
+	const struct region r_aseg = region_create(SMM_BASE, SMM_DEFAULT_SIZE);
 
 	return region_overlap(&r_smm, r) || region_overlap(&r_aseg, r);
 }

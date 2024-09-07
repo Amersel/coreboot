@@ -29,7 +29,7 @@
 
 	.code32
 	.global _entry
-	.text
+	.section .text._entry
 	.align 4
 
 /*
@@ -38,34 +38,13 @@
  * change anything.
  */
 _entry:
-	jmp _init
 
-	.align 4
-
-#define MB_MAGIC 0x1BADB002
-#define MB_FLAGS 0x00010003
-
-mb_header:
-	.long MB_MAGIC
-	.long MB_FLAGS
-	.long -(MB_MAGIC + MB_FLAGS)
-	.long mb_header
-	.long _start
-	.long _edata
-	.long _end
-	.long _init
-
-/*
- * This function saves off the previous stack and switches us to our
- * own execution environment.
- */
-_init:
+	/* Add multiboot header and jump around it when building with multiboot support. */
+#if CONFIG(LP_MULTIBOOT)
+	#include "multiboot_header.inc"
+#endif
 	/* No interrupts, please. */
 	cli
-
-	/* Store EAX and EBX */
-	movl %eax, loader_eax
-	movl %ebx, loader_ebx
 
 	/* save pointer to coreboot tables */
 	movl 4(%esp), %eax
@@ -73,7 +52,7 @@ _init:
 
 	/* Store current stack pointer and set up new stack. */
 	movl %esp, %eax
-	movl $_stack, %esp
+	movl $_estack, %esp
 	pushl %eax
 
 	/* Enable special x86 functions if present. */

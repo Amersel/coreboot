@@ -144,7 +144,7 @@ static enum acpi_device_sleep_states get_min_sleep_state(
 
 	case DEVICE_PATH_PCI:
 		/* skip external buses*/
-		if ((dev->bus->secondary != 0) || (!states_arr))
+		if ((dev->upstream->secondary != 0) || (!states_arr))
 			return ACPI_DEVICE_SLEEP_NONE;
 		for (size_t i = 0; i < size; i++)
 			if (states_arr[i].pci_dev == dev->path.pci.devfn)
@@ -169,6 +169,8 @@ static void acpi_lpi_get_constraints(void *unused)
 
 	if (size && states_arr) {
 		for (dev = all_devices; dev; dev = dev->next) {
+			if (!dev->enabled || dev->hidden)
+				continue;
 			if (get_min_sleep_state(dev, states_arr, size)
 				!= ACPI_DEVICE_SLEEP_NONE)
 				num_entries++;
@@ -182,6 +184,8 @@ static void acpi_lpi_get_constraints(void *unused)
 
 		size_t cpu_index = 0;
 		for (dev = all_devices; dev; dev = dev->next) {
+			if (!dev->enabled || dev->hidden)
+				continue;
 			min_sleep_state = get_min_sleep_state(dev, states_arr, size);
 			if (min_sleep_state == ACPI_DEVICE_SLEEP_NONE)
 				continue;

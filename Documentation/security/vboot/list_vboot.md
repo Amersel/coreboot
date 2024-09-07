@@ -1,8 +1,11 @@
 # vboot-enabled devices
 
 ## AMD
-- Birman for Phoenix SoC
+- Birman for Phoenix SoC using FSP
+- Birman for Phoenix SoC using openSIL
 - Birman for Glinda SoC
+- BirmanPlus for Phoenix SoC
+- BirmanPlus for Glinda SoC
 - Chausie
 - Majolica
 - Mayan for Phoenix SoC
@@ -33,9 +36,16 @@
 - Panther (ASUS Chromebox CN60)
 - Tricky (Dell Chromebox 3010)
 - Zako (HP Chromebox G1)
+- Brox
+- Brox EC ISH
+- Brox TI PDC
+- Greenbayupoc
+- Jubilant
+- Lotso
 - Agah
 - Anahera
 - Anahera4ES
+- Anraggar
 - Aurash
 - Banshee
 - Brask
@@ -44,11 +54,14 @@
 - Craaskov
 - Constitution
 - Crota
+- Dochi
+- Domika
 - Felwinter
 - Gaelin
 - Gimble
 - Gimble4ES
 - Gladios
+- Glassway
 - Gothrax
 - Hades
 - Kano
@@ -61,19 +74,25 @@
 - Moli
 - Nivviks
 - Nereid
+- Nokris
 - Omnigul
 - Osiris
 - Pirrha
 - Primus
-- Primus4ES
 - Pujjo
+- Quandiso
 - Redrix
 - Redrix4ES
+- Riven
 - Skolas
 - Skolas4ES
 - Taeko
 - Taeko4ES
 - Taniks
+- Teliks
+- Tereid
+- Tivviks
+- Trulo
 - Uldren
 - Vell
 - Volmar
@@ -81,18 +100,31 @@
 - Yaviks
 - Yavilla
 - Zydron
+- Xol
+- Nova
+- Bujia
+- Yavista
+- Sundance
+- Pujjoga
+- Orisa
 - Butterfly (HP Pavilion Chromebook 14)
 - Cherry
 - Dojo
 - Tomato
 - Kingler
+- Kyogre
+- Ponyta
+- Squirtle
 - Steelix
 - Voltorb
-- Ponyta
+- Chinchou
 - Krabby
-- Tentacruel
 - Magikarp
+- Skitty
+- Tentacruel
+- Veluza
 - Starmie
+- Wugtrio
 - Banon (Acer Chromebook 15 (CB3-532))
 - Celes (Samsung Chromebook 3)
 - Cyan (Acer Chromebook R11 (C738T))
@@ -106,12 +138,14 @@
 - Wizpig
 - Drallion
 - Eve (Google Pixelbook)
+- Fatcat
 - Fizz
 - Karma
 - Endeavour
 - Foster
 - Gale (Google WiFi)
 - Geralt
+- Ciri
 - Asuka (Dell Chromebook 13 3380)
 - Caroline (Samsung Chromebook Pro)
 - Cave (Asus Chromebook Flip C302SA)
@@ -125,9 +159,9 @@
 - Scarlet
 - Nefario
 - Rainier
+- Dewatt (Acer Chromebook Spin 514)
 - Guybrush
-- Nipperkin
-- Dewatt
+- Nipperkin (HP Elite c645 G2 Chromebook)
 - Akemi (IdeaPad Flex 5/5i Chromebook)
 - Dratini (HP Pro c640 Chromebook)
 - Hatch
@@ -208,27 +242,32 @@
 - Puff
 - Scout
 - Wyvern (CTL Chromebox CBx2)
+- Rauru
 - Reef/Electro (Acer Chromebook Spin 11 R751T)
 - Pyro (Lenovo Thinkpad (Yoga) 11e Chromebook)
 - Sand (Acer Chromebook 15 CB515-1HT/1H)
 - Snappy (HP Chromebook x360 11 G1 EE)
 - Coral
-- Rex 0
-- Screebo
-- Screebo4ES
+- Deku
+- Deku4ES
 - Karis
 - Karis4ES
-- Rex EC ISH
 - Ovis
 - Ovis4ES
+- Rex 0
+- Rex EC ISH
 - Rex4ES
+- Rex4ES EC ISH
+- Rex 64
+- Screebo
+- Screebo4ES
 - Arcada (Latitude 5300 2-in-1 Chromebook Enterprise)
 - Sarien (Dell Latitude 5400 Chromebook Enterprise)
-- Skyrim
-- Winterhold
-- Frostflow
 - Crystaldrift
-- Markarth
+- Frostflow (ASUS Chromebook CM34 Flip)
+- Markarth (Acer Chromebook Plus 514)
+- Skyrim
+- Winterhold (Dell Latitude 3445 Chromebook)
 - Falco (HP Chromebook 14)
 - Leon (Toshiba Chromebook)
 - Peppy (Acer C720/C720P Chromebook)
@@ -275,18 +314,19 @@
 - Volteer2
 - Volteer2_Ti50
 - Voxel (Acer Chromebook Spin 713 (CP713-3W))
-- Dalboz
-- Vilboz (Lenovo 100e/300e Gen3 AMD)
-- Ezkinil (Acer Chromebook Spin 514)
-- Morphius (Lenovo ThinkPad C13 Yoga Chromebook)
-- Trembyle
 - Berknip (HP Pro c645 Chromebook Enterprise)
-- Woomax (ASUS Chromebook Flip CM5)
+- Dalboz
 - Dirinboz (HP Chromebook 14a-nd0097nr)
-- Shuboz
+- Ezkinil (Acer Chromebook Spin 514)
 - Gumboz (HP Chromebook x360 14a)
+- Morphius (Lenovo ThinkPad C13 Yoga Chromebook)
+- Shuboz
+- Trembyle
+- Vilboz (Lenovo 100e/300e Gen3 AMD)
+- Woomax (ASUS Chromebook Flip CM5)
 
 ## HP
+- Compaq Elite 8300 USDT
 - Z220 CMT Workstation
 - Z220 SFF Workstation
 
@@ -294,8 +334,6 @@
 - Alderlake-P RVP
 - Alderlake-P RVP with Chrome EC
 - Alderlake-P RVP with Microchip EC
-- Alderlake-M RVP
-- Alderlake-M RVP with Chrome EC
 - Alderlake-N RVP
 - Alderlake-N RVP with Chrome EC
 - Raptorlake silicon with Alderlake-P RVP
@@ -316,7 +354,8 @@
 - Kabylake DDR4 RVP11
 - Kunimitsu
 - Meteorlake-P RVP
-- Meteorlake-P RVP with Chrome EC
+- Meteorlake-P RVP with Chrome EC for Prod Silicon
+- Meteorlake-P RVP with Chrome EC for non-Prod Silicon
 - Meteorlake-P RVP with Microchip EC
 - shadowmountain
 - Strago
@@ -353,6 +392,7 @@
 - ThinkPad X230
 - ThinkPad X230t
 - ThinkPad X230s
+- ThinkPad X230 eDP Mod (2K/FHD)
 - ThinkPad X60 / X60s / X60t
 
 ## MSI
@@ -365,8 +405,8 @@
 - Elgon (GBCv2)
 
 ## Protectli
-- VP4630/VP4650
-- VP4670
+- VP6630/VP6650/VP6670
+- VP4630/VP4650/VP4670
 - VP2420
 
 ## SAMSUNG
@@ -390,11 +430,13 @@
 - Star Labs StarBook Mk V (i3-1115G4 and i7-1165G7)
 - Star Labs StarBook Mk VI (i3-1220P and i7-1260P)
 - Star Labs StarBook Mk VI (i3-1315U and i7-1360P)
+- Star Labs Lite Mk V (N200)
 
 ## Supermicro
 - X11SSH-TF
 - X11SSM-F
 - X11SSH-F/LN4F
+- X11SSW-F
 
 ## UP
 - Squared

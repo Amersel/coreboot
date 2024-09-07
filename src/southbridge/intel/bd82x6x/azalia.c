@@ -8,6 +8,7 @@
 #include <device/mmio.h>
 #include <delay.h>
 #include <device/azalia_device.h>
+#include <types.h>
 
 #include "chip.h"
 #include "pch.h"
@@ -16,7 +17,7 @@ static int codec_detect(u8 *base)
 {
 	u8 reg8;
 
-	if (azalia_exit_reset(base) < 0)
+	if (azalia_exit_reset(base) != CB_SUCCESS)
 		goto no_codec;
 
 	/* Write back the value once reset bit is set. */
@@ -122,19 +123,11 @@ static const char *azalia_acpi_name(const struct device *dev)
 	return "HDEF";
 }
 
-static struct device_operations azalia_ops = {
+struct device_operations bd82x6x_azalia_ops = {
 	.read_resources		= pci_dev_read_resources,
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
 	.init			= azalia_init,
 	.ops_pci		= &pci_dev_ops_pci,
 	.acpi_name		= azalia_acpi_name,
-};
-
-static const unsigned short pci_device_ids[] = { 0x1c20, 0x1e20, 0 };
-
-static const struct pci_driver pch_azalia __pci_driver = {
-	.ops	 = &azalia_ops,
-	.vendor	 = PCI_VID_INTEL,
-	.devices = pci_device_ids,
 };

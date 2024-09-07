@@ -2,10 +2,10 @@
 
 #include <acpi/acpi.h>
 #include <arch/cbconfig.h>
+#include <commonlib/bsd/ipchksum.h>
 #include <console/console.h>
 #include <console/uart.h>
 #include <identity.h>
-#include <ip_checksum.h>
 #include <boot/coreboot_tables.h>
 #include <boot/tables.h>
 #include <boot_device.h>
@@ -387,7 +387,6 @@ static void lb_strings(struct lb_header *header)
 		rec->size = ALIGN_UP(sizeof(*rec) + len + 1, LB_ENTRY_ALIGN);
 		memcpy(rec->string, strings[i].string, len+1);
 	}
-
 }
 
 static void lb_record_version_timestamp(struct lb_header *header)
@@ -432,10 +431,9 @@ static unsigned long lb_table_fini(struct lb_header *head)
 	}
 
 	first_rec = lb_first_record(head);
-	head->table_checksum = compute_ip_checksum(first_rec,
-		head->table_bytes);
+	head->table_checksum = ipchksum(first_rec, head->table_bytes);
 	head->header_checksum = 0;
-	head->header_checksum = compute_ip_checksum(head, sizeof(*head));
+	head->header_checksum = ipchksum(head, sizeof(*head));
 	printk(BIOS_DEBUG,
 	       "Wrote coreboot table at: %p, 0x%x bytes, checksum %x\n",
 	       head, head->table_bytes, head->table_checksum);
@@ -538,8 +536,16 @@ static uintptr_t write_coreboot_table(uintptr_t rom_table_end)
 	if (CONFIG(SMMSTORE_V2))
 		lb_smmstorev2(head);
 
+	/* Add information about firmware in form suitable for EFI updates. */
+	if (CONFIG(DRIVERS_EFI_FW_INFO))
+		lb_efi_fw_info(head);
+
 	/* Add board-specific table entries, if any. */
 	lb_board(head);
+
+	/* Possibly add UEFI capsules. */
+	if (CONFIG(DRIVERS_EFI_UPDATE_CAPSULES))
+		lb_efi_capsules(head);
 
 	if (CONFIG(CHROMEOS_RAMOOPS))
 		lb_ramoops(head);

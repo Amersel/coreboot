@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <string.h>
 #include <types.h>
 #include <device/device.h>
 #include <console/console.h>
 #include <drivers/intel/gma/int15.h>
 #include <option.h>
+#include <stdio.h>
 #include <superio/hwm5_conf.h>
 #include <superio/nuvoton/common/hwm.h>
 
@@ -120,9 +120,6 @@ static void hwm_setup(void)
 
 	pnp_write_hwm5_index(hwm_base, 0x40, 0x01); /* Init, but no SMI# */
 }
-
-/* mainboard_enable is executed as first thing after */
-/* enumerate_buses(). */
 
 static void mainboard_enable(struct device *dev)
 {

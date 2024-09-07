@@ -4,11 +4,13 @@
 
 #define DEVICE_H
 
-#include <device/resource.h>
-#include <device/path.h>
+#include <console/console.h>
+#include <device/path.h> /* IWYU pragma: export */
 #include <device/pci_type.h>
+#include <device/resource.h> /* IWYU pragma: export */
 #include <smbios.h>
 #include <static.h>
+#include <stdlib.h>
 #include <types.h>
 
 struct fw_config;
@@ -32,8 +34,6 @@ struct chip_operations {
 	const char *name;
 };
 
-#define CHIP_NAME(X) .name = X,
-
 struct bus;
 
 struct acpi_rsdp;
@@ -48,20 +48,18 @@ struct device_operations {
 	void (*enable)(struct device *dev);
 	void (*vga_disable)(struct device *dev);
 	void (*reset_bus)(struct bus *bus);
-#if CONFIG(GENERATE_SMBIOS_TABLES)
+
 	int (*get_smbios_data)(struct device *dev, int *handle,
 		unsigned long *current);
 	void (*get_smbios_strings)(struct device *dev, struct smbios_type11 *t);
-#endif
-#if CONFIG(HAVE_ACPI_TABLES)
+
 	unsigned long (*write_acpi_tables)(const struct device *dev,
 		unsigned long start, struct acpi_rsdp *rsdp);
 	void (*acpi_fill_ssdt)(const struct device *dev);
-	void (*acpi_inject_dsdt)(const struct device *dev);
 	const char *(*acpi_name)(const struct device *dev);
 	/* Returns the optional _HID (Hardware ID) */
 	const char *(*acpi_hid)(const struct device *dev);
-#endif
+
 	const struct pci_operations *ops_pci;
 	const struct i2c_bus_operations *ops_i2c_bus;
 	const struct spi_bus_operations *ops_spi_bus;
@@ -80,13 +78,12 @@ static inline void noop_set_resources(struct device *dev) {}
 struct bus {
 	DEVTREE_CONST struct device *dev;	/* This bridge device */
 	DEVTREE_CONST struct device *children;	/* devices behind this bridge */
-	DEVTREE_CONST struct bus *next;		/* The next bridge on this device */
 	unsigned int	bridge_ctrl;		/* Bridge control register */
 	uint16_t	bridge_cmd;		/* Bridge command register */
-	unsigned char	link_num;		/* The index of this link */
 	uint16_t	secondary;		/* secondary bus number */
 	uint16_t	subordinate;		/* subordinate bus number */
 	uint16_t	max_subordinate;	/* max subordinate bus number */
+	uint8_t		segment_group;		/* PCI segment group */
 
 	unsigned int	reset_needed : 1;
 	unsigned int	no_vga16 : 1;		/* No support for 16-bit VGA decoding */
@@ -98,8 +95,8 @@ struct bus {
  */
 
 struct device {
-	DEVTREE_CONST struct bus *bus;	/* bus this device is on, for bridge
-					 * devices, it is the up stream bus */
+	DEVTREE_CONST struct bus *upstream;
+	DEVTREE_CONST struct bus *downstream;
 
 	DEVTREE_CONST struct device *sibling;	/* next device on this bus */
 
@@ -127,11 +124,6 @@ struct device {
 	/* Base registers for this device. I/O, MEM and Expansion ROM */
 	DEVTREE_CONST struct resource *resource_list;
 
-	/* links are (downstream) buses attached to the device, usually a leaf
-	 * device with no children has 0 buses attached and a bridge has 1 bus
-	 */
-	DEVTREE_CONST struct bus *link_list;
-
 #if !DEVTREE_EARLY
 	struct device_operations *ops;
 	struct chip_operations *chip_ops;
@@ -158,6 +150,7 @@ struct device {
 
 	/* Zero-terminated array of fields and options to probe. */
 	DEVTREE_CONST struct fw_config *probe_list;
+	bool enable_on_unprovisioned_fw_config;
 };
 
 /**
@@ -172,6 +165,7 @@ extern struct bus	*free_links;
 
 /* Generic device interface functions */
 struct device *alloc_dev(struct bus *parent, struct device_path *path);
+struct bus *alloc_bus(struct device *parent);
 void dev_initialize_chips(void);
 void dev_enumerate(void);
 void dev_configure(void);
@@ -189,11 +183,11 @@ void assign_resources(struct bus *bus);
 const char *dev_name(const struct device *dev);
 const char *dev_path(const struct device *dev);
 u32 dev_path_encode(const struct device *dev);
-const char *bus_path(struct bus *bus);
+const struct device *dev_get_domain(const struct device *dev);
+unsigned int dev_get_domain_id(const struct device *dev);
 void dev_set_enabled(struct device *dev, int enable);
 void disable_children(struct bus *bus);
 bool dev_is_active_bridge(struct device *dev);
-void add_more_links(struct device *dev, unsigned int total_links);
 bool is_dev_enabled(const struct device *const dev);
 bool is_devfn_enabled(unsigned int devfn);
 bool is_cpu(const struct device *cpu);
@@ -201,6 +195,9 @@ bool is_enabled_cpu(const struct device *cpu);
 bool is_pci(const struct device *pci);
 bool is_enabled_pci(const struct device *pci);
 bool is_pci_dev_on_bus(const struct device *pci, unsigned int bus);
+bool is_pci_bridge(const struct device *pci);
+bool is_domain0(const struct device *dev);
+bool is_dev_on_domain0(const struct device *dev);
 
 /* Returns whether there is a hotplug port on the path to the given device. */
 bool dev_path_hotplug(const struct device *);
@@ -229,18 +226,10 @@ struct device *add_cpu_device(struct bus *cpu_bus, unsigned int apic_id,
 void mp_init_cpus(DEVTREE_CONST struct bus *cpu_bus);
 static inline void mp_cpu_bus_init(struct device *dev)
 {
-	/*
-	 * When no LAPIC device is specified in the devietree inside the CPU cluster device,
-	 * neither a LAPIC device nor the link/bus between the CPU cluster and the LAPIC device
-	 * will be present in the static device tree and the link_list struct element of the
-	 * CPU cluster device will be NULL. In this case add one link, so that the
-	 * alloc_find_dev calls in init_bsp and allocate_cpu_devices will be able to add a
-	 * LAPIC device for the BSP and the APs on this link/bus.
-	 */
-	if (!dev->link_list)
-		add_more_links(dev, 1);
+	/* Make sure the cpu cluster has a downstream bus for LAPICs to be allocated. */
+	struct bus *bus = alloc_bus(dev);
 
-	mp_init_cpus(dev->link_list);
+	mp_init_cpus(bus);
 }
 
 /* Debug functions */
@@ -256,7 +245,6 @@ void show_all_devs_resources(int debug_level, const char *msg);
 
 /* Debug macros */
 #if CONFIG(DEBUG_FUNC)
-#include <console/console.h>
 #define DEV_FUNC_ENTER(dev) \
 	printk(BIOS_SPEW, "%s:%s:%d: ENTER (dev: %s)\n", \
 		__FILE__, __func__, __LINE__, dev_path(dev))
@@ -272,14 +260,14 @@ void show_all_devs_resources(int debug_level, const char *msg);
 extern struct device_operations default_dev_ops_root;
 void pci_domain_read_resources(struct device *dev);
 void pci_domain_set_resources(struct device *dev);
-void pci_domain_scan_bus(struct device *dev);
+void pci_host_bridge_scan_bus(struct device *dev);
 
 void mmconf_resource(struct device *dev, unsigned long index);
 
 /* These are temporary resource constructors to get us through the
    migration away from open-coding all the IORESOURCE_FLAGS. */
 
-const struct resource *fixed_resource_range_idx(struct device *dev, unsigned long index,
+const struct resource *resource_range_idx(struct device *dev, unsigned long index,
 					    uint64_t base, uint64_t size,
 					    unsigned long flags);
 
@@ -288,7 +276,8 @@ const struct resource *fixed_mem_range_flags(struct device *dev, unsigned long i
 					    uint64_t base, uint64_t size,
 					    unsigned long flags)
 {
-	return fixed_resource_range_idx(dev, index, base, size, IORESOURCE_MEM | flags);
+	return resource_range_idx(dev, index, base, size,
+				IORESOURCE_FIXED | IORESOURCE_MEM | flags);
 }
 
 static inline
@@ -299,6 +288,24 @@ const struct resource *fixed_mem_from_to_flags(struct device *dev, unsigned long
 		return NULL;
 	return fixed_mem_range_flags(dev, index, base, end - base, flags);
 }
+
+static inline
+const struct resource *domain_mem_window_range(struct device *dev, unsigned long index,
+					uint64_t base, uint64_t size)
+{
+	return resource_range_idx(dev, index, base, size,
+				IORESOURCE_MEM | IORESOURCE_BRIDGE);
+}
+
+static inline
+const struct resource *domain_mem_window_from_to(struct device *dev, unsigned long index,
+					uint64_t base, uint64_t end)
+{
+	if (end <= base)
+		return NULL;
+	return domain_mem_window_range(dev, index, base, end - base);
+}
+
 
 static inline
 const struct resource *ram_range(struct device *dev, unsigned long index, uint64_t base,
@@ -360,14 +367,17 @@ static inline
 const struct resource *fixed_io_range_flags(struct device *dev, unsigned long index,
 			uint16_t base, uint16_t size, unsigned long flags)
 {
-	return fixed_resource_range_idx(dev, index, base, size, IORESOURCE_IO | flags);
+	return resource_range_idx(dev, index, base, size,
+				IORESOURCE_FIXED | IORESOURCE_IO | flags);
 }
 
 static inline
 const struct resource *fixed_io_from_to_flags(struct device *dev, unsigned long index,
-				      uint16_t base, uint16_t end, unsigned long flags)
+				      uint16_t base, uint32_t end, unsigned long flags)
 {
 	if (end <= base)
+		return NULL;
+	if (end > UINT16_MAX + 1)
 		return NULL;
 	return fixed_io_range_flags(dev, index, base, end - base, flags);
 }
@@ -377,6 +387,25 @@ const struct resource *fixed_io_range_reserved(struct device *dev, unsigned long
 				      uint16_t base, uint16_t size)
 {
 	return fixed_io_range_flags(dev, index, base, size, IORESOURCE_RESERVE);
+}
+
+static inline
+const struct resource *domain_io_window_range(struct device *dev, unsigned long index,
+			uint16_t base, uint16_t size)
+{
+	return resource_range_idx(dev, index, base, size,
+				IORESOURCE_IO | IORESOURCE_BRIDGE);
+}
+
+static inline
+const struct resource *domain_io_window_from_to(struct device *dev, unsigned long index,
+				      uint16_t base, uint32_t end)
+{
+	if (end <= base)
+		return NULL;
+	if (end > UINT16_MAX + 1)
+		return NULL;
+	return domain_io_window_range(dev, index, base, end - base);
 }
 
 /* Compatibility code */
@@ -398,9 +427,6 @@ static inline void fixed_mem_resource_kb(struct device *dev, unsigned long index
 #define reserved_ram_resource_kb(dev, idx, basek, sizek) \
 	fixed_mem_resource_kb(dev, idx, basek, sizek, IORESOURCE_CACHEABLE \
 		| IORESOURCE_RESERVE)
-
-#define soft_reserved_ram_resource(dev, idx, basek, sizek) \
-	fixed_mem_resource(dev, idx, basek, sizek, IORESOURCE_SOFT_RESERVE)
 
 #define bad_ram_resource_kb(dev, idx, basek, sizek) \
 	reserved_ram_resource_kb((dev), (idx), (basek), (sizek))
@@ -466,6 +492,15 @@ static inline DEVTREE_CONST void *config_of(const struct device *dev)
  * sconfig in static.{h/c}.
  */
 #define config_of_soc()		__pci_0_00_0_config
+
+static inline bool is_root_device(const struct device *dev)
+{
+	if (!dev || !dev->upstream)
+		return false;
+
+	return (dev->path.type == DEVICE_PATH_ROOT) ||
+	       (dev->upstream->dev == dev);
+}
 
 void enable_static_device(struct device *dev);
 void enable_static_devices(struct device *bus);

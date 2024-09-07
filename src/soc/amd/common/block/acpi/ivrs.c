@@ -3,7 +3,6 @@
 #include <acpi/acpi_ivrs.h>
 #include <amdblocks/acpi.h>
 #include <amdblocks/cpu.h>
-#include <amdblocks/data_fabric.h>
 #include <amdblocks/ioapic.h>
 #include <amdblocks/iommu.h>
 #include <arch/ioapic.h>
@@ -13,12 +12,11 @@
 #include <device/mmio.h>
 #include <device/pci_def.h>
 #include <device/pci_ops.h>
-#include <soc/acpi.h>
 #include <soc/data_fabric.h>
 #include <soc/iomap.h>
 #include <soc/pci_devs.h>
 
-static unsigned long acpi_fill_ivrs_ioapic(unsigned long current, void *ioapic_base,
+static unsigned long acpi_fill_ivrs_ioapic(unsigned long current, uintptr_t ioapic_base,
 					    uint16_t src_devid, uint8_t dte_setting)
 {
 	ivrs_ivhd_special_t *ivhd_ioapic = (ivrs_ivhd_special_t *)current;
@@ -98,7 +96,7 @@ static unsigned long add_ivhd_dev_entry(struct device *parent, struct device *de
 		memset(ivhd_entry, 0, sizeof(*ivhd_entry));
 
 		ivhd_entry->type = type;
-		ivhd_entry->dev_id = dev->path.pci.devfn | (dev->bus->secondary << 8);
+		ivhd_entry->dev_id = dev->path.pci.devfn | (dev->upstream->secondary << 8);
 		ivhd_entry->dte_setting = data;
 		*current += sizeof(ivrs_ivhd_generic_t);
 	} else if (type == IVHD_DEV_8_BYTE_ALIAS_SELECT) {
@@ -106,12 +104,12 @@ static unsigned long add_ivhd_dev_entry(struct device *parent, struct device *de
 		memset(ivhd_entry, 0, sizeof(*ivhd_entry));
 
 		ivhd_entry->type = type;
-		ivhd_entry->dev_id = dev->path.pci.devfn | (dev->bus->secondary << 8);
+		ivhd_entry->dev_id = dev->path.pci.devfn | (dev->upstream->secondary << 8);
 		ivhd_entry->dte_setting = data;
 		ivhd_entry->reserved1 = 0;
 		ivhd_entry->reserved2 = 0;
 		ivhd_entry->source_dev_id = parent->path.pci.devfn |
-					    (parent->bus->secondary << 8);
+					    (parent->upstream->secondary << 8);
 		*current += sizeof(ivrs_ivhd_alias_t);
 	}
 
@@ -133,7 +131,6 @@ static void ivrs_add_device_or_bridge(struct device *parent, struct device *dev,
 	} else if ((header_type == PCI_HEADER_TYPE_NORMAL) && !is_pcie) {
 		/* Device is legacy PCI or PCI-X */
 		add_ivhd_dev_entry(parent, dev, current, IVHD_DEV_8_BYTE_ALIAS_SELECT, 0x0);
-
 	}
 }
 
@@ -142,13 +139,12 @@ static void add_ivhd_device_entries(struct device *parent, struct device *dev,
 				    unsigned long *current, uint16_t nb_bus)
 {
 	struct device *sibling;
-	struct bus *link;
 
 	if (!root_level)
 		return;
 
 	if (dev->path.type == DEVICE_PATH_PCI) {
-		if ((dev->bus->secondary == nb_bus) &&
+		if ((dev->upstream->secondary == nb_bus) &&
 		    (dev->path.pci.devfn == 0x0))
 			*root_level = depth;
 
@@ -157,11 +153,11 @@ static void add_ivhd_device_entries(struct device *parent, struct device *dev,
 				ivrs_add_device_or_bridge(parent, dev, current);
 	}
 
-	for (link = dev->link_list; link; link = link->next)
-		for (sibling = link->children; sibling; sibling =
-		     sibling->sibling)
-			add_ivhd_device_entries(dev, sibling, depth + 1, depth, root_level,
-						current, nb_bus);
+	if (!dev->downstream)
+		return;
+	for (sibling = dev->downstream->children; sibling; sibling = sibling->sibling)
+		add_ivhd_device_entries(dev, sibling, depth + 1, depth, root_level, current,
+					nb_bus);
 }
 
 static unsigned long acpi_ivhd_misc(unsigned long current, struct device *dev)
@@ -176,25 +172,25 @@ static unsigned long acpi_ivhd_misc(unsigned long current, struct device *dev)
 	 * Add all possible PCI devices in the domain that can generate transactions
 	 * processed by IOMMU. Start with device <bus>:01.0
 	*/
-	current = ivhd_dev_range(current, PCI_DEVFN(0, 3) | (dev->link_list->secondary << 8),
-				 0xff | (dev->link_list->subordinate << 8), 0);
+	current = ivhd_dev_range(current, PCI_DEVFN(0, 3) | (dev->downstream->secondary << 8),
+				 0xff | (dev->downstream->subordinate << 8), 0);
 
 	add_ivhd_device_entries(NULL, dev, 0, -1, &root_level,
-		&current, dev->link_list->secondary);
+		&current, dev->downstream->secondary);
 
 	res = probe_resource(dev, IOMMU_IOAPIC_IDX);
 	if (res) {
 		/* Describe IOAPIC associated with the IOMMU */
-		current = acpi_fill_ivrs_ioapic(current, (u8 *)(uintptr_t)res->base,
-				      PCI_DEVFN(0, 1) | (dev->link_list->secondary << 8), 0);
+		current = acpi_fill_ivrs_ioapic(current, (uintptr_t)res->base,
+				      PCI_DEVFN(0, 1) | (dev->downstream->secondary << 8), 0);
 	}
 
 	/* If the domain has secondary bus as zero then associate HPET & FCH IOAPIC */
-	if (dev->link_list->secondary == 0) {
+	if (dev->downstream->secondary == 0) {
 		/* Describe HPET */
 		current = ivhd_describe_hpet(current, 0x00, SMBUS_DEVFN);
 		/* Describe FCH IOAPICs */
-		current = acpi_fill_ivrs_ioapic(current, VIO_APIC_VADDR,
+		current = acpi_fill_ivrs_ioapic(current, IO_APIC_ADDR,
 				      SMBUS_DEVFN, dte_setting);
 	}
 
@@ -215,11 +211,11 @@ static unsigned long acpi_fill_ivrs40(unsigned long current, acpi_ivrs_ivhd_t *i
 	ivhd_40->flags = ivhd->flags & 0x3f;
 	ivhd_40->length = sizeof(struct acpi_ivrs_ivhd_40);
 	/* BDF <bus>:00.2 */
-	ivhd_40->device_id = 0x02 | (nb_dev->bus->secondary << 8);
+	ivhd_40->device_id = 0x02 | (nb_dev->upstream->secondary << 8);
 	ivhd_40->capability_offset = pci_find_capability(iommu_dev, IOMMU_CAP_ID);
 	ivhd_40->iommu_base_low = ivhd->iommu_base_low;
 	ivhd_40->iommu_base_high = ivhd->iommu_base_high;
-	ivhd_40->pci_segment_group = 0x0000;
+	ivhd_40->pci_segment_group = nb_dev->upstream->segment_group;
 	ivhd_40->iommu_info = ivhd->iommu_info;
 	/* For type 40h bits 31:28 and 12:0 are reserved */
 	ivhd_40->iommu_attributes = ivhd->iommu_feature_info & 0xfffe000;
@@ -233,9 +229,9 @@ static unsigned long acpi_fill_ivrs40(unsigned long current, acpi_ivrs_ivhd_t *i
 
 	/* Now repeat all the device entries from type 10h */
 	current_backup = current;
-	current = acpi_ivhd_misc(current, nb_dev->bus->dev);
+	current = acpi_ivhd_misc(current, nb_dev->upstream->dev);
 
-	if (nb_dev->bus->secondary == 0) {
+	if (nb_dev->upstream->secondary == 0) {
 		/* Describe EMMC */
 		if (CONFIG(SOC_AMD_COMMON_BLOCK_EMMC)) {
 			/* PCI_DEVFN(0x13, 1) doesn't exist in the hardware, but it's what the
@@ -272,11 +268,11 @@ static unsigned long acpi_fill_ivrs11(unsigned long current, acpi_ivrs_ivhd_t *i
 	ivhd_11->flags = ivhd->flags & 0x3f;
 	ivhd_11->length = sizeof(struct acpi_ivrs_ivhd_11);
 	/* BDF <bus>:00.2 */
-	ivhd_11->device_id = 0x02 | (nb_dev->bus->secondary << 8);
+	ivhd_11->device_id = 0x02 | (nb_dev->upstream->secondary << 8);
 	ivhd_11->capability_offset = pci_find_capability(iommu_dev, IOMMU_CAP_ID);
 	ivhd_11->iommu_base_low = ivhd->iommu_base_low;
 	ivhd_11->iommu_base_high = ivhd->iommu_base_high;
-	ivhd_11->pci_segment_group = 0x0000;
+	ivhd_11->pci_segment_group = nb_dev->upstream->segment_group;
 	ivhd_11->iommu_info = ivhd->iommu_info;
 	ivhd11_attr_ptr = (ivhd11_iommu_attr_t *)&ivhd->iommu_feature_info;
 	ivhd_11->iommu_attributes.perf_counters = ivhd11_attr_ptr->perf_counters;
@@ -292,13 +288,13 @@ static unsigned long acpi_fill_ivrs11(unsigned long current, acpi_ivrs_ivhd_t *i
 
 	/* Now repeat all the device entries from type 10h */
 	current_backup = current;
-	current = acpi_ivhd_misc(current, nb_dev->bus->dev);
+	current = acpi_ivhd_misc(current, nb_dev->upstream->dev);
 	ivhd_11->length += (current - current_backup);
 
 	return acpi_fill_ivrs40(current, ivhd, nb_dev, iommu_dev);
 }
 
-unsigned long acpi_fill_ivrs(acpi_ivrs_t *ivrs, unsigned long current)
+static unsigned long acpi_fill_ivrs(acpi_ivrs_t *ivrs, unsigned long current)
 {
 	unsigned long current_backup;
 	uint64_t mmio_x30_value;
@@ -319,9 +315,8 @@ unsigned long acpi_fill_ivrs(acpi_ivrs_t *ivrs, unsigned long current)
 	ivhd = &ivrs->ivhd;
 
 	while ((dev = dev_find_path(dev, DEVICE_PATH_DOMAIN)) != NULL) {
-
-		nb_dev = pcidev_path_behind(dev->link_list, PCI_DEVFN(0, 0));
-		iommu_dev = pcidev_path_behind(dev->link_list, PCI_DEVFN(0, 2));
+		nb_dev = pcidev_path_behind(dev->downstream, PCI_DEVFN(0, 0));
+		iommu_dev = pcidev_path_behind(dev->downstream, PCI_DEVFN(0, 2));
 		if (!nb_dev) {
 			printk(BIOS_WARNING, "%s: Northbridge device not present!\n", __func__);
 			printk(BIOS_WARNING, "%s: IVRS table not generated...\n", __func__);
@@ -337,7 +332,7 @@ unsigned long acpi_fill_ivrs(acpi_ivrs_t *ivrs, unsigned long current)
 		ivhd->length = sizeof(struct acpi_ivrs_ivhd);
 
 		/* BDF <bus>:00.2 */
-		ivhd->device_id = 0x02 | (nb_dev->bus->secondary << 8);
+		ivhd->device_id = PCI_DEVFN(0, 2) | (nb_dev->upstream->secondary << 8);
 		ivhd->capability_offset = pci_find_capability(iommu_dev, IOMMU_CAP_ID);
 		ivhd->iommu_base_low = pci_read_config32(iommu_dev, IOMMU_CAP_BASE_LO) & 0xffffc000;
 		ivhd->iommu_base_high = pci_read_config32(iommu_dev, IOMMU_CAP_BASE_HI);
@@ -366,7 +361,7 @@ unsigned long acpi_fill_ivrs(acpi_ivrs_t *ivrs, unsigned long current)
 		ivhd->flags |= ((mmio_x18_value & MMIO_CTRL_HT_TUN_EN) ?
 							IVHD_FLAG_HT_TUN_EN : 0);
 
-		ivhd->pci_segment_group = 0x0000;
+		ivhd->pci_segment_group = nb_dev->upstream->segment_group;
 
 		ivhd->iommu_info = pci_read_config16(iommu_dev,
 			ivhd->capability_offset + 0x10) & 0x1F;
@@ -431,6 +426,19 @@ unsigned long acpi_fill_ivrs(acpi_ivrs_t *ivrs, unsigned long current)
 		current += sizeof(struct acpi_ivrs_ivhd);
 	}
 	current -= sizeof(struct acpi_ivrs_ivhd);
+
+	return current;
+}
+
+unsigned long acpi_add_ivrs_table(unsigned long current, acpi_rsdp_t *rsdp)
+{
+	acpi_ivrs_t *ivrs;
+
+	current = acpi_align_current(current);
+	ivrs = (acpi_ivrs_t *)current;
+	acpi_create_ivrs(ivrs, acpi_fill_ivrs);
+	current += ivrs->header.length;
+	acpi_add_table(rsdp, ivrs);
 
 	return current;
 }

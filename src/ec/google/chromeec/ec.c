@@ -723,6 +723,19 @@ int google_chromeec_cbi_get_ssfc(uint32_t *ssfc)
 	return cbi_get_uint32(ssfc, CBI_TAG_SSFC);
 }
 
+bool google_chromeec_get_ucsi_enabled(void)
+{
+	int rv;
+
+	rv = google_chromeec_check_feature(EC_FEATURE_UCSI_PPM);
+	if (rv < 0) {
+		printk(BIOS_INFO, "Cannot check if EC_FEATURE_UCSI_PPM is available: status = %d\n", rv);
+		return false;
+	}
+
+	return rv != 0;
+}
+
 static int cbi_get_string(char *buf, size_t bufsize, uint32_t tag)
 {
 	struct ec_params_get_cbi params = {
@@ -1181,6 +1194,11 @@ int google_chromeec_get_pd_port_caps(int port,
 void google_chromeec_init(void)
 {
 	google_chromeec_log_uptimeinfo();
+
+	/* Enable automatic fan control */
+	if (CONFIG(EC_GOOGLE_CHROMEEC_AUTO_FAN_CTRL)) {
+		ec_cmd_thermal_auto_fan_ctrl(PLAT_EC);
+	}
 }
 
 int google_ec_running_ro(void)

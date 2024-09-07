@@ -81,7 +81,6 @@ static struct device override_root_dev;
 static struct chip_instance mainboard_instance;
 
 static struct bus base_root_bus = {
-	.id = 0,
 	.dev = &base_root_dev,
 };
 
@@ -95,7 +94,6 @@ static struct device base_root_dev = {
 };
 
 static struct bus chipset_root_bus = {
-	.id = 0,
 	.dev = &chipset_root_dev,
 };
 
@@ -109,7 +107,6 @@ static struct device chipset_root_dev = {
 };
 
 static struct bus override_root_bus = {
-	.id = 0,
 	.dev = &override_root_dev,
 };
 
@@ -584,6 +581,11 @@ void add_fw_config_probe(struct bus *bus, const char *field, const char *option)
 	append_fw_config_probe_to_dev(bus->dev, probe);
 }
 
+void probe_unprovisioned_fw_config(struct bus *bus)
+{
+	bus->dev->enable_on_unprovisioned_fw_config = true;
+}
+
 static uint64_t compute_fw_config_mask(const struct fw_config_field_bits *bits)
 {
 	uint64_t mask = 0;
@@ -723,30 +725,13 @@ void add_device_ops(struct bus *bus, char *ops_id)
 	bus->dev->ops_id = ops_id;
 }
 
-/*
- * Allocate a new bus for the provided device.
- *   - If this is the first bus being allocated under this device, then its id
- *     is set to 0 and bus and last_bus are pointed to the newly allocated bus.
- *   - If this is not the first bus under this device, then its id is set to 1
- *     plus the id of last bus and newly allocated bus is added to the list of
- *     buses under the device. last_bus is updated to point to the newly
- *     allocated bus.
- */
+/* Allocate a new bus for the provided device. */
 static void alloc_bus(struct device *dev)
 {
 	struct bus *bus = S_ALLOC(sizeof(*bus));
 
 	bus->dev = dev;
-
-	if (dev->last_bus == NULL)  {
-		bus->id = 0;
-		dev->bus = bus;
-	} else {
-		bus->id = dev->last_bus->id + 1;
-		dev->last_bus->next_bus = bus;
-	}
-
-	dev->last_bus = bus;
+	dev->bus = bus;
 }
 
 /*
@@ -814,14 +799,15 @@ static const struct device *find_alias(const struct device *const parent,
 	if (parent->alias && !strcmp(parent->alias, alias))
 		return parent;
 
-	const struct bus *bus;
-	for (bus = parent->bus; bus; bus = bus->next_bus) {
-		const struct device *child;
-		for (child = bus->children; child; child = child->sibling) {
-			const struct device *const ret = find_alias(child, alias);
-			if (ret)
-				return ret;
-		}
+	const struct bus *bus = parent->bus;
+	if (!bus)
+		return NULL;
+
+	const struct device *child;
+	for (child = bus->children; child; child = child->sibling) {
+		const struct device *const ret = find_alias(child, alias);
+		if (ret)
+			return ret;
 	}
 
 	return NULL;
@@ -834,11 +820,11 @@ static struct device *new_device_with_path(struct bus *parent,
 {
 	struct device *new_d;
 
-	/* If device is found under parent, no need to allocate new device. */
+	/* We don't allow duplicate devices in devicetree. */
 	new_d = get_dev(parent, path_a, path_b, bustype, chip_instance);
 	if (new_d) {
-		alloc_bus(new_d);
-		return new_d;
+		printf("ERROR: Duplicate device! %s\n", new_d->name);
+		exit(1);
 	}
 
 	new_d = alloc_dev(parent);
@@ -878,7 +864,7 @@ static struct device *new_device_with_path(struct bus *parent,
 		break;
 
 	case DOMAIN:
-		new_d->path = ".type=DEVICE_PATH_DOMAIN,{.domain={ .domain = 0x%x }}";
+		new_d->path = ".type=DEVICE_PATH_DOMAIN,{.domain={ .domain_id = 0x%x }}";
 		break;
 
 	case GENERIC:
@@ -1084,11 +1070,8 @@ static int dev_has_children(struct device *dev)
 {
 	struct bus *bus = dev->bus;
 
-	while (bus) {
-		if (bus->children)
-			return 1;
-		bus = bus->next_bus;
-	}
+	if (bus && bus->children)
+		return 1;
 
 	return 0;
 }
@@ -1098,7 +1081,7 @@ static void pass0(FILE *fil, FILE *head, struct device *ptr, struct device *next
 	static int dev_id;
 
 	if (ptr == &base_root_dev) {
-		fprintf(fil, "STORAGE struct bus %s_links[];\n",
+		fprintf(fil, "STORAGE struct bus %s_bus;\n",
 			ptr->name);
 		return;
 	}
@@ -1120,7 +1103,7 @@ static void pass0(FILE *fil, FILE *head, struct device *ptr, struct device *next
 		fprintf(fil, "STORAGE struct resource %s_res[];\n",
 			ptr->name);
 	if (dev_has_children(ptr))
-		fprintf(fil, "STORAGE struct bus %s_links[];\n",
+		fprintf(fil, "STORAGE struct bus %s_bus;\n",
 			ptr->name);
 
 	if (next)
@@ -1192,35 +1175,18 @@ static void emit_resources(FILE *fil, struct device *ptr)
 	fprintf(fil, "\t };\n");
 }
 
-static void emit_bus(FILE *fil, struct bus *bus)
+static void emit_dev_bus(FILE *fil, struct device *ptr)
 {
-	fprintf(fil, "\t\t[%d] = {\n", bus->id);
-	fprintf(fil, "\t\t\t.link_num = %d,\n", bus->id);
-	fprintf(fil, "\t\t\t.dev = &%s,\n", bus->dev->name);
-	if (bus->children)
-		fprintf(fil, "\t\t\t.children = &%s,\n", bus->children->name);
-
-	if (bus->next_bus)
-		fprintf(fil, "\t\t\t.next=&%s_links[%d],\n", bus->dev->name,
-			bus->id + 1);
-	else
-		fprintf(fil, "\t\t\t.next = NULL,\n");
-	fprintf(fil, "\t\t},\n");
-}
-
-static void emit_dev_links(FILE *fil, struct device *ptr)
-{
-	fprintf(fil, "STORAGE struct bus %s_links[] = {\n",
+	fprintf(fil, "STORAGE struct bus %s_bus = {\n",
 		ptr->name);
 
+	assert(ptr->bus && ptr->bus->children);
 	struct bus *bus = ptr->bus;
 
-	while (bus) {
-		emit_bus(fil, bus);
-		bus = bus->next_bus;
-	}
+	fprintf(fil, "\t.dev = &%s,\n", bus->dev->name);
+	fprintf(fil, "\t.children = &%s,\n", bus->children->name);
 
-	fprintf(fil, "\t};\n");
+	fprintf(fil, "};\n");
 }
 
 static struct chip_instance *get_chip_instance(const struct device *dev)
@@ -1268,8 +1234,7 @@ static void pass1(FILE *fil, FILE *head, struct device *ptr, struct device *next
 	else
 		fprintf(fil, "\t.ops = NULL,\n");
 	fprintf(fil, "#endif\n");
-	fprintf(fil, "\t.bus = &%s_links[%d],\n", ptr->parent->dev->name,
-		ptr->parent->id);
+	fprintf(fil, "\t.upstream = &%s_bus,\n", ptr->parent->dev->name);
 	fprintf(fil, "\t.path = {");
 	fprintf(fil, ptr->path, ptr->path_a, ptr->path_b);
 	fprintf(fil, "},\n");
@@ -1290,16 +1255,18 @@ static void pass1(FILE *fil, FILE *head, struct device *ptr, struct device *next
 			ptr->name);
 	}
 	if (has_children)
-		fprintf(fil, "\t.link_list = &%s_links[0],\n",
+		fprintf(fil, "\t.downstream = &%s_bus,\n",
 			ptr->name);
 	else
-		fprintf(fil, "\t.link_list = NULL,\n");
+		fprintf(fil, "\t.downstream = NULL,\n");
 	if (ptr->sibling)
 		fprintf(fil, "\t.sibling = &%s,\n", ptr->sibling->name);
 	else
 		fprintf(fil, "\t.sibling = NULL,\n");
 	if (ptr->probe)
 		fprintf(fil, "\t.probe_list = %s_probe_list,\n", ptr->name);
+	fprintf(fil, "\t.enable_on_unprovisioned_fw_config = %d,\n",
+		ptr->enable_on_unprovisioned_fw_config);
 	fprintf(fil, "#if !DEVTREE_EARLY\n");
 	fprintf(fil, "\t.chip_ops = &%s_ops,\n",
 		chip_ins->chip->name_underscore);
@@ -1319,7 +1286,7 @@ static void pass1(FILE *fil, FILE *head, struct device *ptr, struct device *next
 	emit_resources(fil, ptr);
 
 	if (has_children)
-		emit_dev_links(fil, ptr);
+		emit_dev_bus(fil, ptr);
 }
 
 static void expose_device_names(FILE *fil, FILE *head, struct device *ptr, struct device *next)
@@ -1328,6 +1295,10 @@ static void expose_device_names(FILE *fil, FILE *head, struct device *ptr, struc
 
 	/* Only devices on root bus here. */
 	if (ptr->bustype == PCI && ptr->parent->dev->bustype == DOMAIN) {
+		if (ptr->alias) {
+			fprintf(head, "static const pci_devfn_t _sdev_%s = PCI_DEV(%d, %d, %d);\n",
+				ptr->alias, ptr->parent->dev->path_a, ptr->path_a, ptr->path_b);
+		}
 		fprintf(head, "extern DEVTREE_CONST struct device *const __pci_%d_%02x_%d;\n",
 			ptr->parent->dev->path_a, ptr->path_a, ptr->path_b);
 		fprintf(fil, "DEVTREE_CONST struct device *const __pci_%d_%02x_%d = &%s;\n",
@@ -1343,6 +1314,10 @@ static void expose_device_names(FILE *fil, FILE *head, struct device *ptr, struc
 	}
 
 	if (ptr->bustype == PNP) {
+		if (ptr->alias) {
+			fprintf(head, "static const pnp_devfn_t _sdev_%s = PNP_DEV(0x%02x, 0x%04x);\n",
+				ptr->alias, ptr->path_a, ptr->path_b);
+		}
 		fprintf(head, "extern DEVTREE_CONST struct device *const __pnp_%04x_%02x;\n",
 			ptr->path_a, ptr->path_b);
 		fprintf(fil, "DEVTREE_CONST struct device *const __pnp_%04x_%02x = &%s;\n",
@@ -1370,11 +1345,8 @@ static void add_children_to_queue(struct queue_entry **bfs_q_head,
 {
 	struct bus *bus = d->bus;
 
-	while (bus) {
-		if (bus->children)
-			add_siblings_to_queue(bfs_q_head, bus->children);
-		bus = bus->next_bus;
-	}
+	if (dev_has_children(d))
+		add_siblings_to_queue(bfs_q_head, bus->children);
 }
 
 static void walk_device_tree(FILE *fil, FILE *head, struct device *ptr,
@@ -1724,12 +1696,9 @@ static void override_devicetree(struct bus *base_parent,
  * +-----------------------------------------------------------------+
  * |                    |                                            |
  * | bus                | Recursively call override_devicetree on    |
- * | last_bus           | each bus of override device. It is assumed |
+ * |                    | each bus of override device. It is assumed |
  * |                    | that bus with id X under base device       |
- * |                    | to bus with id X under override device. If |
- * |                    | override device has more buses than base   |
- * |                    | device, then new buses are allocated under |
- * |                    | base device.                               |
+ * |                    | to bus with id X under override device.    |
  * |                    |                                            |
  * +-----------------------------------------------------------------+
  */
@@ -1821,6 +1790,8 @@ static void update_device(struct device *base_dev, struct device *override_dev)
 	 * to allow an override to remove a probe from the base device.
 	 */
 	base_dev->probe = override_dev->probe;
+	base_dev->enable_on_unprovisioned_fw_config =
+		override_dev->enable_on_unprovisioned_fw_config;
 
 	/* Copy SMBIOS slot information from base device */
 	base_dev->smbios_slot_type = override_dev->smbios_slot_type;
@@ -1841,29 +1812,20 @@ static void update_device(struct device *base_dev, struct device *override_dev)
 	/*
 	 * Now that the device properties are all copied over, look at each bus
 	 * of the override device and run override_devicetree in a recursive
-	 * manner. The assumption here is that first bus of override device
-	 * corresponds to first bus of base device and so on. If base device has
-	 * lesser buses than override tree, then new buses are allocated for it.
+	 * manner. If base device has no bus but the override tree has, then a new
+	 * bus is allocated for it.
 	 */
 	struct bus *override_bus = override_dev->bus;
 	struct bus *base_bus = base_dev->bus;
 
-	while (override_bus) {
+	/*
+	 * If we have more buses in override tree device, then allocate
+	 * a new bus for the base tree device as well.
+	 */
+	if (!base_bus)
+		alloc_bus(base_dev);
 
-		/*
-		 * If we have more buses in override tree device, then allocate
-		 * a new bus for the base tree device as well.
-		 */
-		if (!base_bus) {
-			alloc_bus(base_dev);
-			base_bus = base_dev->last_bus;
-		}
-
-		override_devicetree(base_dev->bus, override_dev->bus);
-
-		override_bus = override_bus->next_bus;
-		base_bus = base_bus->next_bus;
-	}
+	override_devicetree(base_dev->bus, override_dev->bus);
 }
 
 /*
@@ -1972,6 +1934,8 @@ static void generate_outputd(FILE *gen, FILE *dev)
 {
 	fprintf(dev, "#ifndef __STATIC_DEVICES_H\n");
 	fprintf(dev, "#define __STATIC_DEVICES_H\n\n");
+	fprintf(dev, "#include <device/pci_type.h>\n");
+	fprintf(dev, "#include <device/pnp_type.h>\n");
 	fprintf(dev, "#include <device/device.h>\n\n");
 	fprintf(dev, "/* expose_device_names */\n");
 	walk_device_tree(gen, dev, &base_root_dev, expose_device_names);
@@ -2026,25 +1990,25 @@ int main(int argc, char **argv)
 				  &option_index)) != EOF) {
 		switch (opt) {
 		case 'm':
-			base_devtree = strdup(optarg);
+			base_devtree = optarg;
 			break;
 		case 'o':
-			override_devtree = strdup(optarg);
+			override_devtree = optarg;
 			break;
 		case 'p':
-			chipset_devtree = strdup(optarg);
+			chipset_devtree = optarg;
 			break;
 		case 'c':
-			outputc = strdup(optarg);
+			outputc = optarg;
 			break;
 		case 'r':
-			outputh = strdup(optarg);
+			outputh = optarg;
 			break;
 		case 'd':
-			outputd = strdup(optarg);
+			outputd = optarg;
 			break;
 		case 'f':
-			outputf = strdup(optarg);
+			outputf = optarg;
 			break;
 		case 'h':
 		default:

@@ -1,13 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
-#include <arch/hpet.h>
 #include <bootblock_common.h>
-#include <stdint.h>
 #include <device/pnp_def.h>
 #include <device/pnp_ops.h>
 #include <device/pci_ops.h>
 #include <device/pci_def.h>
-#include <northbridge/intel/sandybridge/raminit_native.h>
 #include <northbridge/intel/sandybridge/raminit.h>
 #include <northbridge/intel/sandybridge/sandybridge.h>
 #include <southbridge/intel/bd82x6x/pch.h>
@@ -55,78 +52,6 @@ void bootblock_mainboard_early_init(void)
 
 void mainboard_fill_pei_data(struct pei_data *pei_data)
 {
-	struct pei_data pei_data_template = {
-		.pei_version = PEI_VERSION,
-		.mchbar = CONFIG_FIXED_MCHBAR_MMIO_BASE,
-		.dmibar = CONFIG_FIXED_DMIBAR_MMIO_BASE,
-		.epbar = CONFIG_FIXED_EPBAR_MMIO_BASE,
-		.pciexbar = CONFIG_ECAM_MMCONF_BASE_ADDRESS,
-		.smbusbar = CONFIG_FIXED_SMBUS_IO_BASE,
-		.wdbbar = 0x4000000,
-		.wdbsize = 0x1000,
-		.hpet_address = HPET_BASE_ADDRESS,
-		.rcba = (uintptr_t)DEFAULT_RCBA,
-		.pmbase = DEFAULT_PMBASE,
-		.gpiobase = DEFAULT_GPIOBASE,
-		.thermalbase = 0xfed08000,
-		.system_type = 0, /* 0 Mobile, 1 Desktop/Server */
-		.tseg_size = CONFIG_SMM_TSEG_SIZE,
-		.spd_addresses = { 0xA0, 0x00,0xA4,0x00 },
-		.ts_addresses = { 0x00, 0x00, 0x00, 0x00 },
-		.ec_present = 1,
-		.gbe_enable = 1,
-		.ddr3lv_support = 0,
-		.max_ddr3_freq = 1600,
-		.usb_port_config = {
-			 /* enabled   USB oc pin    length */
-			{ 1, 0, 0x0040 }, /* P0: lower left USB 3.0 (OC0) */
-			{ 1, 0, 0x0040 }, /* P1: upper left USB 3.0 (OC0) */
-			{ 1, 0, 0x0040 }, /* P2: lower right USB 3.0 (OC0) */
-			{ 1, 0, 0x0040 }, /* P3: upper right USB 3.0 (OC0) */
-			{ 1, 0, 0x0040 }, /* P4: lower USB 2.0 (OC0) */
-			{ 1, 0, 0x0040 }, /* P5: upper USB 2.0 (OC0) */
-			{ 1, 0, 0x0040 }, /* P6: front panel USB 2.0 (OC0) */
-			{ 1, 0, 0x0040 }, /* P7: front panel USB 2.0 (OC0) */
-			{ 1, 4, 0x0040 }, /* P8: internal USB 2.0 (OC4) */
-			{ 1, 4, 0x0040 }, /* P9: internal USB 2.0 (OC4) */
-			{ 1, 4, 0x0040 }, /* P10: internal USB 2.0 (OC4) */
-			{ 1, 4, 0x0040 }, /* P11: internal USB 2.0 (OC4) */
-			{ 1, 4, 0x0040 }, /* P12: internal USB 2.0 (OC4) */
-			{ 1, 4, 0x0040 }, /* P13: internal USB 2.0 (OC4) */
-		},
-		.usb3 = {
-			.mode =			3,	/* Smart Auto? */
-			.hs_port_switch_mask =	0xf,	/* All four ports. */
-			.preboot_support =	1,	/* preOS driver? */
-			.xhci_streams =		1,	/* Enable. */
-		},
-		.pcie_init = 1,
-	};
-	*pei_data = pei_data_template;
-}
-
-const struct southbridge_usb_port mainboard_usb_ports[] = {
-	/* enabled power  USB oc pin  */
-	{ 1, 0, 0 }, /* P0: lower left USB 3.0 (OC0) */
-	{ 1, 0, 0 }, /* P1: upper left USB 3.0 (OC0) */
-	{ 1, 0, 0 }, /* P2: lower right USB 3.0 (OC0) */
-	{ 1, 0, 0 }, /* P3: upper right USB 3.0 (OC0) */
-	{ 1, 0, 0 }, /* P4: lower USB 2.0 (OC0) */
-	{ 1, 0, 0 }, /* P5: upper USB 2.0 (OC0) */
-	{ 1, 0, 0 }, /* P6: front panel USB 2.0 (OC0) */
-	{ 1, 0, 0 }, /* P7: front panel USB 2.0 (OC0) */
-	{ 1, 0, 4 }, /* P8: internal USB 2.0 (OC4) */
-	{ 1, 0, 4 }, /* P9: internal USB 2.0 (OC4) */
-	{ 1, 0, 4 }, /* P10: internal USB 2.0 (OC4) */
-	{ 1, 0, 4 }, /* P11: internal USB 2.0 (OC4) */
-	{ 1, 0, 4 }, /* P12: internal USB 2.0 (OC4) */
-	{ 1, 0, 4 }, /* P13: internal USB 2.0 (OC4) */
-};
-
-void mainboard_get_spd(spd_raw_data *spd, bool id_only)
-{
-	read_spd(&spd[0], 0x50, id_only);
-	read_spd(&spd[2], 0x52, id_only);
 }
 
 void mainboard_early_init(int s3resume)

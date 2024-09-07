@@ -13,9 +13,6 @@
 
 #define BROADCAST_FABRIC_ID		0xff
 
-/* Index of IOAPIC resource associated with IOMMU */
-#define IOMMU_IOAPIC_IDX                0x20000120
-
 #define DF_MMIO_REG_OFFSET(instance) ((instance) * DF_MMIO_REG_SET_SIZE * sizeof(uint32_t))
 
 /* The number of data fabric MMIO registers is SoC-specific */
@@ -47,10 +44,9 @@ void data_fabric_broadcast_write32(uint16_t fn_reg, uint32_t data)
 }
 
 void data_fabric_print_mmio_conf(void);
-void data_fabric_set_mmio_np(void);
 
-enum cb_err data_fabric_get_pci_bus_numbers(struct device *domain, uint8_t *first_bus,
-					    uint8_t *last_bus);
+enum cb_err data_fabric_get_pci_bus_numbers(struct device *domain, uint8_t *segment_group,
+					    uint8_t *first_bus, uint8_t *last_bus);
 
 void data_fabric_get_mmio_base_size(unsigned int reg, resource_t *mmio_base,
 				    resource_t *mmio_limit);
@@ -58,7 +54,5 @@ void data_fabric_get_mmio_base_size(unsigned int reg, resource_t *mmio_base,
 /* Inform the resource allocator about the usable IO and MMIO regions and PCI bus numbers */
 void amd_pci_domain_read_resources(struct device *domain);
 void amd_pci_domain_scan_bus(struct device *domain);
-
-void amd_pci_domain_fill_ssdt(const struct device *domain);
 
 #endif /* AMD_BLOCK_DATA_FABRIC_H */

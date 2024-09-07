@@ -93,12 +93,14 @@ u32 map_oprom_vendev(u32 vendev)
 	case 0x80860406:		/* GT1 Mobile */
 	case 0x8086040a:		/* GT1 Server */
 	case 0x80860a06:		/* GT1 ULT */
+	case 0x80860a0e:		/* GT1 ULX */
 
 	case 0x80860412:		/* GT2 Desktop */
 	case 0x80860416:		/* GT2 Mobile */
 	case 0x8086041a:		/* GT2 Server */
 	case 0x8086041e:		/* GT1.5 Desktop */
 	case 0x80860a16:		/* GT2 ULT */
+	case 0x80860a1e:		/* GT2 ULX */
 
 	case 0x80860422:		/* GT3 Desktop */
 	case 0x80860426:		/* GT3 Mobile */
@@ -124,7 +126,6 @@ u32 gtt_read(u32 reg)
 	u32 val;
 	val = read32(res2mmio(gtt_res, reg, 0));
 	return val;
-
 }
 
 void gtt_write(u32 reg, u32 data)
@@ -461,12 +462,19 @@ static void gma_generate_ssdt(const struct device *dev)
 	drivers_intel_gma_displays_ssdt_generate(&chip->gfx);
 }
 
+static void gma_func0_disable(struct device *dev)
+{
+	/* Disable VGA decode */
+	pci_or_config16(pcidev_on_root(0, 0), GGC, 1 << 1);
+}
+
 static struct device_operations gma_func0_ops = {
 	.read_resources		= pci_dev_read_resources,
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
 	.init			= gma_func0_init,
 	.acpi_fill_ssdt		= gma_generate_ssdt,
+	.vga_disable            = gma_func0_disable,
 	.ops_pci		= &pci_dev_ops_pci,
 };
 
@@ -479,6 +487,9 @@ static const unsigned short pci_device_ids[] = {
 	0x0406, /* Mobile GT1 */
 	0x0416, /* Mobile GT2 */
 	0x0426, /* Mobile GT3 */
+	0x040a, /* Server GT1 */
+	0x041a, /* Server GT2 */
+	0x042a, /* Server GT3 */
 	0x0d16, /* Mobile 4+3 GT1 */
 	0x0d26, /* Mobile 4+3 GT2, Mobile GT3e */
 	0x0d36, /* Mobile 4+3 GT3 */

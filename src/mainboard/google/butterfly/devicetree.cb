@@ -18,7 +18,12 @@ chip northbridge/intel/sandybridge
 	register "gpu_cpu_backlight" = "0x000001e8"
 	register "gpu_pch_backlight" = "0x03d00000"
 
-	register "max_mem_clock_mhz" = "666"			# DDR3-1333
+	register "spd_addresses" = "{0x50, 0, 0x52, 0}"
+	register "ec_present" = "1"
+	# FIXME: Native raminit requires reduced max clock
+	register "max_mem_clock_mhz" = "CONFIG(USE_NATIVE_RAMINIT) ? 666 : 800"
+	# Force double refresh rate
+	register "ddr_refresh_rate_config" = "DDR_REFRESH_RATE_DOUBLE"
 
 	device domain 0 on
 		device ref host_bridge on end # host bridge
@@ -47,6 +52,19 @@ chip northbridge/intel/sandybridge
 
 			# Enable zero-based linear PCIe root port functions
 			register "pcie_port_coalesce" = "true"
+
+			register "usb_port_config" = "{
+				{1, 0, -1}, /* P0: Right USB 3.0 #1 (no OC) */
+				{1, 0, -1}, /* P1: Right USB 3.0 #2 (no OC) */
+				{1, 0, -1}, /* P2: Camera (no OC) */
+				/* P3-P8: Empty */
+				{0, 0, -1}, {0, 0, -1}, {0, 0, -1},
+				{0, 0, -1}, {0, 0, -1}, {0, 0, -1},
+				{1, 1, -1}, /* P9: Left USB 1 (no OC) */
+				{1, 0, -1}, /* P10: Mini PCIe - WLAN / BT (no OC) */
+				/* P11-P13: Empty */
+				{0, 0, -1}, {0, 0, -1},	{0, 0, -1}
+				}"
 
 			device ref xhci on end # USB 3.0 Controller
 			device ref mei1 on end # Management Engine Interface 1
@@ -80,7 +98,7 @@ chip northbridge/intel/sandybridge
 			end # LPC bridge
 			device ref sata1 on end # SATA Controller 1
 			device ref smbus on
-				subsystemid 0x04B4 0x18D1
+				subsystemid 0x18D1 0x04B4
 			end # SMBus
 			device ref sata2 off end # SATA Controller 2
 			device ref thermal on end # Thermal

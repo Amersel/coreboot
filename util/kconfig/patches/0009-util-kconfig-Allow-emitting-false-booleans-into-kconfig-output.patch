@@ -10,24 +10,11 @@ Date:   Fri Nov 22 22:08:15 2019 +0100
     Change-Id: I9e62b05e45709f1539e455e2eed37308609be15e
     Signed-off-by: Patrick Georgi <pgeorgi@google.com>
 
-Index: kconfig/symbol.c
-===================================================================
---- kconfig.orig/symbol.c
-+++ kconfig/symbol.c
-@@ -757,7 +757,7 @@ const char *sym_get_string_default(struc
- 		}
- 	case S_INT:
- 	case S_HEX:
--		return str;
-+		return "0";
- 	case S_STRING:
- 		return str;
- 	case S_UNKNOWN:
 Index: kconfig/confdata.c
 ===================================================================
 --- kconfig.orig/confdata.c
 +++ kconfig/confdata.c
-@@ -715,7 +715,12 @@ static void print_symbol_for_dotconfig(F
+@@ -731,7 +731,12 @@ static void print_symbol_for_dotconfig(F
  
  static void print_symbol_for_autoconf(FILE *fp, struct symbol *sym)
  {
@@ -41,7 +28,7 @@ Index: kconfig/confdata.c
  }
  
  void print_symbol_for_listconfig(struct symbol *sym)
-@@ -740,6 +745,10 @@ static void print_symbol_for_c(FILE *fp,
+@@ -756,6 +761,10 @@ static void print_symbol_for_c(FILE *fp,
  	case S_TRISTATE:
  		switch (*val) {
  		case 'n':
@@ -52,7 +39,7 @@ Index: kconfig/confdata.c
  			return;
  		case 'm':
  			sym_suffix = "_MODULE";
-@@ -751,6 +760,12 @@ static void print_symbol_for_c(FILE *fp,
+@@ -767,6 +776,12 @@ static void print_symbol_for_c(FILE *fp,
  	case S_HEX:
  		if (val[0] != '0' || (val[1] != 'x' && val[1] != 'X'))
  			val_prefix = "0x";
@@ -65,7 +52,7 @@ Index: kconfig/confdata.c
  		break;
  	case S_STRING:
  		escaped = escape_string_value(val);
-@@ -1108,8 +1123,9 @@ static int __conf_write_autoconf(const c
+@@ -1183,8 +1198,9 @@ static int __conf_write_autoconf(const c
  
  	conf_write_heading(file, comment_style);
  

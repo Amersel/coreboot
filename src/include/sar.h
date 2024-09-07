@@ -9,8 +9,10 @@
 #define MAX_DENYLIST_ENTRY	16
 #define MAX_DSAR_SET_COUNT	3
 #define MAX_GEO_OFFSET_REVISION	3
-#define MAX_PROFILE_COUNT	5
+#define MAX_PROFILE_COUNT	7
 #define MAX_SAR_REVISION	2
+#define BSAR_REVISION		1
+#define WBEM_REVISION		0
 #define REVISION_SIZE		1
 #define SAR_REV0_CHAINS_COUNT	2
 #define SAR_REV0_SUBBANDS_COUNT	5
@@ -57,7 +59,27 @@ struct dsm_profile {
 	uint32_t uart_configurations;
 	uint32_t enablement_11ax;
 	uint32_t unii_4;
+	uint32_t enablement_11be;
+	uint32_t energy_detection_threshold;
+	uint32_t rfi_mitigation;
 };
+
+struct bsar_profile {
+	uint8_t revision;
+	uint8_t increased_power_mode_limitation;
+	uint8_t sar_lb_power_restriction;
+	uint8_t br_modulation;
+	uint8_t edr2_modulation;
+	uint8_t edr3_modulation;
+	uint8_t le_modulation;
+	uint8_t le2_mhz_modulation;
+	uint8_t le_lr_modulation;
+} __packed;
+
+struct wbem_profile {
+	uint8_t revision;
+	uint32_t bandwidth_320mhz_country_enablement;
+} __packed;
 
 struct sar_header {
 	char marker[SAR_STR_PREFIX_SIZE];
@@ -73,6 +95,8 @@ union wifi_sar_limits {
 		struct gain_profile *ppag;
 		struct avg_profile *wtas;
 		struct dsm_profile *dsm;
+		struct bsar_profile *bsar;
+		struct wbem_profile *wbem;
 	};
 	void *profile[MAX_PROFILE_COUNT];
 };

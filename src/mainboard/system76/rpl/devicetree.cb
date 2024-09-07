@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
 chip soc/intel/alderlake
 	register "common_soc_config" = "{
 		// Touchpad I2C bus
@@ -9,7 +11,7 @@ chip soc/intel/alderlake
 	}"
 
 	# Enable Enhanced Intel SpeedStep
-	register "eist_enable" = "1"
+	register "eist_enable" = "true"
 
 	# Enable C6 DRAM
 	register "enable_c6dram" = "1"
@@ -19,9 +21,7 @@ chip soc/intel/alderlake
 
 	# Disable package C state demotion on Raptorlake as a W/A for S0ix issues
 	# seen on J0 and Q0 SKUs
-	register "disable_package_c_state_demotion" = "1"
-
-	device cpu_cluster 0 on end
+	register "disable_package_c_state_demotion" = "true"
 
 	device domain 0 on
 		device ref system_agent on end
@@ -53,7 +53,7 @@ chip soc/intel/alderlake
 			register "sata_salp_support" = "1"
 			register "sata_ports_enable[1]" = "1" # SSD1
 			# FIXME: DevSlp breaks S0ix
-			#register "sata_ports_dev_slp[1]" = "1" # GPP_H12 (SATA1_DEVSLP1)
+			#register "sata_ports_dev_slp[1]" = "1"
 		end
 		device ref pch_espi on
 			register "gen1_dec" = "0x00040069" # EC PM channel
@@ -66,6 +66,7 @@ chip soc/intel/alderlake
 		device ref p2sb on end
 		device ref hda on
 			register "pch_hda_audio_link_hda_enable" = "1"
+			register "pch_hda_sdi_enable[0]" = "true"
 			register "pch_hda_idisp_codec_enable" = "1"
 			register "pch_hda_idisp_link_frequency" = "HDA_LINKFREQ_96MHZ"
 			register "pch_hda_idisp_link_tmode" = "HDA_TMODE_8T"

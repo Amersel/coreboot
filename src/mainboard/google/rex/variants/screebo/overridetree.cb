@@ -34,6 +34,20 @@ end
 
 chip soc/intel/meteorlake
 
+	register "power_limits_config[MTL_P_282_242_CORE]" = "{
+		.tdp_pl1_override = 25,
+		.tdp_pl2_override = 40,
+		.tdp_pl4 = 84,
+	}"
+
+	# Override FVM and VR (IA and SA) configuration: Disable
+	register "enable_fast_vmode[VR_DOMAIN_IA]" = "0"
+	register "cep_enable[VR_DOMAIN_IA]" = "0"
+	register "fast_vmode_i_trip[VR_DOMAIN_IA]" = "0"
+	register "enable_fast_vmode[VR_DOMAIN_SA]" = "0"
+	register "cep_enable[VR_DOMAIN_SA]" = "0"
+	register "fast_vmode_i_trip[VR_DOMAIN_SA]" = "0"
+
 	register "usb2_ports[0]" = "USB2_PORT_TYPE_C(OC1)"	# USB2_C1
 	register "usb2_ports[1]" = "USB2_PORT_TYPE_C(OC0)"	# USB2_C0
 	register "usb2_ports[2]" = "USB2_PORT_MID(OC2)"	# Type-A Port A1
@@ -75,6 +89,21 @@ chip soc/intel/meteorlake
 		[PchSerialIoIndexI2C4] = PchSerialIoPci,
 		[PchSerialIoIndexI2C5] = PchSerialIoPci,
 	}"
+
+	# Override TCC of 90C = Tj max (110) - TCC_Offset (20)
+	register "tcc_offset" = "20"
+
+	# Acoustic Noise settings and slew rate configuration:
+	#  slew rate for IA Domain: Fast/8
+	#  slew rate for GT Domain: Fast/8
+	#  Ignore slew rate configuration for SA Domain
+	register "enable_acoustic_noise_mitigation" = "1"
+	register "disable_fast_pkgc_ramp[VR_DOMAIN_IA]" = "1"
+	register "slow_slew_rate_config[VR_DOMAIN_IA]" = "SLEW_FAST_8"
+	register "disable_fast_pkgc_ramp[VR_DOMAIN_GT]" = "1"
+	register "slow_slew_rate_config[VR_DOMAIN_GT]" = "SLEW_FAST_8"
+	register "slow_slew_rate_config[VR_DOMAIN_SA]" = "SLEW_IGNORE"
+
 
 	# Intel Common SoC Config
 	#+-------------------+---------------------------+
@@ -198,8 +227,8 @@ chip soc/intel/meteorlake
 				# TODO: below values are initial reference values only
 				register "policies.critical" = "{
 						[0] = DPTF_CRITICAL(TEMP_SENSOR_0, 90, SHUTDOWN),
-						[1] = DPTF_CRITICAL(TEMP_SENSOR_1, 90, SHUTDOWN),
-						[2] = DPTF_CRITICAL(TEMP_SENSOR_2, 95, SHUTDOWN),
+						[1] = DPTF_CRITICAL(TEMP_SENSOR_1, 70, SHUTDOWN),
+						[2] = DPTF_CRITICAL(TEMP_SENSOR_2, 80, SHUTDOWN),
 				}"
 
 				## Power Limits Control
@@ -275,6 +304,7 @@ chip soc/intel/meteorlake
 			chip soc/intel/common/block/pcie/rtd3
 				register "enable_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPP_D03)"
 				register "reset_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_LOW(GPP_D02)"
+				register "enable_delay_ms" = "1"
 				register "srcclk_pin" = "6"
 				device generic 0 on
 					probe DB_SD SD_GL9750
@@ -307,15 +337,15 @@ chip soc/intel/meteorlake
 		end
 		device ref tcss_dma0 on
 			chip drivers/intel/usb4/retimer
-				register "dfp[0].power_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPP_B22)"
-				use tcss_usb3_port1 as dfp[0].typec_port
+				register "dfp[1].power_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPP_B22)"
+				use tcss_usb3_port1 as dfp[1].typec_port
 				device generic 0 on end
 			end
 		end
 		device ref tcss_dma1 on
 			chip drivers/intel/usb4/retimer
-				register "dfp[0].power_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPP_B22)"
-				use tcss_usb3_port3 as dfp[0].typec_port
+				register "dfp[1].power_gpio" = "ACPI_GPIO_OUTPUT_ACTIVE_HIGH(GPP_B22)"
+				use tcss_usb3_port3 as dfp[1].typec_port
 				device generic 0 on end
 			end
 		end
@@ -487,6 +517,7 @@ chip soc/intel/meteorlake
 				register "num_freq_entries" = "1"
 				register "link_freq[0]" = "400 * MHz"
 				register "remote_name" = ""IPU0""
+				register "max_dstate_for_probe" = "ACPI_DEVICE_SLEEP_D3_COLD"
 
 				register "has_power_resource" = "1"
 				#Controls
@@ -525,10 +556,6 @@ chip soc/intel/meteorlake
 				#_ON
 				register "on_seq.ops_cnt" = "1"
 				register "on_seq.ops[0]" = "SEQ_OPS_GPIO_ENABLE(0, 0)"
-
-				#_OFF
-				register "off_seq.ops_cnt" = "1"
-				register "off_seq.ops[0]" = "SEQ_OPS_GPIO_DISABLE(0, 0)"
 
 				register "nvm_size" = "0x2000"
 				register "nvm_pagesize" = "1"

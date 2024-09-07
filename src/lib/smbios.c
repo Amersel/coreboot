@@ -15,8 +15,8 @@
 #include <commonlib/helpers.h>
 #include <device/pci_ids.h>
 #include <device/pci.h>
-#include <device/pci_def.h>
 #include <drivers/vpd/vpd.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 static u8 smbios_checksum(u8 *p, u32 length)
@@ -216,7 +216,7 @@ static const char *memory_device_type(u8 code)
 
 	if (code >= MEMORY_TYPE_OTHER && code <= MEMORY_TYPE_HBM3)
 		return type[code - 1];
-	return "Unsupproted";
+	return "Unsupported";
 }
 
 static void dump_smbios_type17(struct dimm_info *dimm)
@@ -443,6 +443,14 @@ unsigned int __weak smbios_cpu_get_voltage(void)
 	return 0; /* Unknown */
 }
 
+unsigned int smbios_get_max_sockets(void)
+{
+	if (CONFIG_MAX_SOCKET == 1)
+		return 1;
+	else
+		return smbios_soc_get_max_sockets();
+}
+
 static int smbios_write_type1(unsigned long *current, int handle)
 {
 	struct smbios_type1 *t = smbios_carve_table(*current, SMBIOS_SYSTEM_INFORMATION,
@@ -639,21 +647,22 @@ int smbios_write_type9(unsigned long *current, int *handle,
 			const enum slot_data_bus_bandwidth bandwidth,
 			const enum misc_slot_usage usage,
 			const enum misc_slot_length length,
-			const u16 id, u8 slot_char1, u8 slot_char2, u8 bus, u8 dev_func)
+			const u16 id, u8 slot_char1, u8 slot_char2,
+			u8 segment_group, u8 bus, u8 dev_func)
 {
 	struct smbios_type9 *t = smbios_carve_table(*current, SMBIOS_SYSTEM_SLOTS,
 						    sizeof(*t), *handle);
 
 	t->slot_designation = smbios_add_string(t->eos, name ? name : "SLOT");
 	t->slot_type = type;
-	/* TODO add slot_id supoort, will be "_SUN" for ACPI devices */
+	/* TODO add slot_id support, will be "_SUN" for ACPI devices */
 	t->slot_id = id;
 	t->slot_data_bus_width = bandwidth;
 	t->current_usage = usage;
 	t->slot_length = length;
 	t->slot_characteristics_1 = slot_char1;
 	t->slot_characteristics_2 = slot_char2;
-	t->segment_group_number = 0;
+	t->segment_group_number = segment_group;
 	t->bus_number = bus;
 	t->device_function_number = dev_func;
 	t->data_bus_width = SlotDataBusWidthOther;
@@ -970,7 +979,7 @@ int smbios_write_type39(unsigned long *current, int *handle,
 }
 
 int smbios_write_type41(unsigned long *current, int *handle,
-			const char *name, u8 instance, u16 segment,
+			const char *name, u8 instance, u16 segment_group,
 			u8 bus, u8 device, u8 function, u8 device_type)
 {
 	struct smbios_type41 *t = smbios_carve_table(*current,
@@ -981,7 +990,7 @@ int smbios_write_type41(unsigned long *current, int *handle,
 	t->device_type = device_type;
 	t->device_status = 1;
 	t->device_type_instance = instance;
-	t->segment_group_number = segment;
+	t->segment_group_number = segment_group;
 	t->bus_number = bus;
 	t->device_number = device;
 	t->function_number = function;
@@ -1113,8 +1122,8 @@ static int smbios_generate_type41_from_devtree(struct device *dev, int *handle,
 	return smbios_write_type41(current, handle,
 					name, // name
 					instance_id, // inst
-					0, // segment
-					dev->bus->secondary, //bus
+					dev->upstream->segment_group, // segment group
+					dev->upstream->secondary, //bus
 					PCI_SLOT(dev->path.pci.devfn), // device
 					PCI_FUNC(dev->path.pci.devfn), // func
 					device_type);
@@ -1166,7 +1175,8 @@ static int smbios_generate_type9_from_devtree(struct device *dev, int *handle,
 				  0,
 				  1,
 				  0,
-				  dev->bus->secondary,
+				  dev->upstream->segment_group,
+				  dev->upstream->secondary,
 				  dev->path.pci.devfn);
 }
 
@@ -1201,7 +1211,7 @@ static int smbios_walk_device_tree(struct device *tree, int *handle, unsigned lo
 
 unsigned long smbios_write_tables(unsigned long current)
 {
-	struct smbios_entry *se;
+	struct smbios_entry *se = NULL;
 	struct smbios_entry30 *se3;
 	unsigned long tables;
 	int len = 0;
@@ -1211,9 +1221,12 @@ unsigned long smbios_write_tables(unsigned long current)
 	current = ALIGN_UP(current, 16);
 	printk(BIOS_DEBUG, "%s: %08lx\n", __func__, current);
 
-	se = (struct smbios_entry *)current;
-	current += sizeof(*se);
-	current = ALIGN_UP(current, 16);
+	// only add a 32 bit entry point if SMBIOS table is below 4G
+	if (current < UINT32_MAX) {
+		se = (struct smbios_entry *)current;
+		current += sizeof(*se);
+		current = ALIGN_UP(current, 16);
+	}
 
 	se3 = (struct smbios_entry30 *)current;
 	current += sizeof(*se3);
@@ -1228,9 +1241,11 @@ unsigned long smbios_write_tables(unsigned long current)
 	handle++;
 	update_max(len, max_struct_size, smbios_write_type3(&current, handle++));
 
-	struct smbios_type4 *type4 = (struct smbios_type4 *)current;
-	update_max(len, max_struct_size, smbios_write_type4(&current, handle++));
-	len += smbios_write_type7_cache_parameters(&current, &handle, &max_struct_size, type4);
+	for (unsigned int s = 0; s < smbios_get_max_sockets(); s++) {
+		struct smbios_type4 *type4 = (struct smbios_type4 *)current;
+		update_max(len, max_struct_size, smbios_write_type4(&current, handle++));
+		len += smbios_write_type7_cache_parameters(&current, &handle, &max_struct_size, type4);
+	}
 	update_max(len, max_struct_size, smbios_write_type11(&current, &handle));
 	if (CONFIG(ELOG))
 		update_max(len, max_struct_size,
@@ -1251,21 +1266,23 @@ unsigned long smbios_write_tables(unsigned long current)
 
 	update_max(len, max_struct_size, smbios_write_type127(&current, handle++));
 
-	/* Install SMBIOS 2.1 entry point */
-	memset(se, 0, sizeof(*se));
-	memcpy(se->anchor, "_SM_", 4);
-	se->length = sizeof(*se);
-	se->major_version = 3;
-	se->minor_version = 0;
-	se->max_struct_size = max_struct_size;
-	se->struct_count = handle;
-	memcpy(se->intermediate_anchor_string, "_DMI_", 5);
+	if (se) {
+		/* Install SMBIOS 2.1 entry point */
+		memset(se, 0, sizeof(*se));
+		memcpy(se->anchor, "_SM_", 4);
+		se->length = sizeof(*se);
+		se->major_version = 3;
+		se->minor_version = 0;
+		se->max_struct_size = max_struct_size;
+		se->struct_count = handle;
+		memcpy(se->intermediate_anchor_string, "_DMI_", 5);
 
-	se->struct_table_address = (u32)tables;
-	se->struct_table_length = len;
+		se->struct_table_address = (u32)tables;
+		se->struct_table_length = len;
 
-	se->intermediate_checksum = smbios_checksum((u8 *)se + 0x10, sizeof(*se) - 0x10);
-	se->checksum = smbios_checksum((u8 *)se, sizeof(*se));
+		se->intermediate_checksum = smbios_checksum((u8 *)se + 0x10, sizeof(*se) - 0x10);
+		se->checksum = smbios_checksum((u8 *)se, sizeof(*se));
+	}
 
 	/* Install SMBIOS 3.0 entry point */
 	memset(se3, 0, sizeof(*se3));

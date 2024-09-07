@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <device/device.h>
-#include <device/path.h>
 #include <device/smbus.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
@@ -50,6 +49,9 @@ struct device_operations smbus_ops = {
 };
 
 static const unsigned short pci_device_ids[] = {
+	PCI_DID_INTEL_PTL_H_SMBUS,
+	PCI_DID_INTEL_PTL_U_H_SMBUS,
+	PCI_DID_INTEL_LNL_SMBUS,
 	PCI_DID_INTEL_MTL_SMBUS,
 	PCI_DID_INTEL_RPP_P_SMBUS,
 	PCI_DID_INTEL_RPP_S_SMBUS,

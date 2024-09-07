@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <assert.h>
+#include <bootmode.h>
 #include <bootsplash.h>
 #include <console/console.h>
 #include <cpu/intel/microcode.h>
@@ -464,49 +465,102 @@ static const SI_PCH_DEVICE_INTERRUPT_CONFIG *pci_irq_to_fsp(size_t *out_count)
 }
 
 /*
- * Chip config parameter PcieRpL1Substates uses (UPD value + 1)
- * because UPD value of 0 for PcieRpL1Substates means disabled for FSP.
- * In order to ensure that mainboard setting does not disable L1 substates
- * incorrectly, chip config parameter values are offset by 1 with 0 meaning
- * use FSP UPD default. get_l1_substate_control() ensures that the right UPD
- * value is set in fsp_params.
- * 0: Use FSP UPD default
- * 1: Disable L1 substates
- * 2: Use L1.1
- * 3: Use L1.2 (FSP UPD default)
+ * The PCIe RP ASPM and PCIe L1 Substate UPDs follow the PCI Express Base
+ * Specification 1.1. The UPDs and their default values are consistent
+ * from Skylake through Meteor Lake. However, the default for CPU ports
+ * differs from PCH ports. Use auto and maximum unless overwritten
+ * to make the behaviour consistent.
+ *
+ * +-------------------+--------------------------+-----------+-----------+
+ * | Setting           | Option                   | PCH Ports | CPU Ports |
+ * |-------------------|--------------------------|-----------|-----------|
+ * | PcieRpEnableCpm   | Disabled                 | [Default] | [Default] |
+ * |                   | Enabled                  |           |           |
+ * |-------------------|--------------------------|-----------|-----------|
+ * | PcieRpAspm        | PchPcieAspmDisabled      |           |           |
+ * |                   | PchPcieAspmL0s           |           |           |
+ * |                   | PchPcieAspmL1            |           |           |
+ * |                   | PchPcieAspmL0sL1         |           | [Default] |
+ * |                   | PchPcieAspmAutoConfig    | [Default] |           |
+ * |                   | PchPcieAspmMax           |           |           |
+ * |-------------------|--------------------------|-----------|-----------|
+ * | PcieRpL1Substates | Disabled                 |           |           |
+ * |                   | PchPcieL1SubstatesL1_1   |           |           |
+ * |                   | PchPcieL1SubstatesL1_1_2 |           | [Default] |
+ * |                   | PchPcieL1SubstatesMax    | [Default] |           |
+ * +-------------------+--------------------------+-----------+-----------+
  */
-static int get_l1_substate_control(enum L1_substates_control ctl)
+
+static unsigned int adl_aspm_control_to_upd(enum ASPM_control aspm_control)
 {
+	/* Disable without Kconfig selected */
+	if (!CONFIG(PCIEXP_ASPM))
+		return UPD_INDEX(ASPM_DISABLE);
+
+	/* Use auto unless overwritten */
+	if (!aspm_control)
+		return UPD_INDEX(ASPM_AUTO);
+
+	return UPD_INDEX(aspm_control);
+}
+
+static unsigned int adl_l1ss_control_to_upd(enum L1_substates_control l1_substates_control)
+{
+	/* Disable without Kconfig selected */
+	if (!CONFIG(PCIEXP_ASPM))
+		return UPD_INDEX(L1_SS_DISABLED);
+
+	/* Don't enable UPD if Kconfig not set */
+	if (!CONFIG(PCIEXP_L1_SUB_STATE))
+		return UPD_INDEX(L1_SS_DISABLED);
+
+	/* L1 Substate should be disabled in compliance mode */
 	if (CONFIG(SOC_INTEL_COMPLIANCE_TEST_MODE))
-		ctl = L1_SS_DISABLED;
-	else if ((ctl > L1_SS_L1_2) || (ctl == L1_SS_FSP_DEFAULT))
-		ctl = L1_SS_L1_2;
-	return ctl - 1;
+		return UPD_INDEX(L1_SS_DISABLED);
+
+	/* Use maximum unless overwritten */
+	if (!l1_substates_control)
+		return UPD_INDEX(L1_SS_L1_2);
+
+	return UPD_INDEX(l1_substates_control);
+}
+
+static void configure_pch_rp_power_management(FSP_S_CONFIG *s_cfg,
+					      const struct pcie_rp_config *rp_cfg,
+					      unsigned int index)
+{
+	s_cfg->PcieRpEnableCpm[index] = CONFIG(PCIEXP_CLK_PM);
+	s_cfg->PcieRpAspm[index] = adl_aspm_control_to_upd(rp_cfg->pcie_rp_aspm);
+	s_cfg->PcieRpL1Substates[index] = adl_l1ss_control_to_upd(rp_cfg->PcieRpL1Substates);
 }
 
 /*
- * Chip config parameter pcie_rp_aspm uses (UPD value + 1) because
- * a UPD value of 0 for pcie_rp_aspm means disabled. In order to ensure
- * that the mainboard setting does not disable ASPM incorrectly, chip
- * config parameter values are offset by 1 with 0 meaning use FSP UPD default.
- * get_aspm_control() ensures that the right UPD value is set in fsp_params.
- * 0: Use FSP UPD default
- * 1: Disable ASPM
- * 2: L0s only
- * 3: L1 only
- * 4: L0s and L1
- * 5: Auto configuration
+ * Starting with Alder Lake, UPDs for Clock Power Management were
+ * introduced for the CPU root ports.
+ *
+ * CpuPcieClockGating:
+ *	Disabled
+ *	Enabled		[Default]
+ *
+ * CpuPciePowerGating
+ *	Disabled
+ *	Enabled		[Default]
+ *
  */
-static unsigned int get_aspm_control(enum ASPM_control ctl)
+static void configure_cpu_rp_power_management(FSP_S_CONFIG *s_cfg,
+					      const struct pcie_rp_config *rp_cfg,
+					      unsigned int index)
 {
-	if ((ctl > ASPM_AUTO) || (ctl == ASPM_DEFAULT))
-		ctl = ASPM_AUTO;
-	return ctl - 1;
+	s_cfg->CpuPcieRpEnableCpm[index] = CONFIG(PCIEXP_CLK_PM);
+	s_cfg->CpuPcieClockGating[index] = CONFIG(PCIEXP_CLK_PM);
+	s_cfg->CpuPciePowerGating[index] = CONFIG(PCIEXP_CLK_PM);
+	s_cfg->CpuPcieRpAspm[index] = adl_aspm_control_to_upd(rp_cfg->pcie_rp_aspm);
+	s_cfg->CpuPcieRpL1Substates[index] = adl_l1ss_control_to_upd(rp_cfg->PcieRpL1Substates);
 }
 
 /* This function returns the VccIn Aux Imon IccMax values for ADL and RPL
    SKU's */
-static uint16_t get_vccin_aux_imon_iccmax(void)
+static uint16_t get_vccin_aux_imon_iccmax(const struct soc_intel_alderlake_config *config)
 {
 	struct device *dev = pcidev_path_on_root(SA_DEVFN_ROOT);
 	uint16_t mch_id = dev ? pci_read_config16(dev, PCI_DEVICE_ID) : 0xffff;
@@ -527,6 +581,9 @@ static uint16_t get_vccin_aux_imon_iccmax(void)
 	case PCI_DID_INTEL_RPL_P_ID_3:
 	case PCI_DID_INTEL_RPL_P_ID_4:
 	case PCI_DID_INTEL_RPL_P_ID_5:
+	case PCI_DID_INTEL_RPL_P_ID_6:
+	case PCI_DID_INTEL_RPL_P_ID_7:
+	case PCI_DID_INTEL_RPL_P_ID_8:
 		tdp = get_cpu_tdp();
 		if (tdp == TDP_45W)
 			return ICC_MAX_TDP_45W;
@@ -538,7 +595,9 @@ static uint16_t get_vccin_aux_imon_iccmax(void)
 	case PCI_DID_INTEL_ADL_N_ID_2:
 	case PCI_DID_INTEL_ADL_N_ID_3:
 	case PCI_DID_INTEL_ADL_N_ID_4:
-		return ICC_MAX_ID_ADL_N_MA;
+	case PCI_DID_INTEL_ADL_N_ID_5:
+		return config->vccin_aux_imon_iccmax
+			? config->vccin_aux_imon_iccmax : ICC_MAX_ID_ADL_N_MA;
 	case PCI_DID_INTEL_ADL_S_ID_1:
 	case PCI_DID_INTEL_ADL_S_ID_3:
 	case PCI_DID_INTEL_ADL_S_ID_8:
@@ -637,7 +696,7 @@ static void fill_fsps_igd_params(FSP_S_CONFIG *s_cfg,
 
 	/* Check if IGD is present and fill Graphics init param accordingly */
 	s_cfg->PeiGraphicsPeimInit = CONFIG(RUN_FSP_GOP) && is_devfn_enabled(SA_DEVFN_IGD);
-	s_cfg->LidStatus = CONFIG(RUN_FSP_GOP);
+	s_cfg->LidStatus = CONFIG(VBOOT_LID_SWITCH) ? get_lid_switch() : CONFIG(RUN_FSP_GOP);
 	s_cfg->PavpEnable = CONFIG(PAVP);
 }
 
@@ -677,6 +736,8 @@ static void fill_fsps_tcss_params(FSP_S_CONFIG *s_cfg,
 		if (is_dev_enabled(tcss_port_arr[i]))
 			s_cfg->UsbTcPortEn |= BIT(i);
 	}
+
+	s_cfg->Usb4CmMode = CONFIG(SOFTWARE_CONNECTION_MANAGER);
 }
 
 static void fill_fsps_chipset_lockdown_params(FSP_S_CONFIG *s_cfg,
@@ -824,10 +885,7 @@ static void fill_fsps_cnvi_params(FSP_S_CONFIG *s_cfg,
 		const struct soc_intel_alderlake_config *config)
 {
 	/* CNVi */
-#if CONFIG(FSP_USE_REPO)
-	/* This option is only available in public FSP headers on FSP repo */
 	s_cfg->CnviWifiCore = is_devfn_enabled(PCH_DEVFN_CNVI_WIFI);
-#endif
 	s_cfg->CnviMode = is_devfn_enabled(PCH_DEVFN_CNVI_WIFI);
 	s_cfg->CnviBtCore = config->cnvi_bt_core;
 	s_cfg->CnviBtAudioOffload = config->cnvi_bt_audio_offload;
@@ -908,23 +966,20 @@ static void fill_fsps_pcie_params(FSP_S_CONFIG *s_cfg,
 		if (!(enable_mask & BIT(i)))
 			continue;
 		const struct pcie_rp_config *rp_cfg = &config->pch_pcie_rp[i];
-		s_cfg->PcieRpL1Substates[i] =
-				get_l1_substate_control(rp_cfg->PcieRpL1Substates);
 		s_cfg->PcieRpLtrEnable[i] = !!(rp_cfg->flags & PCIE_RP_LTR);
 		s_cfg->PcieRpAdvancedErrorReporting[i] = !!(rp_cfg->flags & PCIE_RP_AER);
 		s_cfg->PcieRpHotPlug[i] = !!(rp_cfg->flags & PCIE_RP_HOTPLUG)
 				|| CONFIG(SOC_INTEL_COMPLIANCE_TEST_MODE);
 		s_cfg->PcieRpClkReqDetect[i] = !!(rp_cfg->flags & PCIE_RP_CLK_REQ_DETECT);
-		if (rp_cfg->pcie_rp_aspm)
-			s_cfg->PcieRpAspm[i] = get_aspm_control(rp_cfg->pcie_rp_aspm);
 		/* PcieRpSlotImplemented default to 1 (slot implemented) in FSP; 0: built-in */
 		if (!!(rp_cfg->flags & PCIE_RP_BUILT_IN))
 			s_cfg->PcieRpSlotImplemented[i] = 0;
 		s_cfg->PcieRpDetectTimeoutMs[i] = rp_cfg->pcie_rp_detect_timeout_ms;
+		configure_pch_rp_power_management(s_cfg, rp_cfg, i);
 	}
 	s_cfg->PcieComplianceTestMode = CONFIG(SOC_INTEL_COMPLIANCE_TEST_MODE);
 
-#if CONFIG(FSP_TYPE_IOT) && !CONFIG(SOC_INTEL_RAPTORLAKE)
+#if CONFIG(FSP_TYPE_IOT) && !CONFIG(SOC_INTEL_ALDERLAKE_PCH_N)
 	/*
 	 * Intel requires that all enabled PCH PCIe ports have a CLK_REQ signal connected.
 	 * The CLK_REQ is used to wake the silicon when link entered L1 link-state. L1
@@ -972,19 +1027,16 @@ static void fill_fsps_cpu_pcie_params(FSP_S_CONFIG *s_cfg,
 			continue;
 
 		const struct pcie_rp_config *rp_cfg = &config->cpu_pcie_rp[i];
-		s_cfg->CpuPcieRpL1Substates[i] =
-			get_l1_substate_control(rp_cfg->PcieRpL1Substates);
 		s_cfg->CpuPcieRpLtrEnable[i] = !!(rp_cfg->flags & PCIE_RP_LTR);
 		s_cfg->CpuPcieRpAdvancedErrorReporting[i] = !!(rp_cfg->flags & PCIE_RP_AER);
 		s_cfg->CpuPcieRpHotPlug[i] = !!(rp_cfg->flags & PCIE_RP_HOTPLUG)
 				|| CONFIG(SOC_INTEL_COMPLIANCE_TEST_MODE);
 		s_cfg->CpuPcieRpDetectTimeoutMs[i] = rp_cfg->pcie_rp_detect_timeout_ms;
 		s_cfg->PtmEnabled[i] = 0;
-		if (rp_cfg->pcie_rp_aspm)
-			s_cfg->CpuPcieRpAspm[i] = get_aspm_control(rp_cfg->pcie_rp_aspm);
 
 		if (!!(rp_cfg->flags & PCIE_RP_BUILT_IN))
 			s_cfg->CpuPcieRpSlotImplemented[i] = 0;
+		configure_cpu_rp_power_management(s_cfg, rp_cfg, i);
 	}
 	s_cfg->CpuPcieComplianceTestMode = CONFIG(SOC_INTEL_COMPLIANCE_TEST_MODE);
 }
@@ -1012,7 +1064,8 @@ static void fill_fsps_misc_power_params(FSP_S_CONFIG *s_cfg,
 	s_cfg->EnergyEfficientTurbo = 0;
 
 	/* VccIn Aux Imon IccMax. Values are in 1/4 Amp increments and range is 0-512. */
-	s_cfg->VccInAuxImonIccImax = get_vccin_aux_imon_iccmax() * 4 / MILLIAMPS_TO_AMPS;
+	s_cfg->VccInAuxImonIccImax =
+		get_vccin_aux_imon_iccmax(config) * 4 / MILLIAMPS_TO_AMPS;
 
 	/* VrConfig Settings for IA and GT domains */
 	for (size_t i = 0; i < ARRAY_SIZE(config->domain_vr_config); i++)
@@ -1069,7 +1122,7 @@ static void fill_fsps_misc_power_params(FSP_S_CONFIG *s_cfg,
 	s_cfg->PkgCStateDemotion = !config->disable_package_c_state_demotion;
 
 	if (cpu_id == CPUID_RAPTORLAKE_J0 || cpu_id == CPUID_RAPTORLAKE_Q0)
-		s_cfg->C1e = 0;
+		s_cfg->C1e = config->enable_c1e;
 	else
 		s_cfg->C1e = 1;
 #if CONFIG(SOC_INTEL_RAPTORLAKE) && !CONFIG(FSP_USE_REPO)
@@ -1338,7 +1391,7 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
  *   1     |  After TCSS initialization completed             |  for TCSS specific init
  *   2     |  Before BIOS Reset CPL is set by FSP-S           |  for CPU specific init
  */
-void platform_fsp_multi_phase_init_cb(uint32_t phase_index)
+void platform_fsp_silicon_multi_phase_init_cb(uint32_t phase_index)
 {
 	switch (phase_index) {
 	case 1:

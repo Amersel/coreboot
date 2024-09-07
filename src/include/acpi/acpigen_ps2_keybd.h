@@ -27,6 +27,9 @@ enum ps2_action_key {
 	PS2_KEY_KBD_BKLIGHT_TOGGLE,
 	PS2_KEY_MICMUTE,
 	PS2_KEY_MENU,
+	PS2_KEY_DICTATE,
+	PS2_KEY_ACCESSIBILITY,
+	PS2_KEY_DO_NOT_DISTURB,
 };
 
 #define PS2_MIN_TOP_ROW_KEYS		2
@@ -36,6 +39,7 @@ void acpigen_ps2_keyboard_dsd(const char *scope, uint8_t num_top_row_keys,
 			      enum ps2_action_key action_keys[],
 			      bool can_send_function_keys,
 			      bool has_numeric_keypad, bool has_scrnlock_key,
+			      bool has_assistant_key,
 			      bool has_alpha_num_punct_keys);
 
 #endif /* __ACPI_ACPIGEN_PS2_KEYBD_H__ */

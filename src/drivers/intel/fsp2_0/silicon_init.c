@@ -2,10 +2,11 @@
 
 #include <arch/null_breakpoint.h>
 #include <bootsplash.h>
+#include <bootstate.h>
 #include <cbfs.h>
 #include <cbmem.h>
 #include <commonlib/fsp.h>
-#include <commonlib/stdlib.h>
+#include <stdlib.h>
 #include <console/console.h>
 #include <fsp/api.h>
 #include <fsp/util.h>
@@ -21,13 +22,8 @@
 
 struct fsp_header fsps_hdr;
 
-struct fsp_multi_phase_get_number_of_phases_params {
-	uint32_t number_of_phases;
-	uint32_t phases_executed;
-};
-
 /* Callbacks for SoC/Mainboard specific overrides */
-void __weak platform_fsp_multi_phase_init_cb(uint32_t phase_index)
+void __weak platform_fsp_silicon_multi_phase_init_cb(uint32_t phase_index)
 {
 	/* Leave for the SoC/Mainboard to implement if necessary. */
 }
@@ -41,7 +37,8 @@ enum fsp_silicon_init_phases {
 	FSP_MULTI_PHASE_SI_INIT_EXECUTE_PHASE_API
 };
 
-static void fsps_return_value_handler(enum fsp_silicon_init_phases phases, uint32_t status)
+static void fsps_return_value_handler(enum fsp_silicon_init_phases phases,
+				      efi_return_status_t status)
 {
 	uint8_t postcode;
 
@@ -59,16 +56,13 @@ static void fsps_return_value_handler(enum fsp_silicon_init_phases phases, uint3
 
 	switch (phases) {
 	case FSP_SILICON_INIT_API:
-		die_with_post_code(postcode, "FspSiliconInit returned with error 0x%08x\n",
-				status);
+		fsp_die_with_post_code(status, postcode, "FspSiliconInit error");
 		break;
 	case FSP_MULTI_PHASE_SI_INIT_GET_NUMBER_OF_PHASES_API:
-		printk(BIOS_SPEW, "FspMultiPhaseSiInit NumberOfPhases returned 0x%08x\n",
-				status);
+		fsp_printk(status, BIOS_SPEW, "FspMultiPhaseSiInit NumberOfPhases");
 		break;
 	case FSP_MULTI_PHASE_SI_INIT_EXECUTE_PHASE_API:
-		printk(BIOS_SPEW, "FspMultiPhaseSiInit ExecutePhase returned 0x%08x\n",
-				status);
+		fsp_printk(status, BIOS_SPEW, "FspMultiPhaseSiInit ExecutePhase");
 		break;
 	default:
 		break;
@@ -83,8 +77,8 @@ bool fsp_is_multi_phase_init_enabled(void)
 
 static void fsp_fill_common_arch_params(FSPS_UPD *supd)
 {
-#if CONFIG(FSPS_HAS_ARCH_UPD)
-	FSPS_ARCH_UPD *s_arch_cfg = &supd->FspsArchUpd;
+#if (CONFIG(FSPS_HAS_ARCH_UPD) && !CONFIG(PLATFORM_USES_FSP2_4))
+	FSPS_ARCHx_UPD *s_arch_cfg = &supd->FspsArchUpd;
 	s_arch_cfg->EnableMultiPhaseSiliconInit = fsp_is_multi_phase_init_enabled();
 #endif
 }
@@ -93,8 +87,8 @@ static void do_silicon_init(struct fsp_header *hdr)
 {
 	FSPS_UPD *upd, *supd;
 	fsp_silicon_init_fn silicon_init;
-	uint32_t status;
-	fsp_multi_phase_si_init_fn multi_phase_si_init;
+	efi_return_status_t status;
+	fsp_multi_phase_init_fn multi_phase_si_init;
 	struct fsp_multi_phase_params multi_phase_params;
 	struct fsp_multi_phase_get_number_of_phases_params multi_phase_get_number;
 
@@ -144,19 +138,16 @@ static void do_silicon_init(struct fsp_header *hdr)
 		status = silicon_init(upd);
 	null_breakpoint_init();
 
-	printk(BIOS_INFO, "FSPS returned %x\n", status);
+	fsp_printk(status, BIOS_INFO, "FSPS");
 
 	timestamp_add_now(TS_FSP_SILICON_INIT_END);
 	post_code(POSTCODE_FSP_SILICON_EXIT);
-
-	if (CONFIG(BMP_LOGO))
-		bmp_release_logo();
 
 	fsp_debug_after_silicon_init(status);
 	fsps_return_value_handler(FSP_SILICON_INIT_API, status);
 
 	/* Reinitialize CPUs if FSP-S has done MP Init */
-	if (CONFIG(USE_INTEL_FSP_MP_INIT))
+	if (CONFIG(USE_INTEL_FSP_MP_INIT) && !fsp_is_multi_phase_init_enabled())
 		do_mpinit_after_fsp();
 
 	if (!CONFIG(PLATFORM_USES_FSP2_2))
@@ -190,7 +181,7 @@ static void do_silicon_init(struct fsp_header *hdr)
 		 * Give SoC/mainboard a chance to perform any operation before
 		 * Multi Phase Execution
 		 */
-		platform_fsp_multi_phase_init_cb(i);
+		platform_fsp_silicon_multi_phase_init_cb(i);
 
 		multi_phase_params.multi_phase_action = EXECUTE_PHASE;
 		multi_phase_params.phase_index = i;
@@ -202,6 +193,10 @@ static void do_silicon_init(struct fsp_header *hdr)
 	}
 	timestamp_add_now(TS_FSP_MULTI_PHASE_SI_INIT_END);
 	post_code(POSTCODE_FSP_MULTI_PHASE_SI_INIT_EXIT);
+
+	/* Reinitialize CPUs if FSP-S has done MP Init */
+	if (CONFIG(USE_INTEL_FSP_MP_INIT))
+		do_mpinit_after_fsp();
 }
 
 static void *fsps_allocator(void *arg_unused, size_t size, const union cbfs_mdata *mdata_unused)
@@ -211,8 +206,9 @@ static void *fsps_allocator(void *arg_unused, size_t size, const union cbfs_mdat
 
 void fsps_load(void)
 {
+	const char *fsps_cbfs = soc_select_fsp_s_cbfs();
 	struct fsp_load_descriptor fspld = {
-		.fsp_prog = PROG_INIT(PROG_REFCODE, CONFIG_FSP_S_CBFS),
+		.fsp_prog = PROG_INIT(PROG_REFCODE, fsps_cbfs),
 		.alloc = fsps_allocator,
 	};
 	struct prog *fsps = &fspld.fsp_prog;
@@ -245,8 +241,9 @@ void preload_fsps(void)
 	if (!CONFIG(CBFS_PRELOAD))
 		return;
 
-	printk(BIOS_DEBUG, "Preloading %s\n", CONFIG_FSP_S_CBFS);
-	cbfs_preload(CONFIG_FSP_S_CBFS);
+	const char *fsps_cbfs = soc_select_fsp_s_cbfs();
+	printk(BIOS_DEBUG, "Preloading %s\n", fsps_cbfs);
+	cbfs_preload(fsps_cbfs);
 }
 
 void fsp_silicon_init(void)
@@ -262,3 +259,11 @@ void fsp_silicon_init(void)
 }
 
 __weak void soc_load_logo(FSPS_UPD *supd) { }
+
+static void release_logo(void *arg_unused)
+{
+	if (CONFIG(BMP_LOGO))
+		bmp_release_logo();
+}
+
+BOOT_STATE_INIT_ENTRY(BS_PAYLOAD_LOAD, BS_ON_EXIT, release_logo, NULL);

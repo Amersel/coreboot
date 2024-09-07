@@ -1,13 +1,11 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <boot/coreboot_tables.h>
-#include <commonlib/stdlib.h>
 #include <console/console.h>
 #include <device/device.h>
 #include <device/mmio.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
-#include <device/resource.h>
 #include <delay.h>
 #include <lib.h>
 #include <soc/addressmap.h>
@@ -15,7 +13,6 @@
 #include <soc/pcie.h>
 #include <soc/pcie_common.h>
 #include <soc/soc_chip.h>
-#include <stdlib.h>
 #include <types.h>
 
 #define PCIE_SETTING_REG		0x80
@@ -99,7 +96,7 @@ static const char *const ltssm_str[] = {
 
 static uintptr_t mtk_pcie_get_controller_base(pci_devfn_t devfn)
 {
-	struct device *root_dev;
+	DEVTREE_CONST struct device *root_dev;
 	const mtk_soc_config_t *config;
 	static uintptr_t base = 0;
 
@@ -250,6 +247,16 @@ void mtk_pcie_domain_set_resources(struct device *dev)
 	pci_domain_set_resources(dev);
 }
 
+void mtk_pcie_reset(uintptr_t base_reg, bool enable)
+{
+	uint32_t flags = PCIE_MAC_RSTB | PCIE_PHY_RSTB | PCIE_BRG_RSTB | PCIE_PE_RSTB;
+
+	if (enable)
+		setbits32p(base_reg + PCIE_RST_CTRL_REG, flags);
+	else
+		clrbits32p(base_reg + PCIE_RST_CTRL_REG, flags);
+}
+
 enum cb_err fill_lb_pcie(struct lb_pcie *pcie)
 {
 	if (!pci_root_bus())
@@ -259,30 +266,9 @@ enum cb_err fill_lb_pcie(struct lb_pcie *pcie)
 	return CB_SUCCESS;
 }
 
-void mtk_pcie_domain_enable(struct device *dev)
+static void wait_perst_asserted(uintptr_t base)
 {
-	const mtk_soc_config_t *config = config_of(dev);
-	const struct mtk_pcie_config *conf = &config->pcie_config;
-	const char *ltssm_state;
 	long perst_time_us;
-	size_t tries = 0;
-	uint32_t val;
-
-	/* Set as RC mode */
-	val = read32p(conf->base + PCIE_SETTING_REG);
-	val |= PCIE_RC_MODE;
-	write32p(conf->base + PCIE_SETTING_REG, val);
-
-	/* Set class code */
-	val = read32p(conf->base + PCIE_PCI_IDS_1);
-	val &= ~GENMASK(31, 8);
-	val |= PCI_CLASS(PCI_CLASS_BRIDGE_PCI << 8);
-	write32p(conf->base + PCIE_PCI_IDS_1, val);
-
-	/* Mask all INTx interrupts */
-	val = read32p(conf->base + PCIE_INT_ENABLE_REG);
-	val &= ~PCIE_INTX_ENABLE;
-	write32p(conf->base + PCIE_INT_ENABLE_REG, val);
 
 	perst_time_us = early_init_get_elapsed_time_us(EARLY_INIT_PCIE);
 	printk(BIOS_DEBUG, "%s: %ld us elapsed since assert PERST#\n",
@@ -300,7 +286,7 @@ void mtk_pcie_domain_enable(struct device *dev)
 			printk(BIOS_WARNING,
 			       "%s: PCIe early init data not found, sleeping 100ms\n",
 			       __func__);
-			mtk_pcie_reset(conf->base + PCIE_RST_CTRL_REG, true);
+			mtk_pcie_reset(base, true);
 		} else {
 			printk(BIOS_WARNING,
 			       "%s: Need an extra %ld us delay to meet PERST# deassertion requirement\n",
@@ -309,9 +295,59 @@ void mtk_pcie_domain_enable(struct device *dev)
 
 		udelay(min_perst_time_us - perst_time_us);
 	}
+}
 
+static void deassert_perst(uintptr_t base)
+{
+	/* Set as RC mode */
+	setbits32p(base + PCIE_SETTING_REG, PCIE_RC_MODE);
+
+	/* Set class code */
+	clrsetbits32p(base + PCIE_PCI_IDS_1, GENMASK(31, 8),
+		      PCI_CLASS(PCI_CLASS_BRIDGE_PCI << 8));
+
+	/* Mask all INTx interrupts */
+	clrbits32p(base + PCIE_INT_ENABLE_REG, PCIE_INTX_ENABLE);
+
+	/* Above registers must be set before de-asserting PERST# */
 	/* De-assert reset signals */
-	mtk_pcie_reset(conf->base + PCIE_RST_CTRL_REG, false);
+	mtk_pcie_reset(base, false);
+}
+
+static void wait_perst_done(uintptr_t base)
+{
+	long perst_time_us;
+
+	wait_perst_asserted(base);
+
+	perst_time_us = early_init_get_elapsed_time_us(EARLY_INIT_PCIE_RESET);
+	printk(BIOS_DEBUG, "%s: %ld us elapsed since de-assert PERST#\n",
+	       __func__, perst_time_us);
+
+	if (!perst_time_us) {
+		printk(BIOS_INFO, "%s: PCIe early PERST# de-assertion is not done, "
+		       "de-assert PERST# now\n", __func__);
+		deassert_perst(base);
+	}
+}
+
+void mtk_pcie_deassert_perst(void)
+{
+	uintptr_t base = mtk_pcie_get_controller_base(0);
+
+	wait_perst_done(base);
+	early_init_save_time(EARLY_INIT_PCIE_RESET);
+}
+
+void mtk_pcie_domain_enable(struct device *dev)
+{
+	const mtk_soc_config_t *config = config_of(dev);
+	const struct mtk_pcie_config *conf = &config->pcie_config;
+	const char *ltssm_state;
+	size_t tries = 0;
+	uint32_t val;
+
+	wait_perst_done(conf->base);
 
 	if (!retry(100,
 		   (tries++, read32p(conf->base + PCIE_LINK_STATUS_REG) &

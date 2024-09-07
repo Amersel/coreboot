@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 chip northbridge/intel/sandybridge
+	register "spd_addresses" = "{0x50, 0, 0x51, 0}"
 	device domain 0 on
 		chip southbridge/intel/bd82x6x	# Intel Series 6 Cougar Point PCH
 			register "gen1_dec" = "0x000c0291"
@@ -8,6 +9,23 @@ chip northbridge/intel/sandybridge
 			register "pcie_port_coalesce" = "true"
 			register "sata_interface_speed_support" = "0x3"
 			register "sata_port_map" = "0x33"
+			register "usb_port_config" = "{
+				{ 1, 0, 0 },
+				{ 1, 0, 0 },
+				{ 1, 0, 1 },
+				{ 1, 0, 1 },
+				{ 1, 0, 2 },
+				{ 1, 0, 2 },
+				{ 1, 0, 3 },
+				{ 1, 0, 3 },
+				{ 1, 0, 4 },
+				{ 1, 0, 4 },
+				{ 1, 0, 6 },
+				{ 1, 0, 5 },
+				{ 1, 0, 5 },
+				{ 1, 0, 6 }
+			}"
+
 			register "spi.opprefixes" = "{ 0x50, 0x06 }"
 			register "spi.ops" = "{{0x01, WRITE_NO_ADDR},
 						{0x02, WRITE_WITH_ADDR},

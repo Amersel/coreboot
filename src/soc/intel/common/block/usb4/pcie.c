@@ -4,7 +4,6 @@
 #include <acpi/acpigen.h>
 #include <console/console.h>
 #include <device/device.h>
-#include <device/path.h>
 #include <string.h>
 
 #include "chip.h"
@@ -19,7 +18,7 @@ static void usb4_pcie_acpi_fill_ssdt(const struct device *dev)
 	int port_id;
 
 	/* Get parent PCI device */
-	parent = dev->bus->dev;
+	parent = dev->upstream->dev;
 	if (!parent) {
 		printk(BIOS_ERR, "%s: Unable to find parent device\n", __func__);
 		return;
@@ -81,6 +80,6 @@ static void usb4_pcie_acpi_enable(struct device *dev)
 }
 
 struct chip_operations soc_intel_common_block_usb4_ops = {
-	CHIP_NAME("Intel USB4 PCIe Root Port")
+	.name = "Intel USB4 PCIe Root Port",
 	.enable_dev = usb4_pcie_acpi_enable
 };

@@ -28,7 +28,13 @@
 #include <intelbasecode/ramtop.h>
 #endif
 
-static uint8_t temp_ram[CONFIG_FSP_TEMP_RAM_SIZE] __aligned(sizeof(uint64_t));
+/* Callbacks for SoC/Mainboard specific overrides */
+void __weak platform_fsp_memory_multi_phase_init_cb(uint32_t phase_index)
+{
+	/* Leave for the SoC/Mainboard to implement if necessary. */
+}
+
+static uint8_t temp_ram[CONFIG_FSP_TEMP_RAM_SIZE] __aligned(16);
 
 /*
  * Helper function to store the MRC cache version into CBMEM
@@ -84,7 +90,7 @@ static void do_fsp_post_memory_init(bool s3wake, uint32_t version)
 	romstage_handoff_init(s3wake);
 }
 
-static void fsp_fill_mrc_cache(FSPM_ARCH_UPD *arch_upd, uint32_t version)
+static void fsp_fill_mrc_cache(FSPM_ARCHx_UPD *arch_upd, uint32_t version)
 {
 	void *data;
 	size_t mrc_size;
@@ -127,7 +133,7 @@ static enum cb_err check_region_overlap(const struct memranges *ranges,
 	return CB_SUCCESS;
 }
 
-static enum cb_err setup_fsp_stack_frame(FSPM_ARCH_UPD *arch_upd,
+static enum cb_err setup_fsp_stack_frame(FSPM_ARCHx_UPD *arch_upd,
 		const struct memranges *memmap)
 {
 	uintptr_t stack_begin;
@@ -148,7 +154,7 @@ static enum cb_err setup_fsp_stack_frame(FSPM_ARCH_UPD *arch_upd,
 	return CB_SUCCESS;
 }
 
-static enum cb_err fsp_fill_common_arch_params(FSPM_ARCH_UPD *arch_upd,
+static enum cb_err fsp_fill_common_arch_params(FSPM_ARCHx_UPD *arch_upd,
 					bool s3wake, uint32_t version,
 					const struct memranges *memmap)
 {
@@ -160,7 +166,22 @@ static enum cb_err fsp_fill_common_arch_params(FSPM_ARCH_UPD *arch_upd,
 	 * and are not related to FSP stack at all.
 	 * Non-CAR FSP 2.0 platforms pass a DRAM location for the FSP stack.
 	 */
-	if (CONFIG(FSP_USES_CB_STACK) || !ENV_CACHE_AS_RAM) {
+	static const char * const fsp_bootmode_strings[] = {
+		[FSP_BOOT_WITH_FULL_CONFIGURATION] = "boot with full config",
+		[FSP_BOOT_WITH_MINIMAL_CONFIGURATION] = "boot with minimal config",
+		[FSP_BOOT_ASSUMING_NO_CONFIGURATION_CHANGES] = "boot assuming no config change",
+		[FSP_BOOT_ON_S4_RESUME] = "boot on s4 resume",
+		[FSP_BOOT_ON_S3_RESUME] = "boot on s3 resume",
+		[FSP_BOOT_ON_FLASH_UPDATE] = "boot on flash update",
+		[FSP_BOOT_IN_RECOVERY_MODE] = "boot in recovery mode",
+	};
+
+	if (CONFIG(FSP_USES_CB_STACK) && ENV_RAMINIT
+	    && CONFIG(FSP_SPEC_VIOLATION_XEON_SP_HEAP_WORKAROUND)) {
+		DECLARE_REGION(fspm_heap);
+		arch_upd->StackBase = (uintptr_t)_fspm_heap;
+		arch_upd->StackSize = (size_t)REGION_SIZE(fspm_heap);
+	} else if (CONFIG(FSP_USES_CB_STACK) || !ENV_CACHE_AS_RAM) {
 		arch_upd->StackBase = (uintptr_t)temp_ram;
 		arch_upd->StackSize = sizeof(temp_ram);
 	} else if (setup_fsp_stack_frame(arch_upd, memmap)) {
@@ -180,7 +201,12 @@ static enum cb_err fsp_fill_common_arch_params(FSPM_ARCH_UPD *arch_upd,
 			arch_upd->BootMode = FSP_BOOT_WITH_FULL_CONFIGURATION;
 	}
 
-	printk(BIOS_SPEW, "bootmode is set to: %d\n", arch_upd->BootMode);
+	if (arch_upd->BootMode < ARRAY_SIZE(fsp_bootmode_strings) &&
+		fsp_bootmode_strings[arch_upd->BootMode] != NULL)
+		printk(BIOS_SPEW, "bootmode is set to: %d (%s)\n", arch_upd->BootMode,
+			fsp_bootmode_strings[arch_upd->BootMode]);
+	else
+		printk(BIOS_SPEW, "bootmode is set to: %d (unknown mode)\n", arch_upd->BootMode);
 
 	return CB_SUCCESS;
 }
@@ -233,32 +259,83 @@ struct fspm_context {
  * MRC version is by reading the FSP_PRODUCDER_DATA_TABLES
  * from the FSP-M binary (by parsing the FSP header).
  */
-static uint32_t fsp_mrc_version(void)
+static uint32_t fsp_mrc_version(const struct fsp_header *hdr)
 {
 	uint32_t ver = 0;
 #if CONFIG(MRC_CACHE_USING_MRC_VERSION)
-	size_t fspm_blob_size;
-	void *fspm_blob_file = cbfs_map(CONFIG_FSP_M_CBFS, &fspm_blob_size);
-	if (!fspm_blob_file)
-		return 0;
-
+	void *fspm_blob_file = (void *)(uintptr_t)hdr->image_base;
 	FSP_PRODUCER_DATA_TABLES *ft = fspm_blob_file + FSP_HDR_OFFSET;
 	FSP_PRODUCER_DATA_TYPE2 *table2 = &ft->FspProduceDataType2;
 	size_t mrc_version_size = sizeof(table2->MrcVersion);
 	for (size_t i = 0; i < mrc_version_size; i++) {
 		ver |= (table2->MrcVersion[i] << ((mrc_version_size - 1) - i) * 8);
 	}
-	cbfs_unmap(fspm_blob_file);
 #endif
 	return ver;
 }
 
+static void fspm_return_value_handler(const char *context, efi_return_status_t status,
+		 bool die_on_error)
+{
+	if (status == FSP_SUCCESS)
+		return;
+
+	fsp_handle_reset(status);
+	if (die_on_error)
+		fsp_die_with_post_code(status, POSTCODE_RAM_FAILURE, "%s error", context);
+
+	fsp_printk(status, BIOS_SPEW, "%s", context);
+}
+
+static void fspm_multi_phase_init(const struct fsp_header *hdr)
+{
+	efi_return_status_t status;
+	fsp_multi_phase_init_fn fsp_multi_phase_init;
+	struct fsp_multi_phase_params multi_phase_params;
+	struct fsp_multi_phase_get_number_of_phases_params multi_phase_get_number;
+
+	if (!hdr->fsp_multi_phase_mem_init_entry_offset)
+		return;
+
+	fsp_multi_phase_init = (fsp_multi_phase_init_fn)(uintptr_t)
+		(hdr->image_base + hdr->fsp_multi_phase_mem_init_entry_offset);
+
+	post_code(POSTCODE_FSP_MULTI_PHASE_MEM_INIT_ENTRY);
+	timestamp_add_now(TS_FSP_MULTI_PHASE_MEM_INIT_START);
+
+	/* Get number of phases */
+	multi_phase_params.multi_phase_action = GET_NUMBER_OF_PHASES;
+	multi_phase_params.phase_index = 0;
+	multi_phase_params.multi_phase_param_ptr = &multi_phase_get_number;
+	status = fsp_multi_phase_init(&multi_phase_params);
+	fspm_return_value_handler("FspMultiPhaseMemInit NumberOfPhases", status, false);
+
+	/* Execute all phases */
+	for (uint32_t i = 1; i <= multi_phase_get_number.number_of_phases; i++) {
+		printk(BIOS_SPEW, "Executing Phase %u of FspMultiPhaseMemInit\n", i);
+		/*
+		 * Give SoC/mainboard a chance to perform any operation before
+		 * Multi Phase Execution
+		 */
+		platform_fsp_memory_multi_phase_init_cb(i);
+
+		multi_phase_params.multi_phase_action = EXECUTE_PHASE;
+		multi_phase_params.phase_index = i;
+		multi_phase_params.multi_phase_param_ptr = NULL;
+		status = fsp_multi_phase_init(&multi_phase_params);
+		fspm_return_value_handler("FspMultiPhaseMemInit Execute", status, false);
+	}
+
+	post_code(POSTCODE_FSP_MULTI_PHASE_MEM_INIT_EXIT);
+	timestamp_add_now(TS_FSP_MULTI_PHASE_MEM_INIT_END);
+}
+
 static void do_fsp_memory_init(const struct fspm_context *context, bool s3wake)
 {
-	uint32_t status;
+	efi_return_status_t status;
 	fsp_memory_init_fn fsp_raminit;
 	FSPM_UPD fspm_upd, *upd;
-	FSPM_ARCH_UPD *arch_upd;
+	FSPM_ARCHx_UPD *arch_upd;
 	uint32_t version;
 	const struct fsp_header *hdr = &context->header;
 	const struct memranges *memmap = &context->memmap;
@@ -266,7 +343,7 @@ static void do_fsp_memory_init(const struct fspm_context *context, bool s3wake)
 	post_code(POSTCODE_MEM_PREINIT_PREP_START);
 
 	if (CONFIG(MRC_CACHE_USING_MRC_VERSION))
-		version = fsp_mrc_version();
+		version = fsp_mrc_version(hdr);
 	else
 		version = fsp_memory_settings_version(hdr);
 
@@ -349,11 +426,10 @@ static void do_fsp_memory_init(const struct fspm_context *context, bool s3wake)
 	timestamp_add_now(TS_FSP_MEMORY_INIT_END);
 
 	/* Handle any errors returned by FspMemoryInit */
-	fsp_handle_reset(status);
-	if (status != FSP_SUCCESS) {
-		die_with_post_code(POSTCODE_RAM_FAILURE,
-			"FspMemoryInit returned with error 0x%08x!\n", status);
-	}
+	fspm_return_value_handler("FspMemoryInit", status, true);
+
+	if (CONFIG(PLATFORM_USES_FSP2_4))
+		fspm_multi_phase_init(hdr);
 
 	do_fsp_post_memory_init(s3wake, version);
 
@@ -386,16 +462,18 @@ void preload_fspm(void)
 	if (!CONFIG(CBFS_PRELOAD))
 		return;
 
-	printk(BIOS_DEBUG, "Preloading %s\n", CONFIG_FSP_M_CBFS);
-	cbfs_preload(CONFIG_FSP_M_CBFS);
+	const char *fspm_cbfs = soc_select_fsp_m_cbfs();
+	printk(BIOS_DEBUG, "Preloading %s\n", fspm_cbfs);
+	cbfs_preload(fspm_cbfs);
 }
 
 void fsp_memory_init(bool s3wake)
 {
 	struct range_entry prog_ranges[2];
 	struct fspm_context context;
+	const char *fspm_cbfs = soc_select_fsp_m_cbfs();
 	struct fsp_load_descriptor fspld = {
-		.fsp_prog = PROG_INIT(PROG_REFCODE, CONFIG_FSP_M_CBFS),
+		.fsp_prog = PROG_INIT(PROG_REFCODE, fspm_cbfs),
 		.arg = &context,
 	};
 	struct fsp_header *hdr = &context.header;

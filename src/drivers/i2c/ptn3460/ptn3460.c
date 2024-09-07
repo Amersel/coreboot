@@ -148,7 +148,7 @@ static void ptn3460_enable(struct device *dev)
 }
 
 struct chip_operations drivers_i2c_ptn3460_ops = {
-	CHIP_NAME("PTN3460")
+	.name = "PTN3460",
 	.enable_dev = ptn3460_enable
 };
 
@@ -172,8 +172,8 @@ static void ptn3460_early_init(void *unused)
 		return;
 	}
 	/* Initialize the I2C controller before it is used. */
-	if (ptn_dev->bus && ptn_dev->bus->dev->ops && ptn_dev->bus->dev->ops->init)
-		ptn_dev->bus->dev->ops->init(ptn_dev->bus->dev);
+	if (ptn_dev->upstream && ptn_dev->upstream->dev->ops && ptn_dev->upstream->dev->ops->init)
+		ptn_dev->upstream->dev->ops->init(ptn_dev->upstream->dev);
 	ptn3460_init(ptn_dev);
 }
 

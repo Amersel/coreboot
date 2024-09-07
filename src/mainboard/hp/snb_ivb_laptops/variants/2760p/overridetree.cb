@@ -7,8 +7,8 @@ chip northbridge/intel/sandybridge
 	device domain 0 on
 		subsystemid 0x103c 0x162a inherit
 
-		device pci 01.0 off end	# PCIe Bridge for discrete graphics
-		device pci 02.0 on  end	# Internal graphics
+		device ref peg10 off end
+		device ref igd on  end
 
 		chip southbridge/intel/bd82x6x # Intel Series 6 Cougar Point PCH
 			# mailbox at 0x200/0x201 and PM1 at 0x220
@@ -20,15 +20,41 @@ chip northbridge/intel/sandybridge
 			register "pcie_hotplug_map" = "{ 0, 1, 1, 0, 0, 0, 0, 0 }"
 			register "sata_port_map" = "0x21"
 
-			device pci 1c.0 on  end	# PCIe Port #1
-			device pci 1c.1 on  end	# PCIe Port #2, ExpressCard
-			device pci 1c.2 on  end	# PCIe Port #3, SD/MMC
-			device pci 1c.3 on  end	# WLAN
-			device pci 1c.4 off end	# PCIe Port #5
-			device pci 1c.5 off end	# PCIe Port #6
-			device pci 1c.6 on  end	# PCIe Port #7, WWAN
-			device pci 1c.7 off end	# PCIe Port #8
-			device pci 1f.0 on	# LPC bridge
+			register "usb_port_config" = "{
+				{ 1, 1, 0 },
+				{ 1, 1, 0 },
+				{ 1, 1, 1 },
+				{ 1, 1, 1 },
+				{ 1, 0, 2 },
+				{ 1, 1, 2 },
+				{ 0, 0, 3 },
+				{ 1, 0, 3 },
+				{ 1, 1, 4 },
+				{ 1, 0, 4 },
+				{ 0, 0, 5 },
+				{ 1, 1, 5 },
+				{ 0, 0, 6 },
+				{ 1, 1, 6 }
+			}"
+
+			device ref pcie_rp1 on  end
+			device ref pcie_rp2 on
+				smbios_slot_desc "SlotTypePcmcia" "SlotLengthShort"
+					"ExpressCard Slot" "SlotDataBusWidth1X"
+			end
+			device ref pcie_rp3 on  end	# SD/MMC
+			device ref pcie_rp4 on     	# WLAN
+				smbios_slot_desc "SlotTypePciExpressMini52pinWithoutBSKO"
+					"SlotLengthShort" "Mini PCIe" "SlotDataBusWidth1X"
+			end
+			device ref pcie_rp5 off end
+			device ref pcie_rp6 off end
+			device ref pcie_rp7 on     	# WWAN
+				smbios_slot_desc "SlotTypePciExpressMini52pinWithoutBSKO"
+					"SlotLengthLong" "Mini PCIe" "SlotDataBusWidth1X"
+			end
+			device ref pcie_rp8 off end
+			device ref lpc on
 				chip ec/hp/kbc1126
 					register "ec_data_port" = "0x60"
 					register "ec_cmd_port"  = "0x64"

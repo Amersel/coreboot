@@ -12,6 +12,7 @@
 #include <cpu/x86/cr.h>
 #include <cpu/x86/msr.h>
 #include <cpu/x86/lapic_def.h>
+#include <cpu/x86/64bit/entry64.inc>
 
 .code32
 .section ".module_parameters", "aw", @progbits
@@ -21,6 +22,8 @@ stack_size:
 stack_top:
 .long 0
 c_handler:
+.long 0
+cr3:
 .long 0
 /* apic_to_cpu_num is a table mapping the default APIC id to CPU num. If the
  * APIC id is found at the given index, the contiguous CPU number is index
@@ -195,7 +198,7 @@ align_stack:
 #if ENV_X86_64
 	mov	%ecx, %edi
 	/* entry64.inc preserves ebx, esi, edi, ebp */
-#include <cpu/x86/64bit/entry64.inc>
+	setup_longmode cr3
 	mov	%edi, %ecx
 
 

@@ -4,7 +4,6 @@
 #include <bootstate.h>
 #include <console/console.h>
 #include <cpu/x86/smm.h>
-#include <delay.h>
 #include <device/pci.h>
 #include <gpio.h>
 #include <intelblocks/cse.h>
@@ -23,23 +22,13 @@
 #include <soc/smbus.h>
 #include <soc/soc_chip.h>
 #include <soc/systemagent.h>
-#include <timer.h>
-
-static void pch_handle_sideband(config_t *config)
-{
-
-}
 
 static void pch_finalize(void)
 {
-	config_t *config = config_of_soc();
-
 	/* TCO Lock down */
 	tco_lockdown();
 
 	/* TODO: Add Thermal Configuration */
-
-	pch_handle_sideband(config);
 
 	pmc_clear_pmcon_sts();
 }

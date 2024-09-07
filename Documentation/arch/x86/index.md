@@ -2,12 +2,14 @@
 
 This section contains documentation about coreboot on x86 architecture.
 
-* [x86 PAE support](pae.md)
+```{toctree}
+:maxdepth: 1
+
+x86 PAE support <pae.md>
+```
 
 ## State of x86_64 support
-At the moment there's only experimental x86_64 support.
-The `emulation/qemu-i440fx` and `emulation/qemu-q35` boards do support
-*ARCH_RAMSTAGE_X86_64* , *ARCH_POSTCAR_X86_64* and *ARCH_ROMSTAGE_X86_64*.
+Some SOCs now support 64bit mode. Search for HAVE_X86_64_SUPPORT in Kconfig.
 
 In order to add support for x86_64 the following assumptions were made:
 * The CPU supports long mode
@@ -15,7 +17,6 @@ In order to add support for x86_64 the following assumptions were made:
 * All code that is to be run must be below 4GiB in physical memory
 * The high dword of pointers is always zero
 * The reference implementation is qemu
-* The CPU supports 1GiB hugepages
 * x86 payloads are loaded below 4GiB in physical memory and are jumped
   to in *protected mode*
 
@@ -43,8 +44,12 @@ Basic support for x86_64 has been implemented for QEMU mainboard target.
 
 ## Reference implementation
 The reference implementation is
-* [QEMU i440fx](../../mainboard/emulation/qemu-i440fx.md)
-* [QEMU Q35](../../mainboard/emulation/qemu-q35.md)
+```{toctree}
+:maxdepth: 1
+
+QEMU i440fx <../../mainboard/emulation/qemu-i440fx.md>
+QEMU Q35 <../../mainboard/emulation/qemu-q35.md>
+```
 
 ## TODO
 * Identity map memory above 4GiB in ramstage
@@ -54,7 +59,6 @@ The reference implementation is
 1. Fine grained page tables for SMM:
    * Must not have execute and write permissions for the same page.
    * Must allow only that TSEG pages can be marked executable
-   * Must reside in SMRAM
 2. Support 64bit PCI BARs above 4GiB
 3. Place and run code above 4GiB
 
@@ -62,13 +66,10 @@ The reference implementation is
 * Fix compilation errors
 * Test how well CAR works with x86_64 and paging
 * Improve mode switches
-* Test libgfxinit / VGA Option ROMs / FSP
 
-## Known bugs on real hardware
+## Known problems on real hardware
 
-According to Intel x86_64 mode hasn't been validated in CAR environments.
-Until now it could be verified on various Intel platforms and no issues have
-been found.
+Running VGA rom directly fails. Yabel works fine though.
 
 ## Known bugs on KVM enabled qemu
 

@@ -5,10 +5,14 @@
 #include <string.h>
 #include <symbols.h>
 
-#include <console/console.h>
-#include <arch/mmu.h>
-#include <arch/lib_helpers.h>
+#include <arch/barrier.h>
 #include <arch/cache.h>
+#include <arch/lib_helpers.h>
+#include <arch/mmu.h>
+#include <console/console.h>
+
+/* 12 hex digits (48 bits VA) plus 1 for exclusive upper bound. */
+#define ADDR_FMT "0x%013lx"
 
 /* This just caches the next free table slot (okay to do since they fill up from
  * bottom to top and can never be freed up again). It will reset to its initial
@@ -53,6 +57,25 @@ static uint64_t get_block_attr(unsigned long tag)
 	return attr;
 }
 
+/* Func : table_level_name
+ * Desc : Get the descriptions table level name from the given size.
+ */
+static const char *table_level_name(size_t xlat_size)
+{
+	switch (xlat_size) {
+	case L0_XLAT_SIZE:
+		return "L0";
+	case L1_XLAT_SIZE:
+		return "L1";
+	case L2_XLAT_SIZE:
+		return "L2";
+	case L3_XLAT_SIZE:
+		return "L3";
+	default:
+		return "";
+	}
+}
+
 /* Func : setup_new_table
  * Desc : Get next free table from TTB and set it up to match old parent entry.
  */
@@ -65,9 +88,12 @@ static uint64_t *setup_new_table(uint64_t desc, size_t xlat_size)
 	}
 
 	void *frame_base = (void *)(desc & XLAT_ADDR_MASK);
-	printk(BIOS_DEBUG, "Backing address range [%p:%p) with new page"
-	       " table @%p\n", frame_base, frame_base +
-	       (xlat_size << BITS_RESOLVED_PER_LVL), next_free_table);
+	const char *level_name = table_level_name(xlat_size);
+	printk(BIOS_DEBUG,
+	       "Backing address range [" ADDR_FMT ":" ADDR_FMT ") with new %s table @%p\n",
+	       (uintptr_t)frame_base,
+	       (uintptr_t)frame_base + (xlat_size << BITS_RESOLVED_PER_LVL),
+	       level_name, next_free_table);
 
 	if (!desc) {
 		memset(next_free_table, 0, GRANULE_SIZE);
@@ -212,8 +238,8 @@ void mmu_config_range(void *start, size_t size, uint64_t tag)
 	uint64_t base_addr = (uintptr_t)start;
 	uint64_t temp_size = size;
 
-	printk(BIOS_INFO, "Mapping address range [%p:%p) as ",
-	       start, start + size);
+	printk(BIOS_INFO, "Mapping address range [" ADDR_FMT ":" ADDR_FMT ") as ",
+	       (uintptr_t)start, (uintptr_t)start + size);
 	print_tag(BIOS_INFO, tag);
 
 	sanity_check(base_addr, temp_size);
@@ -224,7 +250,7 @@ void mmu_config_range(void *start, size_t size, uint64_t tag)
 
 	/* ARMv8 MMUs snoop L1 data cache, no need to flush it. */
 	dsb();
-	tlbiall_el3();
+	tlbiall();
 	dsb();
 	isb();
 }
@@ -245,15 +271,15 @@ void mmu_init(void)
 	assert((u8 *)root == _ttb);
 
 	/* Initialize TTBR */
-	raw_write_ttbr0_el3((uintptr_t)root);
+	raw_write_ttbr0((uintptr_t)root);
 
 	/* Initialize MAIR indices */
-	raw_write_mair_el3(MAIR_ATTRIBUTES);
+	raw_write_mair(MAIR_ATTRIBUTES);
 
 	/* Initialize TCR flags */
-	raw_write_tcr_el3(TCR_TOSZ | TCR_IRGN0_NM_WBWAC | TCR_ORGN0_NM_WBWAC |
-			  TCR_SH0_IS | TCR_TG0_4KB | TCR_PS_256TB |
-			  TCR_TBI_USED);
+	raw_write_tcr(TCR_TOSZ | TCR_IRGN0_NM_WBWAC | TCR_ORGN0_NM_WBWAC |
+				 TCR_SH0_IS | TCR_TG0_4KB | TCR_PS_256TB |
+				 TCR_TBI_USED);
 }
 
 /* Func : mmu_save_context
@@ -264,10 +290,10 @@ void mmu_save_context(struct mmu_context *mmu_context)
 	assert(mmu_context);
 
 	/* Back-up MAIR_ATTRIBUTES */
-	mmu_context->mair = raw_read_mair_el3();
+	mmu_context->mair = raw_read_mair();
 
 	/* Back-up TCR value */
-	mmu_context->tcr = raw_read_tcr_el3();
+	mmu_context->tcr = raw_read_tcr();
 }
 
 /* Func : mmu_restore_context
@@ -278,13 +304,13 @@ void mmu_restore_context(const struct mmu_context *mmu_context)
 	assert(mmu_context);
 
 	/* Restore TTBR */
-	raw_write_ttbr0_el3((uintptr_t)_ttb);
+	raw_write_ttbr0((uintptr_t)_ttb);
 
 	/* Restore MAIR indices */
-	raw_write_mair_el3(mmu_context->mair);
+	raw_write_mair(mmu_context->mair);
 
 	/* Restore TCR flags */
-	raw_write_tcr_el3(mmu_context->tcr);
+	raw_write_tcr(mmu_context->tcr);
 
 	/* invalidate tlb since ttbr is updated. */
 	tlb_invalidate_all();
@@ -293,10 +319,10 @@ void mmu_restore_context(const struct mmu_context *mmu_context)
 void mmu_enable(void)
 {
 	assert_correct_ttb_mapping(_ttb);
-	assert_correct_ttb_mapping(_ettb - 1);
+	assert_correct_ttb_mapping((void *)((uintptr_t)_ettb - 1));
 
-	uint32_t sctlr = raw_read_sctlr_el3();
-	sctlr |= SCTLR_C | SCTLR_M | SCTLR_I;
-	raw_write_sctlr_el3(sctlr);
+	uint32_t sctlr = raw_read_sctlr();
+	raw_write_sctlr(sctlr | SCTLR_C | SCTLR_M | SCTLR_I);
+
 	isb();
 }

@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 if BOARD_INTEL_STRAGO
 
 config BOARD_SPECIFIC_OPTIONS
@@ -35,7 +37,7 @@ config VGA_BIOS_ID
 	default "8086,22b0"
 	help
 	  The VGA_BIOS_ID for the C0 version of the video BIOS is hardcoded
-	  in soc/intel/braswell/Makefile.inc as 8086,22b1
+	  in soc/intel/braswell/Makefile.mk as 8086,22b1
 
 config CBFS_SIZE
 	default 0x200000

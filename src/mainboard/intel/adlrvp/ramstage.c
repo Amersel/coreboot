@@ -25,6 +25,7 @@ const struct cpu_power_limits limits[] = {
 	{ PCI_DID_INTEL_ADL_N_ID_2,  6, 3000,  6000,  25000,  25000,  78000 },
 	{ PCI_DID_INTEL_ADL_N_ID_3,  6, 3000,  6000,  25000,  25000,  78000 },
 	{ PCI_DID_INTEL_ADL_N_ID_4,  6, 3000,  6000,  25000,  25000,  78000 },
+	{ PCI_DID_INTEL_ADL_N_ID_5,  6, 3000,  6000,  25000,  25000,  78000 },
 };
 
 WEAK_DEV_PTR(dptf_policy);
@@ -80,8 +81,7 @@ static const struct board_id_iom_port_config {
 static void variant_update_typec_init_config(void)
 {
 	/* Skip filling aux bias gpio pads for Windows SKUs */
-	if (!(CONFIG(BOARD_INTEL_ADLRVP_P_EXT_EC) || CONFIG(BOARD_INTEL_ADLRVP_M_EXT_EC)
-		|| CONFIG(BOARD_INTEL_ADLRVP_RPL_EXT_EC)))
+	if (!(CONFIG(BOARD_INTEL_ADLRVP_P_EXT_EC) || CONFIG(BOARD_INTEL_ADLRVP_RPL_EXT_EC)))
 		return;
 
 	config_t *config = config_of_soc();

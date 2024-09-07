@@ -4,10 +4,6 @@ mainmenu "coreboot configuration"
 
 menu "General setup"
 
-config COREBOOT_BUILD
-	bool
-	default y
-
 config LOCALVERSION
 	string "Local version string"
 	help
@@ -78,7 +74,7 @@ config COMPILER_GCC
 
 config COMPILER_LLVM_CLANG
 	bool "LLVM/clang"
-	depends on ALLOW_EXPERIMENTAL_CLANG || ARCH_SUPPORTS_CLANG
+	depends on ALLOW_EXPERIMENTAL_CLANG || !CLANG_UNSUPPORTED
 	help
 	  Use LLVM/clang to build coreboot.  To use this, you must build the
 	  coreboot version of the clang compiler.  Run the command
@@ -89,15 +85,15 @@ config COMPILER_LLVM_CLANG
 
 endchoice
 
-config ARCH_SUPPORTS_CLANG
+config CLANG_UNSUPPORTED
 	bool
 	help
-	  Opt-in flag for architectures that generally work well with CLANG.
-	  By default the option would be hidden.
+	  Set this flag on platforms that do not support building with the
+	  clang compiler.
 
 config ALLOW_EXPERIMENTAL_CLANG
 	bool "Allow experimental LLVM/Clang"
-	depends on !ARCH_SUPPORTS_CLANG
+	depends on CLANG_UNSUPPORTED
 	help
 	  On some architectures CLANG does not work that well.
 	  Use this only to try to get CLANG working.
@@ -113,13 +109,19 @@ config ANY_TOOLCHAIN
 
 config CCACHE
 	bool "Use ccache to speed up (re)compilation"
-	default n
 	help
 	  Enables the use of ccache for faster builds.
 
 	  Requires the ccache utility in your system $PATH.
 
 	  For details see https://ccache.samba.org.
+
+config LTO
+	bool "Use link time optimization (LTO) (experimental)"
+	default n
+	help
+	  Compile with link time optimization. This can often decrease the
+	  final binary size, but may increase compilation time.
 
 config IWYU
 	bool "Test platform with include-what-you-use"
@@ -242,6 +244,13 @@ config COMPRESS_BOOTBLOCK
 	  SoC memlayout and possibly extra support code, it should not be
 	  user-selectable. (There's no real point in offering this to the user
 	  anyway... if it works and saves boot time, you would always want it.)
+
+config SEPARATE_ROMSTAGE
+	bool "Build a separate romstage"
+	help
+	  Build a separate romstage that is loaded by bootblock. With this
+	  option disabled the romstage sources are linked inside the bootblock
+	  as a single stage.
 
 config INCLUDE_CONFIG_FILE
 	bool "Include the coreboot .config file into the ROM image"
@@ -504,42 +513,38 @@ config BOOTSPLASH_CONVERT_COLORSWAP
 	  If your colors seem all wrong, try this option.
 
 config FW_CONFIG
-	bool "Firmware Configuration Probing"
-	default n
+	bool
 	help
 	  Enable support for probing devices with fw_config.  This is a simple
 	  bitmask broken into fields and options for probing.
+	  Select this option in the Mainboard Kconfig.
 
 config FW_CONFIG_SOURCE_CHROMEEC_CBI
-	bool "Obtain Firmware Configuration value from Google Chrome EC CBI"
+	bool
 	depends on FW_CONFIG && EC_GOOGLE_CHROMEEC
-	default n
 	help
 	  This option tells coreboot to read the firmware configuration value
 	  from the Google Chrome Embedded Controller CBI interface.  This source
 	  is not tried if FW_CONFIG_SOURCE_CBFS is enabled and the value was
 	  found in CBFS.
+	  Select this option in the Mainboard Kconfig.
 
 config FW_CONFIG_SOURCE_CBFS
 	bool "Obtain Firmware Configuration value from CBFS"
 	depends on FW_CONFIG
-	default n
 	help
 	  With this option enabled coreboot will look for the 32bit firmware
 	  configuration value in CBFS at the selected prefix with the file name
-	  "fw_config".  This option will override other sources and allow the
-	  local image to preempt the mainboard selected source and can be used as
-	  FW_CONFIG_SOURCE_CHROMEEC_CBI fallback option.
+	  "fw_config".  This option gets run if no value is found with CBI, so acts
+	  as a FW_CONFIG_SOURCE_CHROMEEC_CBI fallback option.
 
 config FW_CONFIG_SOURCE_VPD
 	bool "Obtain Firmware Configuration value from VPD"
 	depends on FW_CONFIG && VPD
-	default n
 	help
 	  With this option enabled coreboot will look for the 32bit firmware
-	  configuration value in VPD key name "fw_config".  This option will
-	  override other sources and allow the local image to preempt the mainboard
-	  selected source and can be used for other FW_CONFIG_SOURCEs fallback option.
+	  configuration value in VPD key name "fw_config".  This option runs if no
+	  FW_CONFIG value is set by either CBI or CBFS.
 
 config HAVE_RAMPAYLOAD
 	bool
@@ -898,6 +903,7 @@ menu "System tables"
 config GENERATE_MP_TABLE
 	prompt "Generate an MP table" if HAVE_MP_TABLE
 	bool
+	depends on !ECAM_MMCONF_SUPPORT || ECAM_MMCONF_BUS_NUMBER <= 256
 	default HAVE_MP_TABLE
 	help
 	  Generate an MP table (conforming to the Intel MultiProcessor
@@ -915,8 +921,9 @@ config GENERATE_PIRQ_TABLE
 	  If unsure, say Y.
 
 config GENERATE_SMBIOS_TABLES
-	depends on ARCH_X86
+	depends on ARCH_X86 || ARCH_ARM64
 	bool "Generate SMBIOS tables"
+	default n if ARCH_ARM64
 	default y
 	help
 	  Generate SMBIOS tables for this board.
@@ -1000,6 +1007,9 @@ menu "Debugging"
 comment "CPU Debug Settings"
 source "src/cpu/*/Kconfig.debug_cpu"
 
+comment "Vendorcode Debug Settings"
+	source "src/vendorcode/*/*/Kconfig.debug"
+
 comment "BLOB Debug Settings"
 source "src/drivers/intel/fsp*/Kconfig.debug_blob"
 
@@ -1009,7 +1019,8 @@ comment "General Debug Settings"
 config GDB_STUB
 	bool "GDB debugging support"
 	default n
-	depends on DRIVERS_UART
+# FIXME Not implemented in long mode
+	depends on DRIVERS_UART && !USE_X86_64_SUPPORT
 	help
 	  If enabled, you will be able to set breakpoints for gdb debugging.
 	  See src/arch/x86/c_start.S for details.
@@ -1480,7 +1491,7 @@ config MEMLAYOUT_LD_FILE
 	  This variable allows SoC/mainboard to supply in a custom linker file
 	  if required. This determines the linker file used for all the stages
 	  (bootblock, romstage, verstage, ramstage, postcar) in
-	  src/arch/${ARCH}/Makefile.inc.
+	  src/arch/${ARCH}/Makefile.mk.
 
 ###############################################################################
 # Set default values for symbols created before mainboards.  This allows the
@@ -1519,9 +1530,13 @@ config HAVE_VERSTAGE
 
 config HAVE_ROMSTAGE
 	bool
+	depends on SEPARATE_ROMSTAGE
 	default y
 
 config HAVE_RAMSTAGE
 	bool
 	default n if RAMPAYLOAD
+	default y
+
+config SEPARATE_ROMSTAGE
 	default y

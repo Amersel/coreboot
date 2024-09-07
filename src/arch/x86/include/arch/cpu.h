@@ -48,8 +48,10 @@ static inline unsigned int cpuid_get_max_func(void)
 #define X86_VENDOR_UNKNOWN 0xff
 
 #define CPUID_FEATURE_PAE (1 << 6)
+#define CPUID_FEATURE_MCE (1 << 7)
+#define CPUID_FEATURE_MCA (1 << 14)
 #define CPUID_FEATURE_PSE36 (1 << 17)
-#define CPUID_FEAURE_HTT (1 << 28)
+#define CPUID_FEATURE_HTT (1 << 28)
 
 /* Structured Extended Feature Flags */
 #define CPUID_STRUCT_EXTENDED_FEATURE_FLAGS 0x7
@@ -213,7 +215,6 @@ static inline void get_fms(struct cpuinfo_x86 *c, uint32_t tfms)
 		c->x86 += (tfms >> 20) & 0xff;
 	if (c->x86 >= 0x6)
 		c->x86_model += ((tfms >> 16) & 0xF) << 4;
-
 }
 
 /* REP NOP (PAUSE) is a good thing to insert into busy-wait loops. */
@@ -328,6 +329,15 @@ uint8_t cpu_get_c_substate_support(const int state);
  * structure by calling CPUID.EAX=leaf and ECX=Cache Level.
  */
 bool fill_cpu_cache_info(uint8_t level, struct cpu_cache_info *info);
+
+/*
+ * Determines whether the number of cache sets is a power of two.
+ *
+ * Cache designs often favor power-of-two set counts for efficient indexing
+ * and addressing. This function checks if the provided cache configuration
+ * adheres to this practice.
+ */
+bool is_cache_sets_power_of_two(void);
 
 #if CONFIG(RESERVED_PHYSICAL_ADDRESS_BITS_SUPPORT)
 unsigned int get_reserved_phys_addr_bits(void);

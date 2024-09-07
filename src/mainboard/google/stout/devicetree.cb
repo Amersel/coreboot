@@ -17,7 +17,15 @@ chip northbridge/intel/sandybridge
 	register "gpu_cpu_backlight" = "0x1155"
 	register "gpu_pch_backlight" = "0x06100610"
 
-	register "max_mem_clock_mhz" = "666"
+	register "spd_addresses" = "{0x50, 0, 0x52, 0}"
+	register "ec_present" = "1"
+	# FIXME: Native raminit requires reduced max clock
+	register "max_mem_clock_mhz" = "CONFIG(USE_NATIVE_RAMINIT) ? 666 : 800"
+
+	register "usb3.mode" = "2" # Auto
+	register "usb3.hs_port_switch_mask" = "3" # Ports 0 & 1
+	register "usb3.preboot_support" = "0" # No PreOS boot support
+	register "usb3.xhci_streams" = "1" # Sure, lets have streams
 
 	chip cpu/intel/model_206ax
 		device cpu_cluster 0 on end
@@ -54,6 +62,23 @@ chip northbridge/intel/sandybridge
 
 			# Enable zero-based linear PCIe root port functions
 			register "pcie_port_coalesce" = "true"
+
+			register "usb_port_config" = "{
+				{1, 0, 0},  /* P0: USB 3.0 1  (OC0) */
+				{1, 0, 0},  /* P1: USB 3.0 2  (OC0) */
+				{0, 0, 0},  /* P2: Empty */
+				{1, 0, -1}, /* P3: Camera (no OC) */
+				{1, 0, -1}, /* P4: WLAN   (no OC) */
+				{1, 0, -1}, /* P5: WWAN   (no OC) */
+				{0, 0, 0},  /* P6: Empty */
+				{0, 0, 0},  /* P7: Empty */
+				{0, 0, 0},  /* P8: Empty */
+				{1, 0, 4},  /* P9: USB 2.0 (AUO4) (OC4) */
+				{0, 0, 0},  /* P10: Empty */
+				{0, 0, 0},  /* P11: Empty */
+				{0, 0, 0},  /* P12: Empty */
+				{1, 0, -1}, /* P13: Bluetooth (no OC) */
+			}"
 
 			device ref xhci on end # USB 3.0 Controller
 			device ref mei1 on end # Management Engine Interface 1

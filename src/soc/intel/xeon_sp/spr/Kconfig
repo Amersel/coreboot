@@ -3,7 +3,6 @@
 config SOC_INTEL_SAPPHIRERAPIDS_SP
 	bool
 	select FSP_NVS_DATA_POST_SILICON_INIT
-	select MICROCODE_BLOB_NOT_HOOKED_UP
 	select SOC_INTEL_MEM_MAPPED_PM_CONFIGURATION
 	select DISABLE_ACPI_HIBERNATE
 	select DEFAULT_X2APIC_RUNTIME
@@ -12,6 +11,11 @@ config SOC_INTEL_SAPPHIRERAPIDS_SP
 	select PLATFORM_USES_FSP2_3
 	select SOC_INTEL_CSE_SERVER_SKU
 	select XEON_SP_COMMON_BASE
+	select HAVE_IOAT_DOMAINS
+	select FSP_SPEC_VIOLATION_XEON_SP_HEAP_WORKAROUND
+	select UDK_202005_BINDING
+	select SOC_INTEL_HAS_CXL
+	select HAVE_X86_64_SUPPORT
 	help
 	  Intel Sapphire Rapids-SP support
 
@@ -23,7 +27,6 @@ config CHIPSET_DEVICETREE
 
 config FSP_HEADER_PATH
 	string "Location of FSP headers"
-	depends on MAINBOARD_USES_FSP2_0
 	default "src/vendorcode/intel/fsp/fsp2_0/sapphirerapids_sp"
 
 config MAX_CPUS
@@ -71,13 +74,6 @@ config FSP_M_RC_HEAP_SIZE
 	  allocated at 0xfe800000 (the CAR base) and consumes about 0x150000
 	  bytes of memory.
 
-config CPU_MICROCODE_CBFS_LOC
-	hex
-	default 0xffe0fdc0
-
-config CPU_MICROCODE_CBFS_LEN
-	hex
-	default 0x8c00
 
 config STACK_SIZE
 	hex
@@ -109,12 +105,6 @@ config SOC_INTEL_HAS_BIOS_DONE_MSR
 	def_bool y
 
 config SOC_INTEL_HAS_NCMEM
-	def_bool y
-
-config SOC_INTEL_HAS_CXL
-	def_bool y
-
-config SOC_INTEL_PCIE_64BIT_ALLOC
 	def_bool y
 
 config SOC_INTEL_MMAPVTD_ONLY_FOR_DPR
@@ -183,4 +173,12 @@ config ENABLE_RMT
 	help
 	  Enable Rank Margining Tool. This option is intended for debugging and
 	  validation and should normally be disabled.
+
+config RMT_MEM_POR_FREQ
+	bool "Enforce Plan Of Record restrictions for DDR5 frequency and voltage"
+	default n
+	depends on ENABLE_RMT
+	help
+	  When RMT is enabled. Select this option to enforce Intel Plan Of Record(POR)
+	  restriction on DDR5 frequency & voltage settings.
 endif

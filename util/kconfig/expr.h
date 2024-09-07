@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (C) 2002 Roman Zippel <zippel@linux-m68k.org>
  */
@@ -275,7 +275,6 @@ struct jump_key {
 	struct list_head entries;
 	size_t offset;
 	struct menu *target;
-	int index;
 };
 
 extern struct file *file_list;

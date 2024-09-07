@@ -36,7 +36,7 @@ my $exclude_dirs_and_files =
   '^build/\|^coreboot-builds/\|^configs/\|^util/\|^\.git/\|^payloads\|^Documentation\|^3rdparty'
   . '\|' .                            # directories to exclude when searching for used symbols
   '\.config\|\.txt$\|\.tex$\|\.tags\|/kconfig.h\|\.fmd'; #files to exclude when looking for symbols
-my $payload_files_to_check='payloads/Makefile.inc payloads/external/Makefile.inc';
+my $payload_files_to_check='payloads/Makefile.mk payloads/external/Makefile.mk';
 my $config_file = "";                 # name of config file to load symbol values from.
 my @wholeconfig;                      # document the entire kconfig structure
 my %loaded_files;                     # list of each Kconfig file loaded
@@ -46,7 +46,7 @@ my %used_symbols;                     # structure of symbols used in the tree, a
 my @collected_symbols;                #
 my %selected_symbols;                 # list of symbols that are enabled by a select statement
 
-my $exclude_unused = '_SPECIFIC_OPTIONS|SOUTH_BRIDGE_OPTIONS';
+my $exclude_unused = '_SPECIFIC_OPTIONS';
 
 Main();
 
@@ -291,8 +291,9 @@ sub check_config_macro {
                         show_error( "CONFIG($symbol) used at $file:$lineno."
                               . "  CONFIG() is only valid for type 'bool', not '$symbols{$symbol}{type}'." );
                     }
-                }
-                else {
+                } elsif ($symbol =~ /\S+##\S+/ ) {
+                    show_warning( "C preprocessor macro CONFIG_$symbol found at $file:$lineno." );
+                } else {
                     show_error("CONFIG() used on unknown value ($symbol) at $file:$lineno.");
                 }
             }

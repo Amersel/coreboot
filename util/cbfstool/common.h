@@ -148,14 +148,14 @@ uint32_t string_to_arch(const char *arch_string);
 
 /* Compress in_len bytes from in, storing the result at out, returning the
  * resulting length in out_len.
- * Returns 0 on error,
+ * Returns 0 on success,
  *         != 0 otherwise, depending on the compressing function.
  */
 typedef int (*comp_func_ptr) (char *in, int in_len, char *out, int *out_len);
 
 /* Decompress in_len bytes from in, storing the result at out, up to out_len
  * bytes.
- * Returns 0 on error,
+ * Returns 0 on success,
  *         != 0 otherwise, depending on the decompressing function.
  */
 typedef int (*decomp_func_ptr) (char *in, int in_len, char *out, int out_len,
@@ -178,8 +178,8 @@ int parse_bzImage_to_payload(const struct buffer *input,
 			     char *cmdline, enum cbfs_compression algo);
 int parse_flat_binary_to_payload(const struct buffer *input,
 				 struct buffer *output,
-				 uint32_t loadaddress,
-				 uint32_t entrypoint,
+				 uint64_t loadaddress,
+				 uint64_t entrypoint,
 				 enum cbfs_compression algo);
 /* cbfs-mkstage.c */
 int parse_elf_to_stage(const struct buffer *input, struct buffer *output,

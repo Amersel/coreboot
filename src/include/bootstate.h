@@ -3,7 +3,6 @@
 #define BOOTSTATE_H
 
 #include <assert.h>
-#include <string.h>
 #include <stddef.h>
 /* Only declare main() when in ramstage. */
 #if ENV_RAMSTAGE
@@ -51,7 +50,7 @@
  *          |
  *    BS_OS_RESUME_CHECK -------- BS_OS_RESUME
  *          |                          |
- *    BS_WRITE_TABLES              os handoff
+ *    BS_WRITE_TABLES              OS handoff
  *          |
  *    BS_PAYLOAD_LOAD
  *          |

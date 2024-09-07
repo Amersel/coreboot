@@ -3,8 +3,8 @@
 #include <acpi/acpi_device.h>
 #include <acpi/acpigen.h>
 #include <console/console.h>
-#include <device/path.h>
-#include <string.h>
+#include <stdio.h>
+
 #include "chip.h"
 
 static bool uart_acpi_add_gpios_to_crs(struct drivers_uart_acpi_config *config)
@@ -169,6 +169,6 @@ static void uart_acpi_enable(struct device *dev)
 }
 
 struct chip_operations drivers_uart_acpi_ops = {
-	CHIP_NAME("ACPI UART Device")
+	.name = "ACPI UART Device",
 	.enable_dev = uart_acpi_enable
 };

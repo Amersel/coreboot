@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 config BOARD_PURISM_BASEBOARD_LIBREM_CNL
 	def_bool n
 	select BOARD_ROMSIZE_KB_16384
@@ -11,7 +13,6 @@ config BOARD_PURISM_BASEBOARD_LIBREM_CNL
 	select SOC_INTEL_COMMON_BLOCK_HDA_VERB
 	select SPD_CACHE_IN_FMAP
 	select SPD_READ_BY_WORD
-	select USE_LEGACY_8254_TIMER
 
 config BOARD_PURISM_LIBREM_MINI
 	select BOARD_PURISM_BASEBOARD_LIBREM_CNL
@@ -33,7 +34,7 @@ config BOARD_PURISM_LIBREM_14
 	select EC_LIBREM_EC
 	select MEMORY_MAPPED_TPM
 	select MAINBOARD_HAS_TPM1
-	select SOC_INTEL_COMETLAKE_1
+	select SOC_INTEL_COMETLAKE_1_2
 	select SYSTEM_TYPE_LAPTOP
 
 if BOARD_PURISM_BASEBOARD_LIBREM_CNL
@@ -112,3 +113,7 @@ config ENABLE_EC_UART1
 	  U81 on the bottom of the board near the front edge; the IC is not
 	  populated.  TX is pin 14, RX is pin 19.  The signals are 3.3V (do NOT
 	  connect directly to an RS-232 serial port).
+
+config EDK2_BOOT_TIMEOUT
+	int
+	default 4 if BOARD_PURISM_LIBREM_MINI || BOARD_PURISM_LIBREM_MINI_V2

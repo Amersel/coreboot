@@ -15,10 +15,7 @@ chip soc/intel/alderlake
 	register "sagv"				= "SaGv_Enabled"
 
 	# FSP Silicon
-	register "eist_enable"			= "1"
-
-	register "cnvi_bt_core"			= "1"
-	register "cnvi_bt_audio_offload"	= "1"
+	register "eist_enable"			= "true"
 
 	# Serial I/O
 	register "serial_io_i2c_mode" = "{
@@ -41,8 +38,6 @@ chip soc/intel/alderlake
 	register "pmc_gpe0_dw2"			= "GPP_E"
 
 	# Device Tree
-	device cpu_cluster 0 on end
-
 	device domain 0 on
 		device ref igpu		on
 			register "ddi_portA_config"		= "1"
@@ -87,12 +82,6 @@ chip soc/intel/alderlake
 			end
 		end
 		device ref shared_sram	on  end
-		device ref cnvi_wifi	on
-			chip drivers/wifi/generic
-				register "wake"			= "GPE0_PME_B0"
-				device generic 0 on end
-			end
-		end
 		device ref sata		on
 			register "sata_salp_support"		= "1"
 			register "sata_ports_enable[1]"		= "1"
@@ -124,6 +113,7 @@ chip soc/intel/alderlake
 				.clk_src			= 1,
 				.clk_req			= 1,
 				.flags				= PCIE_RP_LTR | PCIE_RP_AER,
+				.pcie_rp_detect_timeout_ms	= 50,
 
 			}"
 			smbios_slot_desc			"SlotTypeM2Socket3"
@@ -171,7 +161,20 @@ chip soc/intel/alderlake
 				device pnp 4e.19 off end			# Power Management Channel 5
 			end
 		end
+		device ref pmc		hidden
+			chip drivers/intel/pmc_mux
+				device generic 0 on
+					chip drivers/intel/pmc_mux/conn
+						use usb2_port1 as usb2_port
+						use usb3_port3 as usb3_port
+						device generic 0 alias conn0 on end
+					end
+				end
+			end
+		end
 		device ref hda		on
+			subsystemid 0x1e50 0x7007
+			register "pch_hda_sdi_enable[0]"		= "true"
 			register "pch_hda_audio_link_hda_enable"	= "1"
 			register "pch_hda_idisp_codec_enable"		= "1"
 			register "pch_hda_idisp_link_frequency"		= "HDA_LINKFREQ_96MHZ"

@@ -3,6 +3,22 @@
 /* Create EFI equivalent datatype in coreboot based on UEFI specification */
 #ifndef __EFI_DATATYPE_H__
 #define __EFI_DATATYPE_H__
+
+/*
+ * EDK2 EFIAPI macro definition relies on compiler flags such as __GNUC__ which
+ * is not working well when included by coreboot. While it has no side-effect on
+ * i386 because the C calling convention used by coreboot and FSP are the same,
+ * it breaks on x86_64 because FSP/UEFI uses the Microsoft x64 calling
+ * convention while coreboot uses the System V AMD64 ABI.
+ *
+ * Fortunately, EDK2 header allows to override EFIAPI.
+ */
+#if CONFIG(PLATFORM_USES_FSP2_X86_32)
+#define EFIAPI __attribute__((regparm(0)))
+#else
+#define EFIAPI __attribute__((__ms_abi__))
+#endif
+
 #include <Base.h>
 #include <Uefi/UefiBaseType.h>
 
@@ -34,6 +50,9 @@ typedef BMP_IMAGE_HEADER efi_bmp_image_header;
 typedef BMP_COLOR_MAP efi_bmp_color_map;
 #endif
 
+/* EFIAPI calling convention */
+#define __efiapi EFIAPI
+
 /* Basic Data types */
 /* 8-byte unsigned value. */
 typedef UINT64 efi_uint64_t;
@@ -62,7 +81,11 @@ typedef UINTN efi_uintn_t;
 /* Signed value of native width. */
 typedef INTN efi_intn_t;
 /* Status codes common to all execution phases */
-typedef EFI_STATUS efi_return_status_t;
+#if CONFIG(PLATFORM_USES_FSP2_X86_32)
+typedef UINT32 efi_return_status_t;
+#else
+typedef UINT64 efi_return_status_t;
+#endif
 /* Data structure for EFI_PHYSICAL_ADDRESS */
 typedef EFI_PHYSICAL_ADDRESS efi_physical_address;
 /* 128-bit buffer containing a unique identifier value */
@@ -74,6 +97,6 @@ typedef EFI_GUID efi_guid_t;
  */
 typedef
 void
-(EFIAPI *efi_ap_procedure)(void *buffer);
+(__efiapi *efi_ap_procedure)(void *buffer);
 
 #endif

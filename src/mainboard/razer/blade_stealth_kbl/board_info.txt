@@ -1,5 +1,5 @@
 Vendor name: RAZER
-Board name: Blade Stealth KabyLake (H2U)
+Board name: Blade Stealth KabyLake
 Category: laptop
 ROM package: SOIC8
 ROM protocol: SPI

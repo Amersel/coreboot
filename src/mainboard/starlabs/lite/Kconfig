@@ -1,3 +1,5 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 config BOARD_STARLABS_LITE_SERIES
 	def_bool n
 	select BOARD_ROMSIZE_KB_8192
@@ -47,6 +49,15 @@ config DEVICETREE
 config EC_GPE_SCI
 	default 0x26
 
+config EC_STARLABS_BATTERY_MODEL
+	default "3172120X2-I116CG"
+
+config EC_STARLABS_BATTERY_TYPE
+	default "LiP"
+
+config EC_STARLABS_BATTERY_OEM
+	default "Apower Electronics"
+
 config EC_VARIANT_DIR
 	default "glk"  if BOARD_STARLABS_LITE_GLK
 	default "glkr" if BOARD_STARLABS_LITE_GLKR
@@ -70,6 +81,9 @@ config MAINBOARD_PART_NUMBER
 config MAINBOARD_SMBIOS_PRODUCT_NAME
 	string
 	default "Lite"
+
+config POWER_STATE_DEFAULT_ON_AFTER_FAILURE
+	default n
 
 config TRACKPAD_INTERRUPT
 	hex

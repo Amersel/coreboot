@@ -6,6 +6,9 @@
 #include <hob_iiouds.h>
 #include <hob_memmap.h>
 
+#define xSTACK_RES STACK_RES
+#define xIIO_RESOURCE_INSTANCE IIO_RESOURCE_INSTANCE
+
 /*
  * Address of the MRC status byte in CMOS. Should be reserved
  * in mainboards' cmos.layout and not covered by checksum.
@@ -22,11 +25,16 @@
 #endif
 #endif
 
+struct iiostack_resource {
+	uint8_t     no_of_stacks;
+	STACK_RES   res[CONFIG_MAX_SOCKET * MAX_IIO_STACK];
+};
+
+void get_iiostack_info(struct iiostack_resource *info);
+
 const struct SystemMemoryMapHob *get_system_memory_map(void);
 
-uint8_t get_stack_busno(const uint8_t stack);
-uint32_t get_socket_stack_busno(uint32_t socket, uint32_t stack);
-uint32_t get_socket_ubox_busno(uint32_t socket);
+uint8_t socket0_get_ubox_busno(const uint8_t stack);
 uint8_t get_cxl_node_count(void);
 
 int soc_get_stack_for_port(int port);

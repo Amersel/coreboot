@@ -13,12 +13,15 @@
 #include <fsp/util.h>
 #include <hob_iiouds.h>
 #include <hob_memmap.h>
+#include <spd.h>
+#include <soc/chip_common.h>
 #include <soc/romstage.h>
 #include <soc/pci_devs.h>
 #include <soc/soc_pch.h>
-#include <soc/intel/common/smbios.h>
 #include <string.h>
+#include <soc/config.h>
 #include <soc/soc_util.h>
+#include <soc/util.h>
 #include <soc/ddr.h>
 
 #include "chip.h"
@@ -32,78 +35,10 @@ void __weak mainboard_memory_init_params(FSPM_UPD *mupd)
 	/* Default weak implementation */
 }
 
-bool __weak mainboard_dimm_slot_exists(uint8_t socket, uint8_t channel, uint8_t dimm)
+static void config_upd(FSPM_UPD *mupd)
 {
-	return false;
-}
-
-/*
- * Search from VPD_RW first then VPD_RO for UPD config variables,
- * overwrites them from VPD if it's found.
- */
-static void config_upd_from_vpd(FSPM_UPD *mupd)
-{
-	uint8_t val;
-	int val_int, cxl_mode;
-
-	/* Send FSP log message to SOL */
-	if (vpd_get_bool(FSP_LOG, VPD_RW_THEN_RO, &val))
-		mupd->FspmConfig.SerialIoUartDebugEnable = val;
-	else {
-		printk(BIOS_INFO,
-		       "Not able to get VPD %s, default set "
-		       "SerialIoUartDebugEnable to %d\n",
-		       FSP_LOG, FSP_LOG_DEFAULT);
-		mupd->FspmConfig.SerialIoUartDebugEnable = FSP_LOG_DEFAULT;
-	}
-
-	if (mupd->FspmConfig.SerialIoUartDebugEnable) {
-		/* FSP memory debug log level */
-		if (vpd_get_int(FSP_MEM_LOG_LEVEL, VPD_RW_THEN_RO, &val_int)) {
-			if (val_int < 0 || val_int > 4) {
-				printk(BIOS_DEBUG,
-				       "Invalid serialDebugMsgLvl value from VPD: "
-				       "%d\n",
-				       val_int);
-				val_int = FSP_MEM_LOG_LEVEL_DEFAULT;
-			}
-			printk(BIOS_DEBUG, "Setting serialDebugMsgLvl to %d\n", val_int);
-			mupd->FspmConfig.serialDebugMsgLvl = (uint8_t)val_int;
-		} else {
-			printk(BIOS_INFO,
-			       "Not able to get VPD %s, default set "
-			       "DebugPrintLevel to %d\n",
-			       FSP_MEM_LOG_LEVEL, FSP_MEM_LOG_LEVEL_DEFAULT);
-			mupd->FspmConfig.serialDebugMsgLvl = FSP_MEM_LOG_LEVEL_DEFAULT;
-		}
-		/* If serialDebugMsgLvl less than 1, disable FSP memory train results */
-		if (mupd->FspmConfig.serialDebugMsgLvl <= 1) {
-			printk(BIOS_DEBUG, "Setting serialDebugMsgLvlTrainResults to 0\n");
-			mupd->FspmConfig.serialDebugMsgLvlTrainResults = 0x0;
-		}
-	}
-
-	/* FSP Dfx PMIC Secure mode */
-	if (vpd_get_int(FSP_PMIC_SECURE_MODE, VPD_RW_THEN_RO, &val_int)) {
-		if (val_int < 0 || val_int > 2) {
-			printk(BIOS_DEBUG,
-			       "Invalid PMIC secure mode value from VPD: "
-			       "%d\n",
-			       val_int);
-			val_int = FSP_PMIC_SECURE_MODE_DEFAULT;
-		}
-		printk(BIOS_DEBUG, "Setting PMIC secure mode to %d\n", val_int);
-		mupd->FspmConfig.DfxPmicSecureMode = (uint8_t)val_int;
-	} else {
-		printk(BIOS_INFO,
-		       "Not able to get VPD %s, default set "
-		       "PMIC secure mode to %d\n",
-		       FSP_PMIC_SECURE_MODE, FSP_PMIC_SECURE_MODE_DEFAULT);
-		mupd->FspmConfig.DfxPmicSecureMode = FSP_PMIC_SECURE_MODE_DEFAULT;
-	}
-
-	cxl_mode = get_cxl_mode_from_vpd();
-	if (cxl_mode == CXL_SYSTEM_MEMORY || cxl_mode == CXL_SPM)
+	int cxl_mode = get_cxl_mode();
+	if (cxl_mode == XEONSP_CXL_SYS_MEM || cxl_mode == XEONSP_CXL_SP_MEM)
 		mupd->FspmConfig.DfxCxlType3LegacyEn = 1;
 	else /* Disable CXL */
 		mupd->FspmConfig.DfxCxlType3LegacyEn = 0;
@@ -119,7 +54,7 @@ static void initialize_iio_upd(FSPM_UPD *mupd)
 {
 	unsigned int port, socket;
 
-	mupd->FspmConfig.IioPcieConfigTablePtr = (UINT32)spr_iio_bifur_table;
+	mupd->FspmConfig.IioPcieConfigTablePtr = (uintptr_t)spr_iio_bifur_table;
 	/* MAX_SOCKET is the maximal number defined by FSP, currently is 4. */
 	mupd->FspmConfig.IioPcieConfigTableNumber = MAX_SOCKET;
 	UPD_IIO_PCIE_PORT_CONFIG *PciePortConfig =
@@ -135,7 +70,7 @@ static void initialize_iio_upd(FSPM_UPD *mupd)
 		PciePortConfig[socket].PcieMaxReadRequestSize = 0x5;
 	}
 
-	mupd->FspmConfig.DeEmphasisPtr = (UINT32)deemphasis_list;
+	mupd->FspmConfig.DeEmphasisPtr = (uintptr_t)deemphasis_list;
 	mupd->FspmConfig.DeEmphasisNumber = MAX_SOCKET * MAX_IIO_PORTS_PER_SOCKET;
 	UINT8 *DeEmphasisConfig = (UINT8 *)deemphasis_list;
 
@@ -154,7 +89,6 @@ void soc_config_iio(FSPM_UPD *mupd, const UPD_IIO_PCIE_PORT_CONFIG_ENTRY
 	mupd->FspmConfig.IioPcieConfigTableNumber = CONFIG_MAX_SOCKET; /* Set by mainboard */
 
 	for (socket = 0; socket < CONFIG_MAX_SOCKET; socket++) {
-
 		/* Configures DMI, IOU0 ~ IOU4 */
 		for (port = 0; port < IIO_PORT_SETTINGS; port++) {
 			const UPD_IIO_PCIE_PORT_CONFIG_ENTRY *port_cfg =
@@ -211,6 +145,35 @@ void platform_fsp_memory_init_params_cb(FSPM_UPD *mupd, uint32_t version)
 	m_cfg->mmiohBase = 0x2000;
 	m_cfg->mmiohSize = 0x3;
 
+	/*
+	 * By default FSP will set MMCFG size to 256 buses on 1S and 2S platforms
+	 * and 512 buses on 4S platforms. 512 buses are implemented by using multiple
+	 * PCI segment groups and is likely incompatible with legacy software stacks.
+	 */
+	switch (CONFIG_ECAM_MMCONF_BUS_NUMBER) {
+	case 2048:
+		m_cfg->mmCfgSize = 5;
+		break;
+	case 1024:
+		m_cfg->mmCfgSize = 4;
+		break;
+	case  512:
+		m_cfg->mmCfgSize = 3;
+		break;
+	case  256:
+		m_cfg->mmCfgSize = 2;
+		break;
+	case  128:
+		m_cfg->mmCfgSize = 1;
+		break;
+	case   64:
+		m_cfg->mmCfgSize = 0;
+		break;
+	default:
+		printk(BIOS_ERR, "%s: Unsupported ECAM_MMCONF_BUS_NUMBER = %d\n",
+			__func__, CONFIG_ECAM_MMCONF_BUS_NUMBER);
+	}
+
 	m_cfg->BoardTypeBitmask = 0x11111133;
 
 	/*
@@ -249,9 +212,8 @@ void platform_fsp_memory_init_params_cb(FSPM_UPD *mupd, uint32_t version)
 		printk(BIOS_DEBUG, "CPU is D stepping, setting package C state to C0/C1\n");
 		mupd->FspmConfig.CpuPmPackageCState = 0;
 	}
-	/* Set some common UPDs from VPD, mainboard can still override them if needed */
-	if (CONFIG(VPD))
-		config_upd_from_vpd(mupd);
+
+	config_upd(mupd);
 	initialize_iio_upd(mupd);
 	mainboard_memory_init_params(mupd);
 
@@ -263,7 +225,7 @@ void platform_fsp_memory_init_params_cb(FSPM_UPD *mupd, uint32_t version)
 		UPD_IIO_PCIE_PORT_CONFIG *iio_pcie_cfg;
 		int socket;
 
-		iio_pcie_cfg = (UPD_IIO_PCIE_PORT_CONFIG *)mupd->FspmConfig.IioPcieConfigTablePtr;
+		iio_pcie_cfg = (UPD_IIO_PCIE_PORT_CONFIG *)(uintptr_t)mupd->FspmConfig.IioPcieConfigTablePtr;
 
 		for (socket = 0; socket < MAX_SOCKET; socket++)
 			iio_pcie_cfg[socket].PcieGlobalAspm = 0;
@@ -279,7 +241,8 @@ void platform_fsp_memory_init_params_cb(FSPM_UPD *mupd, uint32_t version)
 		mupd->FspmConfig.serialDebugMsgLvl = 0x3;
 		mupd->FspmConfig.AllowedSocketsInParallel = 0x1;
 		mupd->FspmConfig.EnforcePopulationPor = 0x1;
-		mupd->FspmConfig.EnforceDdrMemoryFreqPor = 0x0;
+		if (CONFIG(RMT_MEM_POR_FREQ))
+			mupd->FspmConfig.EnforceDdrMemoryFreqPor = 0x0;
 	}
 
 	/* SPR-FSP has no UPD to disable HDA, so do it manually here... */
@@ -287,7 +250,7 @@ void platform_fsp_memory_init_params_cb(FSPM_UPD *mupd, uint32_t version)
 		pch_disable_hda();
 }
 
-static uint8_t get_error_correction_type(const uint8_t RasModesEnabled)
+uint8_t get_error_correction_type(const uint8_t RasModesEnabled)
 {
 	switch (RasModesEnabled) {
 	case CH_INDEPENDENT:
@@ -306,94 +269,21 @@ static uint8_t get_error_correction_type(const uint8_t RasModesEnabled)
 	}
 }
 
-/* Save the DIMM information for SMBIOS table 17 */
-void save_dimm_info(void)
+uint8_t get_max_dimm_count(void)
 {
-	struct dimm_info *dest_dimm;
-	struct memory_info *mem_info;
-	const struct SystemMemoryMapHob *hob;
-	MEMMAP_DIMM_DEVICE_INFO_STRUCT src_dimm;
-	int dimm_max, dimm_num = 0;
-	int index = 0;
-	uint8_t mem_dev_type;
-	uint16_t data_width;
-	uint32_t vdd_voltage;
+	return MAX_DIMM;
+}
 
-	hob = get_system_memory_map();
-	assert(hob != NULL);
+uint8_t get_dram_type(const struct SystemMemoryMapHob *hob)
+{
+	if (hob->DramType == SPD_MEMORY_TYPE_DDR5_SDRAM)
+		return MEMORY_TYPE_DDR5;
 
-	/*
-	 * Allocate CBMEM area for DIMM information used to populate SMBIOS
-	 * table 17
-	 */
-	mem_info = cbmem_add(CBMEM_ID_MEMINFO, sizeof(*mem_info));
-	if (mem_info == NULL) {
-		printk(BIOS_ERR, "CBMEM entry for DIMM info missing\n");
-		return;
-	}
-	memset(mem_info, 0, sizeof(*mem_info));
+	return MEMORY_TYPE_DDR4;
+}
+
+uint32_t get_max_capacity_mib(void)
+{
 	/* According to EDS doc#611488, it's 4 TB per processor. */
-	mem_info->max_capacity_mib = 4 * MiB * CONFIG_MAX_SOCKET;
-	mem_info->number_of_devices = CONFIG_DIMM_MAX;
-	mem_info->ecc_type = get_error_correction_type(hob->RasModesEnabled);
-	dimm_max = ARRAY_SIZE(mem_info->dimm);
-	vdd_voltage = get_ddr_millivolt(hob->DdrVoltage);
-	for (int soc = 0; soc < CONFIG_MAX_SOCKET; soc++) {
-		for (int ch = 0; ch < MAX_CH; ch++) {
-			for (int dimm = 0; dimm < MAX_DIMM; dimm++) {
-				if (index >= dimm_max) {
-					printk(BIOS_WARNING, "Too many DIMMs info for %s.\n",
-					       __func__);
-					return;
-				}
-
-				src_dimm = hob->Socket[soc].ChannelInfo[ch].DimmInfo[dimm];
-				if (src_dimm.Present) {
-					dest_dimm = &mem_info->dimm[index];
-					index++;
-				} else if (mainboard_dimm_slot_exists(soc, ch, dimm)) {
-					dest_dimm = &mem_info->dimm[index];
-					index++;
-					/* Save DIMM Locator information for SMBIOS Type 17 */
-					dest_dimm->dimm_size = 0;
-					dest_dimm->soc_num = soc;
-					dest_dimm->channel_num = ch;
-					dest_dimm->dimm_num = dimm;
-					continue;
-				} else {
-					/* Ignore DIMM that isn't present and doesn't exist on
-					   the board. */
-					continue;
-				}
-
-				dest_dimm->soc_num = soc;
-
-				if (hob->DramType == SPD_TYPE_DDR5) {
-					/* hard-coded memory device type as DDR5 */
-					mem_dev_type = 0x22;
-					data_width = 64;
-				} else {
-					/* hard-coded memory device type as DDR4 */
-					mem_dev_type = 0x1A;
-					data_width = 64;
-				}
-				dimm_info_fill(
-					dest_dimm, src_dimm.DimmSize << 6, mem_dev_type,
-					hob->memFreq, /* replaced by configured_speed_mts */
-					src_dimm.NumRanks,
-					ch,   /* for mainboard locator string override */
-					dimm, /* for mainboard locator string override */
-					(const char *)&src_dimm.PartNumber[0],
-					sizeof(src_dimm.PartNumber),
-					(const uint8_t *)&src_dimm.serialNumber[0], data_width,
-					vdd_voltage, true, /* hard-coded as ECC supported */
-					src_dimm.VendorID, src_dimm.actKeyByte2, 0,
-					get_max_memory_speed(src_dimm.commonTck));
-				dimm_num++;
-			}
-		}
-	}
-
-	mem_info->dimm_cnt = index; /* Number of DIMM slots found */
-	printk(BIOS_DEBUG, "%d Installed DIMMs found\n", dimm_num);
+	return 4 * MiB * CONFIG_MAX_SOCKET;
 }

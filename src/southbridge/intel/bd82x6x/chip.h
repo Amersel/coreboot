@@ -5,6 +5,7 @@
 
 #include <southbridge/intel/common/spi.h>
 #include <types.h>
+#include <southbridge/intel/bd82x6x/pch.h>
 
 struct southbridge_intel_bd82x6x_config {
 	/**
@@ -65,7 +66,7 @@ struct southbridge_intel_bd82x6x_config {
 
 	int docking_supported;
 
-	uint8_t pcie_hotplug_map[8];
+	bool pcie_hotplug_map[8];
 
 	/* Ports which can be routed to either EHCI or xHCI.  */
 	uint32_t xhci_switchable_ports;
@@ -77,6 +78,7 @@ struct southbridge_intel_bd82x6x_config {
 	uint32_t spi_uvscc;
 	uint32_t spi_lvscc;
 	struct intel_swseq_spi_config spi;
+	struct southbridge_usb_port usb_port_config[14];
 };
 
 #endif				/* SOUTHBRIDGE_INTEL_BD82X6X_CHIP_H */

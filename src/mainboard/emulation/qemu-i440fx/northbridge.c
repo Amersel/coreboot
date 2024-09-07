@@ -39,7 +39,7 @@ static void qemu_reserve_ports(struct device *dev, unsigned int idx,
 
 static void cpu_pci_domain_set_resources(struct device *dev)
 {
-	assign_resources(dev->link_list);
+	assign_resources(dev->downstream);
 }
 
 static void cpu_pci_domain_read_resources(struct device *dev)
@@ -230,7 +230,7 @@ static const char *qemu_acpi_name(const struct device *dev)
 static struct device_operations pci_domain_ops = {
 	.read_resources		= cpu_pci_domain_read_resources,
 	.set_resources		= cpu_pci_domain_set_resources,
-	.scan_bus		= pci_domain_scan_bus,
+	.scan_bus		= pci_host_bridge_scan_bus,
 #if CONFIG(GENERATE_SMBIOS_TABLES)
 	.get_smbios_data	= qemu_get_smbios_data,
 #endif
@@ -276,11 +276,11 @@ static void northbridge_enable(struct device *dev)
 }
 
 struct chip_operations mainboard_emulation_qemu_i440fx_ops = {
-	CHIP_NAME("QEMU Northbridge i440fx")
+	.name = "QEMU Northbridge i440fx",
 	.enable_dev = northbridge_enable,
 };
 
 struct chip_operations mainboard_emulation_qemu_q35_ops = {
-	CHIP_NAME("QEMU Northbridge q35")
+	.name = "QEMU Northbridge q35",
 	.enable_dev = northbridge_enable,
 };

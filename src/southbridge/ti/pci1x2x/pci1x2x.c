@@ -10,7 +10,6 @@
 
 static void ti_pci1x2y_init(struct device *dev)
 {
-
 	printk(BIOS_INFO, "Init of Texas Instruments PCI1x2x PCMCIA/CardBus controller\n");
 	struct southbridge_ti_pci1x2x_config *conf = dev->chip_info;
 
@@ -73,5 +72,5 @@ static const struct pci_driver ti_pci1520_driver __pci_driver = {
 };
 
 struct chip_operations southbridge_ti_pci1x2x_ops = {
-	CHIP_NAME("TI PCI1x2x Cardbus controller")
+	.name = "TI PCI1x2x Cardbus controller",
 };

@@ -5,18 +5,14 @@ config SOC_INTEL_SKYLAKE_SP
 	select XEON_SP_COMMON_BASE
 	select PLATFORM_USES_FSP2_0
 	select NO_FSP_TEMP_RAM_EXIT
+	select UDK_202005_BINDING
 	help
 	  Intel Skylake-SP support
 
 if SOC_INTEL_SKYLAKE_SP
 
-config MAINBOARD_USES_FSP2_0
-	  bool
-	  default y
-
 config FSP_HEADER_PATH
 	  string "Location of FSP headers"
-	  depends on MAINBOARD_USES_FSP2_0
 	  default "src/vendorcode/intel/fsp/fsp2_0/skylake_sp"
 
 config MAX_SOCKET

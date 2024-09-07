@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <tests/test.h>
-#include <stdio.h>
 
 /*
  * Important note: In every particular test, don't use any string-related
@@ -24,12 +23,6 @@ struct string_pairs_t {
 	{"", ""},
 };
 
-const char *strings[] = {
-	"coreboot",
-	"is\0very",
-	"nice\n"
-};
-
 /* Used to test atol */
 struct str_with_l_val_t {
 	char *str;
@@ -42,18 +35,6 @@ struct str_with_l_val_t {
 	{"+42", 42},
 	{"-42", -42},
 	{"\t\n\r\f\v-42", -42},
-};
-
-/* Used to test skip_atoi */
-struct str_with_u_val_t {
-	char *str;
-	uint32_t value;
-	uint32_t offset;
-} str_with_u_val[] = {
-	{"42aa", 42, 2},
-	{"a", 0, 0},
-	{"0", 0, 1},
-	{"4a2", 4, 1},
 };
 
 static void test_strdup(void **state)
@@ -87,26 +68,6 @@ static void test_strconcat(void **state)
 
 		free(result);
 	}
-}
-
-static void test_strnlen(void **state)
-{
-	int i, n = 5;
-	size_t str_len, limited_len;
-
-	for (i = 0; i < ARRAY_SIZE(strings); i++) {
-		str_len = __builtin_strlen(strings[i]);
-		limited_len = MIN(n, str_len);
-		assert_int_equal(limited_len, strnlen(strings[i], n));
-	}
-}
-
-static void test_strlen(void **state)
-{
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(strings); i++)
-		assert_int_equal(__builtin_strlen(strings[i]), strlen(strings[i]));
 }
 
 static void test_strchr(void **state)
@@ -205,19 +166,6 @@ static void test_strncmp(void **state)
 	assert_int_equal(0, strncmp(str, str2, str2_len - 1));
 }
 
-static void test_skip_atoi(void **state)
-{
-	int i;
-	char *ptr, *copy;
-
-	for (i = 0; i < ARRAY_SIZE(str_with_u_val); i++) {
-		ptr = str_with_u_val[i].str;
-		copy = ptr;
-		assert_true(str_with_u_val[i].value == skip_atoi(&ptr));
-		assert_int_equal(str_with_u_val[i].offset, ptr - copy);
-	}
-}
-
 static void test_strspn(void **state)
 {
 	char str[] = "4213401234";
@@ -253,15 +201,12 @@ int main(void)
 	const struct CMUnitTest tests[] = {
 		cmocka_unit_test(test_strdup),
 		cmocka_unit_test(test_strconcat),
-		cmocka_unit_test(test_strnlen),
-		cmocka_unit_test(test_strlen),
 		cmocka_unit_test(test_strchr),
 		cmocka_unit_test(test_strrchr),
 		cmocka_unit_test(test_strncpy),
 		cmocka_unit_test(test_strcpy),
 		cmocka_unit_test(test_strcmp),
 		cmocka_unit_test(test_strncmp),
-		cmocka_unit_test(test_skip_atoi),
 		cmocka_unit_test(test_strspn),
 		cmocka_unit_test(test_strcspn),
 		cmocka_unit_test(test_atol),

@@ -87,8 +87,11 @@ static void pch_lpc_loop_resources(struct device *dev)
 {
 	struct resource *res;
 
+	if (!dev->enabled)
+		return;
+
 	for (res = dev->resource_list; res; res = res->next) {
-		if (res->flags & IORESOURCE_IO)
+		if ((res->flags & IORESOURCE_IO) && (res->flags & IORESOURCE_ASSIGNED))
 			lpc_open_pmio_window(res->base, res->size);
 	}
 	pch_lpc_set_child_resources(dev);
@@ -100,13 +103,13 @@ static void pch_lpc_loop_resources(struct device *dev)
  */
 static void pch_lpc_set_child_resources(struct device *dev)
 {
-	struct bus *link;
 	struct device *child;
 
-	for (link = dev->link_list; link; link = link->next) {
-		for (child = link->children; child; child = child->sibling)
-			pch_lpc_loop_resources(child);
-	}
+	if (!dev->downstream)
+		return;
+
+	for (child = dev->downstream->children; child; child = child->sibling)
+		pch_lpc_loop_resources(child);
 }
 
 static void pch_lpc_set_resources(struct device *dev)
@@ -138,6 +141,78 @@ struct device_operations lpc_ops = {
 };
 
 static const unsigned short pci_device_ids[] = {
+	PCI_DID_INTEL_PTL_U_H_ESPI_0,
+	PCI_DID_INTEL_PTL_U_H_ESPI_1,
+	PCI_DID_INTEL_PTL_U_H_ESPI_2,
+	PCI_DID_INTEL_PTL_U_H_ESPI_3,
+	PCI_DID_INTEL_PTL_U_H_ESPI_4,
+	PCI_DID_INTEL_PTL_U_H_ESPI_5,
+	PCI_DID_INTEL_PTL_U_H_ESPI_6,
+	PCI_DID_INTEL_PTL_U_H_ESPI_7,
+	PCI_DID_INTEL_PTL_U_H_ESPI_8,
+	PCI_DID_INTEL_PTL_U_H_ESPI_9,
+	PCI_DID_INTEL_PTL_U_H_ESPI_10,
+	PCI_DID_INTEL_PTL_U_H_ESPI_11,
+	PCI_DID_INTEL_PTL_U_H_ESPI_12,
+	PCI_DID_INTEL_PTL_U_H_ESPI_13,
+	PCI_DID_INTEL_PTL_U_H_ESPI_14,
+	PCI_DID_INTEL_PTL_U_H_ESPI_15,
+	PCI_DID_INTEL_PTL_U_H_ESPI_16,
+	PCI_DID_INTEL_PTL_U_H_ESPI_17,
+	PCI_DID_INTEL_PTL_U_H_ESPI_18,
+	PCI_DID_INTEL_PTL_U_H_ESPI_19,
+	PCI_DID_INTEL_PTL_U_H_ESPI_20,
+	PCI_DID_INTEL_PTL_U_H_ESPI_21,
+	PCI_DID_INTEL_PTL_U_H_ESPI_22,
+	PCI_DID_INTEL_PTL_U_H_ESPI_23,
+	PCI_DID_INTEL_PTL_U_H_ESPI_24,
+	PCI_DID_INTEL_PTL_U_H_ESPI_25,
+	PCI_DID_INTEL_PTL_U_H_ESPI_26,
+	PCI_DID_INTEL_PTL_U_H_ESPI_27,
+	PCI_DID_INTEL_PTL_U_H_ESPI_28,
+	PCI_DID_INTEL_PTL_U_H_ESPI_29,
+	PCI_DID_INTEL_PTL_U_H_ESPI_30,
+	PCI_DID_INTEL_PTL_U_H_ESPI_31,
+	PCI_DID_INTEL_PTL_H_ESPI_0,
+	PCI_DID_INTEL_PTL_H_ESPI_1,
+	PCI_DID_INTEL_PTL_H_ESPI_2,
+	PCI_DID_INTEL_PTL_H_ESPI_3,
+	PCI_DID_INTEL_PTL_H_ESPI_4,
+	PCI_DID_INTEL_PTL_H_ESPI_5,
+	PCI_DID_INTEL_PTL_H_ESPI_6,
+	PCI_DID_INTEL_PTL_H_ESPI_7,
+	PCI_DID_INTEL_PTL_H_ESPI_8,
+	PCI_DID_INTEL_PTL_H_ESPI_9,
+	PCI_DID_INTEL_PTL_H_ESPI_10,
+	PCI_DID_INTEL_PTL_H_ESPI_11,
+	PCI_DID_INTEL_PTL_H_ESPI_12,
+	PCI_DID_INTEL_PTL_H_ESPI_13,
+	PCI_DID_INTEL_PTL_H_ESPI_14,
+	PCI_DID_INTEL_PTL_H_ESPI_15,
+	PCI_DID_INTEL_PTL_H_ESPI_16,
+	PCI_DID_INTEL_PTL_H_ESPI_17,
+	PCI_DID_INTEL_PTL_H_ESPI_18,
+	PCI_DID_INTEL_PTL_H_ESPI_19,
+	PCI_DID_INTEL_PTL_H_ESPI_20,
+	PCI_DID_INTEL_PTL_H_ESPI_21,
+	PCI_DID_INTEL_PTL_H_ESPI_22,
+	PCI_DID_INTEL_PTL_H_ESPI_23,
+	PCI_DID_INTEL_PTL_H_ESPI_24,
+	PCI_DID_INTEL_PTL_H_ESPI_25,
+	PCI_DID_INTEL_PTL_H_ESPI_26,
+	PCI_DID_INTEL_PTL_H_ESPI_27,
+	PCI_DID_INTEL_PTL_H_ESPI_28,
+	PCI_DID_INTEL_PTL_H_ESPI_29,
+	PCI_DID_INTEL_PTL_H_ESPI_30,
+	PCI_DID_INTEL_PTL_H_ESPI_31,
+	PCI_DID_INTEL_LNL_ESPI_0,
+	PCI_DID_INTEL_LNL_ESPI_1,
+	PCI_DID_INTEL_LNL_ESPI_2,
+	PCI_DID_INTEL_LNL_ESPI_3,
+	PCI_DID_INTEL_LNL_ESPI_4,
+	PCI_DID_INTEL_LNL_ESPI_5,
+	PCI_DID_INTEL_LNL_ESPI_6,
+	PCI_DID_INTEL_LNL_ESPI_7,
 	PCI_DID_INTEL_MTL_ESPI_0,
 	PCI_DID_INTEL_MTL_ESPI_1,
 	PCI_DID_INTEL_MTL_ESPI_2,
@@ -372,6 +447,7 @@ static const unsigned short pci_device_ids[] = {
 	PCI_DID_INTEL_ADP_M_N_ESPI_30,
 	PCI_DID_INTEL_ADP_M_N_ESPI_31,
 	PCI_DID_INTEL_SPR_ESPI_1,
+	PCI_DID_INTEL_SNR_LPC,
 	0
 };
 

@@ -21,8 +21,6 @@
 #include <security/vboot/symbols.h>
 #include <security/vboot/vboot_common.h>
 #include <arch/stages.h>
-#include <stdarg.h>
-#include <stdio.h>
 #include <timestamp.h>
 
 extern char _bss_start, _bss_end;
@@ -85,13 +83,17 @@ static uint32_t update_boot_region(struct vb2_context *ctx)
 
 	if (vboot_is_firmware_slot_a(ctx)) {
 		fname = "apu/amdfw_a";
-		if (!fmap_locate_area("FW_MAIN_A", &fw_slot))
-			map_base = rdev_mmap(boot_device_ro(), fw_slot.offset, fw_slot.size);
+		if (!fmap_locate_area("FW_MAIN_A", &fw_slot)) {
+			map_base = rdev_mmap(boot_device_ro(),
+					region_offset(&fw_slot), region_sz(&fw_slot));
+		}
 
 	} else {
 		fname = "apu/amdfw_b";
-		if (!fmap_locate_area("FW_MAIN_B", &fw_slot))
-			map_base = rdev_mmap(boot_device_ro(), fw_slot.offset, fw_slot.size);
+		if (!fmap_locate_area("FW_MAIN_B", &fw_slot)) {
+			map_base = rdev_mmap(boot_device_ro(),
+					region_offset(&fw_slot), region_sz(&fw_slot));
+		}
 	}
 
 	if (!map_base) {
@@ -118,7 +120,7 @@ static uint32_t update_boot_region(struct vb2_context *ctx)
 	psp_dir_addr = ef_table->new_psp_directory;
 	bios_dir_addr = get_bios_dir_addr(ef_table);
 	psp_dir_in_spi = (uint32_t *)((psp_dir_addr & SPI_ADDR_MASK) +
-			(uint32_t)map_base - fw_slot.offset);
+			(uint32_t)map_base - region_offset(&fw_slot));
 	if (*psp_dir_in_spi != PSP_COOKIE) {
 		printk(BIOS_ERR, "PSP Directory address is not correct.\n");
 		cbfs_unmap(amdfw_location);
@@ -129,7 +131,7 @@ static uint32_t update_boot_region(struct vb2_context *ctx)
 
 	if (bios_dir_addr) {
 		bios_dir_in_spi = (uint32_t *)((bios_dir_addr & SPI_ADDR_MASK) +
-				(uint32_t)map_base - fw_slot.offset);
+				(uint32_t)map_base - region_offset(&fw_slot));
 		if (*bios_dir_in_spi != BHD_COOKIE) {
 			printk(BIOS_ERR, "BIOS Directory address is not correct.\n");
 			cbfs_unmap(amdfw_location);
@@ -223,9 +225,9 @@ static void psp_verstage_s0i3_resume(void)
 		reboot_into_recovery(vboot_get_context(), POSTCODE_INIT_TPM_FAILED);
 	}
 
-	rc = tlcl_disable_platform_hierarchy();
+	rc = tlcl2_disable_platform_hierarchy();
 	if (rc != TPM_SUCCESS) {
-		printk(BIOS_ERR, "tlcl_disable_platform_hierarchy failed rc:%d\n", rc);
+		printk(BIOS_ERR, "tlcl2_disable_platform_hierarchy failed rc:%d\n", rc);
 		reboot_into_recovery(vboot_get_context(), POSTCODE_INIT_TPM_FAILED);
 	}
 }
@@ -235,6 +237,7 @@ void Main(void)
 	uint32_t retval;
 	struct vb2_context *ctx = NULL;
 	uint32_t bootmode;
+	void *boot_dev_base;
 
 	/*
 	 * Do not use printk() before console_init()
@@ -350,7 +353,16 @@ void Main(void)
 	if (retval)
 		reboot_into_recovery(ctx, retval);
 
+	if (CONFIG(PSP_VERSTAGE_MAP_ENTIRE_SPIROM)) {
+		post_code(POSTCODE_UNMAP_SPI_ROM);
+		boot_dev_base = rdev_mmap_full(boot_device_ro());
+		if (boot_dev_base) {
+			if (svc_unmap_spi_rom((void *)boot_dev_base))
+				printk(BIOS_ERR, "Error unmapping SPI rom\n");
+		}
+	}
 	assert(!boot_dev_get_active_map_count());
+
 	post_code(POSTCODE_UNMAP_FCH_DEVICES);
 	unmap_fch_devices();
 

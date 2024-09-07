@@ -4,7 +4,6 @@
 #include <acpi/acpi_device.h>
 #include <acpi/acpi_soundwire.h>
 #include <device/device.h>
-#include <device/path.h>
 #include <device/soundwire.h>
 #include <mipi/ids.h>
 #include <stdio.h>
@@ -146,6 +145,6 @@ static void soundwire_alc1308_enable(struct device *dev)
 }
 
 struct chip_operations drivers_soundwire_alc1308_ops = {
-	CHIP_NAME("Realtek ALC1308 SoundWire Codec")
+	.name = "Realtek ALC1308 SoundWire Codec",
 	.enable_dev = soundwire_alc1308_enable
 };

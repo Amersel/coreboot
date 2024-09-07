@@ -14,7 +14,7 @@
 #include <smbios.h>
 #include <soc/pci_devs.h>
 #include <soc/nhlt.h>
-#include <string.h>
+#include <stdio.h>
 #include <timer.h>
 
 #include <variant/gpio.h>
@@ -187,9 +187,9 @@ const char *fizz_oem_name[] = {
 	"Wukong",
 	"Wukong",
 	"Teemo",
-	"",
+	"Karma",
 	"Jax",
-	"",
+	"Endeavour",
 	"Excelsior"
 };
 

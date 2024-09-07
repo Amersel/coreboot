@@ -32,22 +32,11 @@ enum tis_status {
 	TPM_STS_RESPONSE_RETRY = (1 << 1),
 };
 
-/*
- * tis_init()
- *
- * Initialize the TPM device.
- * Returns TSS Return Code from TCG TPM Structures.  See tss_errors.h
- */
-tpm_result_t tis_init(void);
-
-/*
- * tis_open()
- *
- * Requests access to locality 0 for the caller.
- *
- * Returns TSS Return Code from TCG TPM Structures.  See tss_errors.h
- */
-tpm_result_t tis_open(void);
+enum tpm_family {
+	TPM_UNKNOWN = 0,
+	TPM_1 = 1,
+	TPM_2 = 2,
+};
 
 /*
  * tis_sendrecv()
@@ -61,8 +50,20 @@ tpm_result_t tis_open(void);
  *
  * Returns TSS Return Code from TCG TPM Structures.  See tss_errors.h
  */
-tpm_result_t tis_sendrecv(const u8 *sendbuf, size_t send_size, u8 *recvbuf,
-			size_t *recv_len);
+typedef tpm_result_t (*tis_sendrecv_fn)(const u8 *sendbuf, size_t send_size, u8 *recvbuf,
+					size_t *recv_len);
+
+/*
+ * Probe for the TPM device and set it up for use within locality 0.
+ *
+ * @family - pointer which is set to TPM family of the device
+ *
+ * Returns pointer to send-receive function on success or NULL on failure.
+ *
+ * Do not call this explicitly, it's meant to be used exclusively by TSS
+ * implementation (tlcl_lib_init() function to be specific).
+ */
+typedef tis_sendrecv_fn (*tis_probe_fn)(enum tpm_family *family);
 
 /*
  * tis_vendor_write()

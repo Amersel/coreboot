@@ -5,7 +5,6 @@
 #include <console/console.h>
 #include <device/i2c.h>
 #include <device/device.h>
-#include <device/path.h>
 #include "chip.h"
 
 #define RT5663_ACPI_NAME	"RT53"
@@ -84,6 +83,6 @@ static void rt5663_enable(struct device *dev)
 }
 
 struct chip_operations drivers_i2c_rt5663_ops = {
-	CHIP_NAME("Realtek RT5663 Codec")
+	.name = "Realtek RT5663 Codec",
 	.enable_dev = rt5663_enable
 };

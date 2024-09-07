@@ -60,11 +60,11 @@ struct boot_state {
 	{							\
 		.name = #state_,				\
 		.id = state_,					\
-		.post_code = POSTCODE_ ## state_,			\
+		.post_code = POSTCODE_ ## state_,		\
 		.phases = { { NULL, 0 }, { NULL, 0 } },		\
 		.run_state = run_func_,				\
 		.arg = NULL,					\
-		.complete = false,					\
+		.complete = false,				\
 	}
 #define BS_INIT_ENTRY(state_, run_func_)	\
 	[state_] = BS_INIT(state_, run_func_)
@@ -316,7 +316,6 @@ static struct state_tracker {
 
 static void bs_walk_state_machine(void)
 {
-
 	while (1) {
 		struct boot_state *state;
 		boot_state_t next_id;

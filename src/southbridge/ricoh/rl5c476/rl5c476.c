@@ -142,7 +142,6 @@ static void rl5c476_init(struct device *dev)
 
 static void rl5c476_read_resources(struct device *dev)
 {
-
 	struct resource *resource;
 
 	/* For CF socket we need an extra memory window for
@@ -173,7 +172,6 @@ static void rl5c476_set_resources(struct device *dev)
 	}
 
 	pci_dev_set_resources(dev);
-
 }
 
 static void rl5c476_set_subsystem(struct device *dev, unsigned int vendor,
@@ -215,6 +213,6 @@ static void southbridge_init(struct device *dev)
 }
 
 struct chip_operations southbridge_ricoh_rl5c476_ops = {
-	CHIP_NAME("Ricoh RL5C476 CardBus Controller")
+	.name = "Ricoh RL5C476 CardBus Controller",
 	.enable_dev    = southbridge_init,
 };

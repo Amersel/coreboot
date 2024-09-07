@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <errno.h>
+#include <stdbool.h>
 
 struct resource;
 struct resource {
@@ -106,17 +107,11 @@ struct chip {
 
 struct device;
 struct bus {
-	/* Instance/ID of the bus under the device. */
-	int id;
-
 	/* Pointer to device to which this bus belongs. */
 	struct device *dev;
 
 	/* Pointer to list of children. */
 	struct device *children;
-
-	/* Pointer to next bus for the device. */
-	struct bus *next_bus;
 };
 
 struct device {
@@ -157,10 +152,8 @@ struct device {
 	/* Pointer to chip instance for this device. */
 	struct chip_instance *chip_instance;
 
-	/* Pointer to list of buses under this device. */
+	/* Pointer to the bus under this device. */
 	struct bus *bus;
-	/* Pointer to last bus under this device. */
-	struct bus *last_bus;
 
 	/* Global identifier of the ops for this device. */
 	char *ops_id;
@@ -184,6 +177,7 @@ struct device {
 
 	/* List of field+option to probe. */
 	struct fw_config_probe *probe;
+	bool enable_on_unprovisioned_fw_config;
 };
 
 extern struct bus *root_parent;
@@ -233,5 +227,7 @@ void add_fw_config_probe(struct bus *bus, const char *field, const char *option)
 
 void append_fw_config_bits(struct fw_config_field_bits **bits,
 			   unsigned int start_bit, unsigned int end_bit);
+
+void probe_unprovisioned_fw_config(struct bus *bus);
 
 void add_device_ops(struct bus *, char *ops_id);

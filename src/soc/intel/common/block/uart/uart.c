@@ -14,7 +14,6 @@
 #include <soc/pci_devs.h>
 #include <soc/iomap.h>
 #include <soc/nvs.h>
-#include "chip.h"
 
 #define UART_PCI_ENABLE	(PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER)
 
@@ -309,6 +308,9 @@ static const char *uart_acpi_hid(const struct device *dev)
 static const char *uart_acpi_name(const struct device *dev)
 {
 	switch (dev->device) {
+	case PCI_DID_INTEL_PTL_H_UART0:
+	case PCI_DID_INTEL_PTL_U_H_UART0:
+	case PCI_DID_INTEL_LNL_UART0:
 	case PCI_DID_INTEL_ADP_P_UART0:
 	case PCI_DID_INTEL_APL_UART0:
 	case PCI_DID_INTEL_GLK_UART0:
@@ -316,6 +318,9 @@ static const char *uart_acpi_name(const struct device *dev)
 	case PCI_DID_INTEL_SPT_H_UART0:
 	case PCI_DID_INTEL_CNP_H_UART0:
 		return "UAR0";
+	case PCI_DID_INTEL_PTL_H_UART1:
+	case PCI_DID_INTEL_PTL_U_H_UART1:
+	case PCI_DID_INTEL_LNL_UART1:
 	case PCI_DID_INTEL_ADP_P_UART1:
 	case PCI_DID_INTEL_APL_UART1:
 	case PCI_DID_INTEL_GLK_UART1:
@@ -323,6 +328,9 @@ static const char *uart_acpi_name(const struct device *dev)
 	case PCI_DID_INTEL_SPT_H_UART1:
 	case PCI_DID_INTEL_CNP_H_UART1:
 		return "UAR1";
+	case PCI_DID_INTEL_PTL_H_UART2:
+	case PCI_DID_INTEL_PTL_U_H_UART2:
+	case PCI_DID_INTEL_LNL_UART2:
 	case PCI_DID_INTEL_ADP_P_UART2:
 	case PCI_DID_INTEL_APL_UART2:
 	case PCI_DID_INTEL_GLK_UART2:
@@ -349,6 +357,15 @@ struct device_operations uart_ops = {
 };
 
 static const unsigned short pci_device_ids[] = {
+	PCI_DID_INTEL_PTL_H_UART0,
+	PCI_DID_INTEL_PTL_H_UART1,
+	PCI_DID_INTEL_PTL_H_UART2,
+	PCI_DID_INTEL_PTL_U_H_UART0,
+	PCI_DID_INTEL_PTL_U_H_UART1,
+	PCI_DID_INTEL_PTL_U_H_UART2,
+	PCI_DID_INTEL_LNL_UART0,
+	PCI_DID_INTEL_LNL_UART1,
+	PCI_DID_INTEL_LNL_UART2,
 	PCI_DID_INTEL_MTL_UART0,
 	PCI_DID_INTEL_MTL_UART1,
 	PCI_DID_INTEL_MTL_UART2,
@@ -418,17 +435,4 @@ static const struct pci_driver pch_uart __pci_driver = {
 	.vendor		= PCI_VID_INTEL,
 	.devices	= pci_device_ids,
 };
-
-static void uart_enable(struct device *dev)
-{
-	struct soc_intel_common_block_uart_config *conf = dev->chip_info;
-	dev->ops = &uart_ops;
-	dev->device = conf ? conf->devid : 0;
-}
-
-struct chip_operations soc_intel_common_block_uart_ops = {
-	CHIP_NAME("LPSS UART in ACPI mode")
-	.enable_dev = uart_enable
-};
-
 #endif /* ENV_RAMSTAGE */

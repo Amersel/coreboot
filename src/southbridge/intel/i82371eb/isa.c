@@ -53,7 +53,7 @@ static void isa_init(struct device *dev)
 	 */
 	if (CONFIG(IOAPIC)) {
 		u16 reg16;
-		u8 ioapic_id = 2;
+		const u8 ioapic_id = 2;
 
 		/* Enable IOAPIC. */
 		reg16 = pci_read_config16(dev, XBCS);
@@ -61,8 +61,8 @@ static void isa_init(struct device *dev)
 		pci_write_config16(dev, XBCS, reg16);
 
 		/* Set and verify the IOAPIC ID. */
-		setup_ioapic(VIO_APIC_VADDR, ioapic_id);
-		if (ioapic_id != get_ioapic_id(VIO_APIC_VADDR))
+		setup_ioapic(IO_APIC_ADDR, ioapic_id);
+		if (ioapic_id != get_ioapic_id(IO_APIC_ADDR))
 			die("IOAPIC error!\n");
 	}
 }

@@ -1,7 +1,9 @@
+## SPDX-License-Identifier: GPL-2.0-only
+
 config CPU_INTEL_MODEL_206AX
 	bool
 	select ARCH_X86
-	select HAVE_EXP_X86_64_SUPPORT if USE_NATIVE_RAMINIT
+	select HAVE_X86_64_SUPPORT
 	select SSE2
 	select UDELAY_TSC
 	select TSC_MONOTONIC_TIMER

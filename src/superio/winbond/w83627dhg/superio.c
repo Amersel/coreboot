@@ -20,7 +20,6 @@ static void w83627dhg_enable_UR2(struct device *dev)
 
 static void w83627dhg_init(struct device *dev)
 {
-
 	if (!dev->enabled)
 		return;
 
@@ -68,6 +67,6 @@ static void enable_dev(struct device *dev)
 }
 
 struct chip_operations superio_winbond_w83627dhg_ops = {
-	CHIP_NAME("Winbond W83627DHG Super I/O")
+	.name = "Winbond W83627DHG Super I/O",
 	.enable_dev = enable_dev,
 };

@@ -2,6 +2,15 @@ chip northbridge/intel/sandybridge
 	# IGD Displays
 	register "gfx" = "GMA_STATIC_DISPLAYS(0)"
 
+	register "spd_addresses" = "{0x50, 0, 0x52, 0}"
+	register "max_mem_clock_mhz" = "800"
+	register "ec_present" = "1"
+
+	register "usb3.hs_port_switch_mask" = "0xf"
+	register "usb3.mode" = "3"
+	register "usb3.preboot_support" = "1"
+	register "usb3.xhci_streams" = "1"
+
 	chip cpu/intel/model_206ax
 		device cpu_cluster 0 on end
 
@@ -31,6 +40,22 @@ chip northbridge/intel/sandybridge
 
 			register "xhci_switchable_ports"	= "0x0f"
 			register "superspeed_capable_ports"	= "0x0f"
+			register "usb_port_config" = "{
+				{ 1, 0, 0 }, /* P0: lower left USB 3.0 (OC0) */
+				{ 1, 0, 0 }, /* P1: upper left USB 3.0 (OC0) */
+				{ 1, 0, 0 }, /* P2: lower right USB 3.0 (OC0) */
+				{ 1, 0, 0 }, /* P3: upper right USB 3.0 (OC0) */
+				{ 1, 0, 0 }, /* P4: lower USB 2.0 (OC0) */
+				{ 1, 0, 0 }, /* P5: upper USB 2.0 (OC0) */
+				{ 1, 0, 0 }, /* P6: front panel USB 2.0 (OC0) */
+				{ 1, 0, 0 }, /* P7: front panel USB 2.0 (OC0) */
+				{ 1, 0, 4 }, /* P8: internal USB 2.0 (OC4) */
+				{ 1, 0, 4 }, /* P9: internal USB 2.0 (OC4) */
+				{ 1, 0, 4 }, /* P10: internal USB 2.0 (OC4) */
+				{ 1, 0, 4 }, /* P11: internal USB 2.0 (OC4) */
+				{ 1, 0, 4 }, /* P12: internal USB 2.0 (OC4) */
+				{ 1, 0, 4 }, /* P13: internal USB 2.0 (OC4) */
+			}"
 
 			device ref xhci on end # USB 3.0 Controller
 			device ref mei1 on end # Management Engine Interface 1

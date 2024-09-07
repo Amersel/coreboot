@@ -6,6 +6,7 @@
 #include <amdblocks/apob_cache.h>
 #include <amdblocks/vbios_cache.h>
 #include <bootmode.h>
+#include <bootsplash.h>
 #include <console/console.h>
 #include <device/pci.h>
 #include <fsp/api.h>
@@ -18,7 +19,6 @@ static void fsp_assign_vbios_upds(FSP_S_CONFIG *scfg)
 		scfg->vbios_buffer = 0;
 		printk(BIOS_SPEW, "%s: using VBIOS cache; skipping GOP driver.\n", __func__);
 		return;
-
 	}
 	printk(BIOS_SPEW, "%s: not using VBIOS cache; running GOP driver.\n", __func__);
 	scfg->vbios_buffer = CONFIG(RUN_FSP_GOP) ? PCI_VGA_RAM_IMAGE_START : 0;
@@ -51,4 +51,10 @@ void platform_fsp_silicon_init_params_cb(FSPS_UPD *supd)
 	 */
 	if (!acpi_is_wakeup_s3())
 		payload_preload();
+}
+
+void soc_load_logo(FSPS_UPD *supd)
+{
+	size_t logo_size;
+	supd->FspsConfig.logo_bmp_buffer = (uint32_t)(uintptr_t)bmp_load_logo(&logo_size);
 }

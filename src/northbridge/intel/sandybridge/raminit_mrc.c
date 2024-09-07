@@ -11,7 +11,8 @@
 #include <arch/cpu.h>
 #include <cbmem.h>
 #include <cbfs.h>
-#include <ip_checksum.h>
+#include <commonlib/bsd/ipchksum.h>
+#include <cpu/intel/model_206ax/model_206ax.h>
 #include <pc80/mc146818rtc.h>
 #include <device/pci_def.h>
 #include <lib.h>
@@ -28,6 +29,7 @@
 #include <security/vboot/vboot_common.h>
 #include <southbridge/intel/bd82x6x/pch.h>
 #include <memory_info.h>
+#include <mode_switch.h>
 
 /* Management Engine is in the southbridge */
 #include <southbridge/intel/bd82x6x/me.h>
@@ -49,13 +51,18 @@
 
 #define MRC_CACHE_VERSION 0
 
+/* Assembly functions: */
+void mrc_wrapper(void *func_ptr, uint32_t arg1);
+void __prot2lm_do_putchar(uint8_t byte);
+
 static void save_mrc_data(struct pei_data *pei_data)
 {
 	u16 c1, c2, checksum;
 
 	/* Save the MRC S3 restore data to cbmem */
-	mrc_cache_stash_data(MRC_TRAINING_DATA, MRC_CACHE_VERSION, pei_data->mrc_output,
-			pei_data->mrc_output_len);
+	mrc_cache_stash_data(MRC_TRAINING_DATA, MRC_CACHE_VERSION,
+			     (void *)(uintptr_t)pei_data->mrc_output_ptr,
+			     pei_data->mrc_output_len);
 
 	/* Save the MRC seed values to CMOS */
 	cmos_write32(pei_data->scrambler_seed, CMOS_OFFSET_MRC_SEED);
@@ -67,9 +74,9 @@ static void save_mrc_data(struct pei_data *pei_data)
 	       pei_data->scrambler_seed_s3, CMOS_OFFSET_MRC_SEED_S3);
 
 	/* Save a simple checksum of the seed values */
-	c1 = compute_ip_checksum((u8 *)&pei_data->scrambler_seed,    sizeof(u32));
-	c2 = compute_ip_checksum((u8 *)&pei_data->scrambler_seed_s3, sizeof(u32));
-	checksum = add_ip_checksums(sizeof(u32), c1, c2);
+	c1 = ipchksum((u8 *)&pei_data->scrambler_seed,    sizeof(u32));
+	c2 = ipchksum((u8 *)&pei_data->scrambler_seed_s3, sizeof(u32));
+	checksum = ipchksum_add(sizeof(u32), c1, c2);
 
 	cmos_write((checksum >> 0) & 0xff, CMOS_OFFSET_MRC_SEED_CHK);
 	cmos_write((checksum >> 8) & 0xff, CMOS_OFFSET_MRC_SEED_CHK + 1);
@@ -81,7 +88,7 @@ static void prepare_mrc_cache(struct pei_data *pei_data)
 	size_t mrc_size;
 
 	/* Preset just in case there is an error */
-	pei_data->mrc_input = NULL;
+	pei_data->mrc_input_ptr = 0;
 	pei_data->mrc_input_len = 0;
 
 	/* Read scrambler seeds from CMOS */
@@ -94,9 +101,9 @@ static void prepare_mrc_cache(struct pei_data *pei_data)
 	       pei_data->scrambler_seed_s3, CMOS_OFFSET_MRC_SEED_S3);
 
 	/* Compute seed checksum and compare */
-	c1 = compute_ip_checksum((u8 *)&pei_data->scrambler_seed,    sizeof(u32));
-	c2 = compute_ip_checksum((u8 *)&pei_data->scrambler_seed_s3, sizeof(u32));
-	checksum = add_ip_checksums(sizeof(u32), c1, c2);
+	c1 = ipchksum((u8 *)&pei_data->scrambler_seed,    sizeof(u32));
+	c2 = ipchksum((u8 *)&pei_data->scrambler_seed_s3, sizeof(u32));
+	checksum = ipchksum_add(sizeof(u32), c1, c2);
 
 	seed_checksum  = cmos_read(CMOS_OFFSET_MRC_SEED_CHK);
 	seed_checksum |= cmos_read(CMOS_OFFSET_MRC_SEED_CHK + 1) << 8;
@@ -108,18 +115,18 @@ static void prepare_mrc_cache(struct pei_data *pei_data)
 		return;
 	}
 
-	pei_data->mrc_input = mrc_cache_current_mmap_leak(MRC_TRAINING_DATA,
+	pei_data->mrc_input_ptr = (uintptr_t)mrc_cache_current_mmap_leak(MRC_TRAINING_DATA,
 							  MRC_CACHE_VERSION,
 							  &mrc_size);
-	if (!pei_data->mrc_input) {
+	if (!pei_data->mrc_input_ptr) {
 		/* Error message printed in find_current_mrc_cache */
 		return;
 	}
 
 	pei_data->mrc_input_len = mrc_size;
 
-	printk(BIOS_DEBUG, "%s: at %p, size %zx\n", __func__,
-	       pei_data->mrc_input, mrc_size);
+	printk(BIOS_DEBUG, "%s: at 0x%x, size %zx\n", __func__,
+	       pei_data->mrc_input_ptr, mrc_size);
 }
 
 /**
@@ -129,7 +136,7 @@ static void prepare_mrc_cache(struct pei_data *pei_data)
  */
 static void sdram_initialize(struct pei_data *pei_data)
 {
-	int (*entry)(struct pei_data *pei_data) __attribute__((regparm(1)));
+	int (*entry)(struct pei_data *pei_data);
 
 	/* Wait for ME to be ready */
 	intel_early_me_init();
@@ -144,19 +151,25 @@ static void sdram_initialize(struct pei_data *pei_data)
 	prepare_mrc_cache(pei_data);
 
 	/* If MRC data is not found we cannot continue S3 resume. */
-	if (pei_data->boot_mode == 2 && !pei_data->mrc_input) {
+	if (pei_data->boot_mode == 2 && !pei_data->mrc_input_ptr) {
 		printk(BIOS_DEBUG, "Giving up in %s: No MRC data\n", __func__);
 		system_reset();
 	}
 
-	/* Pass console handler in pei_data */
-	pei_data->tx_byte = do_putchar;
+	/*
+	 * Pass console handler in pei_data. On x86_64 provide a wrapper around
+	 * do_putchar that switches to long mode before calling do_putchar.
+	 */
+	if (ENV_X86_64)
+		pei_data->tx_byte_ptr = (uintptr_t)__prot2lm_do_putchar;
+	else
+		pei_data->tx_byte_ptr = (uintptr_t)do_putchar;
 
 	/* Locate and call UEFI System Agent binary. */
 	entry = cbfs_map("mrc.bin", NULL);
 	if (entry) {
 		int rv;
-		rv = entry(pei_data);
+		rv = protected_mode_call_2arg(mrc_wrapper, (uintptr_t)entry, (uintptr_t)pei_data);
 		if (rv) {
 			switch (rv) {
 			case -1:
@@ -230,47 +243,18 @@ struct mrc_var_data {
 	u32 reserved[4];
 } __packed;
 
-static void northbridge_fill_pei_data(struct pei_data *pei_data)
+static bool do_pcie_init(void)
 {
-	pei_data->mchbar       = CONFIG_FIXED_MCHBAR_MMIO_BASE;
-	pei_data->dmibar       = CONFIG_FIXED_DMIBAR_MMIO_BASE;
-	pei_data->epbar        = CONFIG_FIXED_EPBAR_MMIO_BASE;
-	pei_data->pciexbar     = CONFIG_ECAM_MMCONF_BASE_ADDRESS;
-	pei_data->hpet_address = HPET_BASE_ADDRESS;
-	pei_data->thermalbase  = 0xfed08000;
-	pei_data->system_type  = !(get_platform_type() == PLATFORM_MOBILE);
-	pei_data->tseg_size    = CONFIG_SMM_TSEG_SIZE;
-
-	if ((cpu_get_cpuid() & 0xffff0) == 0x306a0) {
-		const struct device *dev = pcidev_on_root(1, 0);
-		pei_data->pcie_init = dev && dev->enabled;
+	if (IS_IVY_CPU(cpu_get_cpuid())) {
+		return is_devfn_enabled(PCI_DEVFN(1, 0));
 	} else {
-		pei_data->pcie_init = 0;
+		return false;
 	}
-}
-
-static void southbridge_fill_pei_data(struct pei_data *pei_data)
-{
-	const struct device *dev = pcidev_on_root(0x19, 0);
-
-	pei_data->smbusbar   = CONFIG_FIXED_SMBUS_IO_BASE;
-	pei_data->wdbbar     = 0x04000000;
-	pei_data->wdbsize    = 0x1000;
-	pei_data->rcba       = (uintptr_t)DEFAULT_RCBA;
-	pei_data->pmbase     = DEFAULT_PMBASE;
-	pei_data->gpiobase   = DEFAULT_GPIOBASE;
-	pei_data->gbe_enable = dev && dev->enabled;
 }
 
 static void devicetree_fill_pei_data(struct pei_data *pei_data)
 {
-	const struct northbridge_intel_sandybridge_config *cfg;
-
-	const struct device *dev = pcidev_on_root(0, 0);
-	if (!dev || !dev->chip_info)
-		return;
-
-	cfg = dev->chip_info;
+	const struct northbridge_intel_sandybridge_config *cfg = config_of_soc();
 
 	switch (cfg->max_mem_clock_mhz) {
 	/* MRC only supports fixed numbers of frequencies */
@@ -289,25 +273,58 @@ static void devicetree_fill_pei_data(struct pei_data *pei_data)
 	case 800:
 		pei_data->max_ddr3_freq = 1600;
 		break;
-
 	}
 
-	memcpy(pei_data->spd_addresses, cfg->spd_addresses, sizeof(pei_data->spd_addresses));
+	/*
+	 * SPD addresses are listed in devicetree as actual addresses,
+	 * and for MRC need to be shifted left so bit 0 is always zero.
+	 */
+	if (!CONFIG(HAVE_SPD_IN_CBFS)) {
+		for (unsigned int i = 0; i < ARRAY_SIZE(cfg->spd_addresses); i++) {
+			pei_data->spd_addresses[i] = cfg->spd_addresses[i] << 1;
+		}
+	}
 	memcpy(pei_data->ts_addresses,  cfg->ts_addresses,  sizeof(pei_data->ts_addresses));
+}
 
-	pei_data->ec_present     = cfg->ec_present;
-	pei_data->ddr3lv_support = cfg->ddr3lv_support;
+static void spd_fill_pei_data(struct pei_data *pei_data)
+{
+	struct spd_info spdi = {0};
+	unsigned int i, have_memory_down = 0;
 
-	pei_data->nmode = cfg->nmode;
-	pei_data->ddr_refresh_rate_config = cfg->ddr_refresh_rate_config;
+	mb_get_spd_map(&spdi);
 
-	memcpy(pei_data->usb_port_config, cfg->usb_port_config,
-	       sizeof(pei_data->usb_port_config));
+	for (i = 0; i < ARRAY_SIZE(spdi.addresses); i++) {
+		if (spdi.addresses[i] == SPD_MEMORY_DOWN) {
+			pei_data->spd_addresses[i] = 0;
+			have_memory_down = 1;
+		} else {
+			/* MRC expects left-aligned SMBus addresses. */
+			pei_data->spd_addresses[i] = spdi.addresses[i] << 1;
+		}
+	}
+	/* Copy SPD data from CBFS for on-board memory */
+	if (have_memory_down) {
+		printk(BIOS_DEBUG, "SPD index %d\n", spdi.spd_index);
 
-	pei_data->usb3.mode                = cfg->usb3.mode;
-	pei_data->usb3.hs_port_switch_mask = cfg->usb3.hs_port_switch_mask;
-	pei_data->usb3.preboot_support     = cfg->usb3.preboot_support;
-	pei_data->usb3.xhci_streams        = cfg->usb3.xhci_streams;
+		size_t spd_file_len;
+		uint8_t *spd_file = cbfs_map("spd.bin", &spd_file_len);
+
+		if (!spd_file)
+			die("SPD data %s!", "not found");
+
+		if (spd_file_len < ((spdi.spd_index + 1) * SPD_SIZE_MAX_DDR3))
+			die("SPD data %s!", "incomplete");
+
+		/* MRC only uses index 0... */
+		memcpy(pei_data->spd_data[0], spd_file + (spdi.spd_index * SPD_SIZE_MAX_DDR3), SPD_SIZE_MAX_DDR3);
+
+		/* but coreboot uses the other indices */
+		for (i = 1; i < ARRAY_SIZE(spdi.addresses); i++) {
+			if (spdi.addresses[i] == SPD_MEMORY_DOWN)
+				memcpy(pei_data->spd_data[i], pei_data->spd_data[0], SPD_SIZE_MAX_DDR3);
+		}
+	}
 }
 
 static void disable_p2p(void)
@@ -324,19 +341,46 @@ static void setup_sdram_meminfo(struct pei_data *pei_data);
 
 void perform_raminit(int s3resume)
 {
-	struct pei_data pei_data;
+	const struct northbridge_intel_sandybridge_config *cfg = config_of_soc();
+	struct pei_data pei_data = {
+		.pei_version = PEI_VERSION,
+		.mchbar = CONFIG_FIXED_MCHBAR_MMIO_BASE,
+		.dmibar = CONFIG_FIXED_DMIBAR_MMIO_BASE,
+		.epbar = CONFIG_FIXED_EPBAR_MMIO_BASE,
+		.pciexbar = CONFIG_ECAM_MMCONF_BASE_ADDRESS,
+		.smbusbar = CONFIG_FIXED_SMBUS_IO_BASE,
+		.wdbbar = 0x4000000,
+		.wdbsize = 0x1000,
+		.hpet_address = HPET_BASE_ADDRESS,
+		.rcba = (uintptr_t)DEFAULT_RCBA,
+		.pmbase = DEFAULT_PMBASE,
+		.gpiobase = DEFAULT_GPIOBASE,
+		.thermalbase = 0xfed08000,
+		.tseg_size = CONFIG_SMM_TSEG_SIZE,
+		.system_type = !(get_platform_type() == PLATFORM_MOBILE),
+		.pcie_init = do_pcie_init(),
+		.gbe_enable = is_devfn_enabled(PCI_DEVFN(0x19, 0)),
+		.boot_mode = s3resume ? BOOT_PATH_RESUME : BOOT_PATH_NORMAL,
+		.ec_present     = cfg->ec_present,
+		.ddr3lv_support = cfg->ddr3lv_support,
+		.nmode          = cfg->nmode,
+		.ddr_refresh_rate_config  = cfg->ddr_refresh_rate_config,
+		.usb3.mode                = cfg->usb3.mode,
+		/* .usb3.hs_port_switch_mask = native config->xhci_switchable_ports */
+		.usb3.preboot_support     = cfg->usb3.preboot_support,
+		.usb3.xhci_streams        = cfg->usb3.xhci_streams,
+	};
+
 	struct mrc_var_data *mrc_var;
 
 	/* Prepare USB controller early in S3 resume */
 	if (s3resume)
 		enable_usb_bar();
 
-	memset(&pei_data, 0, sizeof(pei_data));
-	pei_data.pei_version = PEI_VERSION;
-
-	northbridge_fill_pei_data(&pei_data);
 	southbridge_fill_pei_data(&pei_data);
 	devicetree_fill_pei_data(&pei_data);
+	if (CONFIG(HAVE_SPD_IN_CBFS))
+		spd_fill_pei_data(&pei_data);
 	mainboard_fill_pei_data(&pei_data);
 
 	post_code(0x3a);
@@ -350,29 +394,15 @@ void perform_raminit(int s3resume)
 		(!pei_data.spd_addresses[2] && !pei_data.spd_data[2][0]) +
 		(!pei_data.spd_addresses[3] && !pei_data.spd_data[3][0]) * 2;
 
-	/* Fix spd_data. MRC only uses spd_data[0] and ignores the other */
-	for (size_t i = 1; i < ARRAY_SIZE(pei_data.spd_data); i++) {
-		if (pei_data.spd_data[i][0] && !pei_data.spd_data[0][0]) {
-			memcpy(pei_data.spd_data[0], pei_data.spd_data[i],
-			       sizeof(pei_data.spd_data[0]));
-
-		} else if (pei_data.spd_data[i][0] && pei_data.spd_data[0][0]) {
-			if (memcmp(pei_data.spd_data[i], pei_data.spd_data[0],
-			    sizeof(pei_data.spd_data[0])) != 0)
-				die("Onboard SPDs must match each other");
-		}
-	}
-
 	disable_p2p();
 
-	pei_data.boot_mode = s3resume ? 2 : 0;
 	timestamp_add_now(TS_INITRAM_START);
 	sdram_initialize(&pei_data);
 	timestamp_add_now(TS_INITRAM_END);
 
 	/* Sanity check mrc_var location by verifying a known field */
 	mrc_var = (void *)DCACHE_RAM_MRC_VAR_BASE;
-	if (mrc_var->tx_byte == (uintptr_t)pei_data.tx_byte) {
+	if (mrc_var->tx_byte == pei_data.tx_byte_ptr) {
 		printk(BIOS_DEBUG, "MRC_VAR pool occupied [%08x,%08x]\n",
 		       mrc_var->pool_base, mrc_var->pool_base + mrc_var->pool_used);
 
@@ -425,14 +455,14 @@ static void setup_sdram_meminfo(struct pei_data *pei_data)
 			dimm->dimm_num = 0;
 			dimm->bank_locator = i * 2;
 			memcpy(dimm->serial,				/* bytes 122-125 */
-				&pei_data->spd_data[0][SPD_DIMM_SERIAL_NUM],
-				sizeof(uint8_t) * SPD_DIMM_SERIAL_LEN);
+				&pei_data->spd_data[0][SPD_DDR3_SERIAL_NUM],
+				sizeof(uint8_t) * SPD_DDR3_SERIAL_LEN);
 			memcpy(dimm->module_part_number,		/* bytes 128-145 */
-				&pei_data->spd_data[0][SPD_DIMM_PART_NUM],
-				sizeof(uint8_t) * SPD_DIMM_PART_LEN);
+				&pei_data->spd_data[0][SPD_DDR3_PART_NUM],
+				sizeof(uint8_t) * SPD_DDR3_PART_LEN);
 			dimm->mod_id =					/* bytes 117/118 */
-				(pei_data->spd_data[0][SPD_DIMM_MOD_ID2] << 8) |
-				(pei_data->spd_data[0][SPD_DIMM_MOD_ID1] & 0xFF);
+				(pei_data->spd_data[0][SPD_DDR3_MOD_ID2] << 8) |
+				(pei_data->spd_data[0][SPD_DDR3_MOD_ID1] & 0xFF);
 			dimm->mod_type = SPD_DDR3_DIMM_TYPE_SO_DIMM;
 			dimm->bus_width = MEMORY_BUS_WIDTH_64;
 			dimm_cnt++;
@@ -449,14 +479,14 @@ static void setup_sdram_meminfo(struct pei_data *pei_data)
 			dimm->dimm_num = 1;
 			dimm->bank_locator = i * 2;
 			memcpy(dimm->serial,				/* bytes 122-125 */
-				&pei_data->spd_data[0][SPD_DIMM_SERIAL_NUM],
-				sizeof(uint8_t) * SPD_DIMM_SERIAL_LEN);
+				&pei_data->spd_data[0][SPD_DDR3_SERIAL_NUM],
+				sizeof(uint8_t) * SPD_DDR3_SERIAL_LEN);
 			memcpy(dimm->module_part_number,		/* bytes 128-145 */
-				&pei_data->spd_data[0][SPD_DIMM_PART_NUM],
-				sizeof(uint8_t) * SPD_DIMM_PART_LEN);
+				&pei_data->spd_data[0][SPD_DDR3_PART_NUM],
+				sizeof(uint8_t) * SPD_DDR3_PART_LEN);
 			dimm->mod_id =					/* bytes 117/118 */
-				(pei_data->spd_data[0][SPD_DIMM_MOD_ID2] << 8) |
-				(pei_data->spd_data[0][SPD_DIMM_MOD_ID1] & 0xFF);
+				(pei_data->spd_data[0][SPD_DDR3_MOD_ID2] << 8) |
+				(pei_data->spd_data[0][SPD_DDR3_MOD_ID1] & 0xFF);
 			dimm->mod_type = SPD_DDR3_DIMM_TYPE_SO_DIMM;
 			dimm->bus_width = MEMORY_BUS_WIDTH_64;
 			dimm_cnt++;

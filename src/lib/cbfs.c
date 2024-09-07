@@ -6,10 +6,10 @@
 #include <cbmem.h>
 #include <commonlib/bsd/cbfs_private.h>
 #include <commonlib/bsd/compression.h>
+#include <commonlib/list.h>
 #include <console/console.h>
 #include <fmap.h>
 #include <lib.h>
-#include <list.h>
 #include <metadata_hash.h>
 #include <security/tpm/tspi/crtm.h>
 #include <security/vboot/vboot_common.h>
@@ -20,8 +20,16 @@
 #include <thread.h>
 #include <timestamp.h>
 
+#if ENV_X86 && (ENV_POSTCAR || ENV_SMM)
+struct mem_pool cbfs_cache = MEM_POOL_INIT(NULL, 0, 0);
+#elif CONFIG(POSTRAM_CBFS_CACHE_IN_BSS) && ENV_RAMSTAGE
+static u8 cache_buffer[CONFIG_RAMSTAGE_CBFS_CACHE_SIZE];
+struct mem_pool cbfs_cache =
+	MEM_POOL_INIT(cache_buffer, sizeof(cache_buffer), CONFIG_CBFS_CACHE_ALIGN);
+#else
 struct mem_pool cbfs_cache =
 	MEM_POOL_INIT(_cbfs_cache, REGION_SIZE(cbfs_cache), CONFIG_CBFS_CACHE_ALIGN);
+#endif
 
 static void switch_to_postram_cache(int unused)
 {
@@ -133,16 +141,21 @@ static inline bool cbfs_lzma_enabled(void)
 		return true;
 	if (fspm_env() && CONFIG(FSP_COMPRESS_FSP_M_LZMA))
 		return true;
-	/* We assume here romstage and postcar are never compressed. */
-	if (ENV_BOOTBLOCK || ENV_SEPARATE_VERSTAGE)
+
+	/* Payload loader (ramstage) always needs LZMA. */
+	if (ENV_PAYLOAD_LOADER)
+		return true;
+	/* Only other use of LZMA is ramstage compression. */
+	if (!CONFIG(COMPRESS_RAMSTAGE_LZMA))
 		return false;
-	if (ENV_ROMSTAGE && CONFIG(POSTCAR_STAGE))
-		return false;
-	if ((ENV_ROMSTAGE || ENV_POSTCAR) && !CONFIG(COMPRESS_RAMSTAGE_LZMA))
-		return false;
-	if (ENV_SMM)
-		return false;
-	return true;
+	/* If there is a postcar, it loads the ramstage. */
+	if (CONFIG(POSTCAR_STAGE))
+		return ENV_POSTCAR;
+	/* If there is no postcar but a separate romstage, it loads the ramstage. */
+	if (CONFIG(SEPARATE_ROMSTAGE))
+		return ENV_SEPARATE_ROMSTAGE;
+	/* Otherwise, the combined bootblock+romstage loads the ramstage. */
+	return ENV_BOOTBLOCK;
 }
 
 static bool cbfs_file_hash_mismatch(const void *buffer, size_t size,
@@ -325,7 +338,7 @@ void cbfs_preload(const char *name)
 		dead_code();
 
 	/* We don't want to cross the vboot boundary */
-	if (ENV_ROMSTAGE && CONFIG(VBOOT_STARTS_IN_ROMSTAGE))
+	if (ENV_SEPARATE_ROMSTAGE && CONFIG(VBOOT_STARTS_IN_ROMSTAGE))
 		return;
 
 	DEBUG("%s(name='%s')\n", __func__, name);
@@ -610,7 +623,7 @@ void cbfs_boot_device_find_mcache(struct cbfs_boot_device *cbd, uint32_t id)
 		return;
 
 	const struct cbmem_entry *entry;
-	if (cbmem_possibly_online() &&
+	if (ENV_HAS_CBMEM &&
 	    (entry = cbmem_entry_find(id))) {
 		cbd->mcache = cbmem_entry_start(entry);
 		cbd->mcache_size = cbmem_entry_size(entry);

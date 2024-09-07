@@ -5,7 +5,6 @@
 #include <console/console.h>
 #include <device/i2c_simple.h>
 #include <device/device.h>
-#include <device/path.h>
 #include "tpm.h"
 #include "chip.h"
 
@@ -95,6 +94,6 @@ static void i2c_tpm_enable(struct device *dev)
 }
 
 struct chip_operations drivers_i2c_tpm_ops = {
-	CHIP_NAME("I2C TPM")
+	.name = "I2C TPM",
 	.enable_dev = i2c_tpm_enable
 };

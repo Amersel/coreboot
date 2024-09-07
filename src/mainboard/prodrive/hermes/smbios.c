@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 
 #include <smbios.h>
-#include <string.h>
+#include <stdio.h>
 #include <types.h>
 
 #include "eeprom.h"

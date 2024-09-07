@@ -14,8 +14,6 @@
 #include "tpm.h"
 #include "chip.h"
 
-static unsigned int tpm_is_open;
-
 static const struct {
 	uint16_t vid;
 	uint16_t did;
@@ -25,7 +23,7 @@ static const struct {
 	{0xa13a, 0x8086, "Intel iTPM"}
 };
 
-static const char *tis_get_dev_name(struct tpm2_info *info)
+static const char *tis_get_dev_name(struct crb_tpm_info *info)
 {
 	int i;
 
@@ -35,45 +33,10 @@ static const char *tis_get_dev_name(struct tpm2_info *info)
 	return "Unknown";
 }
 
-tpm_result_t tis_open(void)
+static tpm_result_t crb_tpm_sendrecv(const uint8_t *sendbuf, size_t sbuf_size, uint8_t *recvbuf,
+				     size_t *rbuf_len)
 {
-	if (tpm_is_open) {
-		printk(BIOS_ERR, "%s called twice.\n", __func__);
-		return TPM_CB_FAIL;
-	}
-
-	if (CONFIG(HAVE_INTEL_PTT)) {
-		if (!ptt_active()) {
-			printk(BIOS_ERR, "%s: Intel PTT is not active.\n", __func__);
-			return TPM_CB_FAIL;
-		}
-		printk(BIOS_DEBUG, "%s: Intel PTT is active.\n", __func__);
-	}
-
-	return TPM_SUCCESS;
-}
-
-tpm_result_t tis_init(void)
-{
-	struct tpm2_info info;
-
-	// Wake TPM up (if necessary)
-	tpm_result_t rc = tpm2_init();
-	if (rc)
-		return rc;
-
-	tpm2_get_info(&info);
-
-	printk(BIOS_INFO, "Initialized TPM device %s revision %d\n", tis_get_dev_name(&info),
-	       info.revision);
-
-	return TPM_SUCCESS;
-}
-
-tpm_result_t tis_sendrecv(const uint8_t *sendbuf, size_t sbuf_size,
-					uint8_t *recvbuf, size_t *rbuf_len)
-{
-	int len = tpm2_process_command(sendbuf, sbuf_size, recvbuf, *rbuf_len);
+	int len = crb_tpm_process_command(sendbuf, sbuf_size, recvbuf, *rbuf_len);
 
 	if (len == 0)
 		return TPM_CB_FAIL;
@@ -81,6 +44,34 @@ tpm_result_t tis_sendrecv(const uint8_t *sendbuf, size_t sbuf_size,
 	*rbuf_len = len;
 
 	return TPM_SUCCESS;
+}
+
+tis_sendrecv_fn crb_tis_probe(enum tpm_family *family)
+{
+	struct crb_tpm_info info;
+
+	if (CONFIG(HAVE_INTEL_PTT)) {
+		if (!ptt_active()) {
+			printk(BIOS_ERR, "%s: Intel PTT is not active.\n", __func__);
+			return NULL;
+		}
+		printk(BIOS_DEBUG, "%s: Intel PTT is active.\n", __func__);
+	}
+
+	/* Wake TPM up (if necessary) */
+	if (crb_tpm_init())
+		return NULL;
+
+	/* CRB interface exists only in TPM2 */
+	if (family != NULL)
+		*family = TPM_2;
+
+	crb_tpm_get_info(&info);
+
+	printk(BIOS_INFO, "Initialized TPM device %s revision %d\n", tis_get_dev_name(&info),
+	       info.revision);
+
+	return &crb_tpm_sendrecv;
 }
 
 static void crb_tpm_fill_ssdt(const struct device *dev)
@@ -129,7 +120,7 @@ static tpm_result_t tpm_get_cap(uint32_t property, uint32_t *value)
 	if (!value)
 		return TPM_CB_INVALID_ARG;
 
-	rc = tlcl_get_capability(TPM_CAP_TPM_PROPERTIES, property, 1, &cap_data);
+	rc = tlcl2_get_capability(TPM_CAP_TPM_PROPERTIES, property, 1, &cap_data);
 
 	if (rc)
 		return rc;
@@ -146,12 +137,15 @@ static tpm_result_t tpm_get_cap(uint32_t property, uint32_t *value)
 
 static int smbios_write_type43_tpm(struct device *dev, int *handle, unsigned long *current)
 {
-	struct tpm2_info info;
+	struct crb_tpm_info info;
 	uint32_t tpm_manuf, tpm_family;
 	uint32_t fw_ver1, fw_ver2;
 	uint8_t major_spec_ver, minor_spec_ver;
 
-	tpm2_get_info(&info);
+	if (tlcl_get_family() == TPM_1)
+		return 0;
+
+	crb_tpm_get_info(&info);
 
 	/* If any of these have invalid values, assume TPM not present or disabled */
 	if (info.vendor_id == 0 || info.vendor_id == 0xFFFF ||
@@ -213,12 +207,17 @@ static struct device_operations __maybe_unused crb_ops = {
 
 static void enable_dev(struct device *dev)
 {
+	if (crb_tis_probe(NULL) == NULL) {
+		dev->enabled = 0;
+		return;
+	}
+
 #if !DEVTREE_EARLY
 	dev->ops = &crb_ops;
 #endif
 }
 
 struct chip_operations drivers_crb_ops = {
-	CHIP_NAME("CRB TPM")
+	.name = "CRB TPM",
 	.enable_dev = enable_dev
 };

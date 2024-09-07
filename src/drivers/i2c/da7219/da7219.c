@@ -6,7 +6,6 @@
 #include <console/console.h>
 #include <device/i2c_simple.h>
 #include <device/device.h>
-#include <device/path.h>
 
 #include "chip.h"
 
@@ -110,6 +109,6 @@ static void da7219_enable(struct device *dev)
 }
 
 struct chip_operations drivers_i2c_da7219_ops = {
-	CHIP_NAME("Dialog Semiconductor DA7219 Audio Codec")
+	.name = "Dialog Semiconductor DA7219 Audio Codec",
 	.enable_dev = da7219_enable
 };

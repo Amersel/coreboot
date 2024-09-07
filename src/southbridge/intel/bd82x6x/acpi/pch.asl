@@ -54,15 +54,6 @@ Scope(\)
 	OperationRegion(GPIO, SystemIO, DEFAULT_GPIOBASE, 0x6c)
 	Field(GPIO, ByteAcc, NoLock, Preserve)
 	{
-		GU00, 8,	// GPIO Use Select
-		GU01, 8,
-		GU02, 8,
-		GU03, 8,
-		Offset(0x04),	// GPIO IO Select
-		GIO0, 8,
-		GIO1, 8,
-		GIO2, 8,
-		GIO3, 8,
 		Offset(0x0c),	// GPIO Level
 		GP00, 1,
 		GP01, 1,
@@ -97,25 +88,43 @@ Scope(\)
 		GP30, 1,
 		GP31, 1,
 		Offset(0x18),	// GPIO Blink
-		GB00, 8,
-		GB01, 8,
-		GB02, 8,
-		GB03, 8,
+		GB00, 1,
+		GB01, 1,
+		GB02, 1,
+		GB03, 1,
+		GB04, 1,
+		GB05, 1,
+		GB06, 1,
+		GB07, 1,
+		GB08, 1,
+		GB09, 1,
+		GB10, 1,
+		GB11, 1,
+		GB12, 1,
+		GB13, 1,
+		GB14, 1,
+		GB15, 1,
+		GB16, 1,
+		GB17, 1,
+		GB18, 1,
+		GB19, 1,
+		GB20, 1,
+		GB21, 1,
+		GB22, 1,
+		GB23, 1,
+		GB24, 1,
+		GB25, 1,
+		GB26, 1,
+		GB27, 1,
+		GB28, 1,
+		GB29, 1,
+		GB30, 1,
+		GB31, 1,
 		Offset(0x2c),	// GPIO Invert
 		GIV0, 8,
 		GIV1, 8,
 		GIV2, 8,
 		GIV3, 8,
-		Offset(0x30),	// GPIO Use Select 2
-		GU04, 8,
-		GU05, 8,
-		GU06, 8,
-		GU07, 8,
-		Offset(0x34),	// GPIO IO Select 2
-		GIO4, 8,
-		GIO5, 8,
-		GIO6, 8,
-		GIO7, 8,
 		Offset(0x38),	// GPIO Level 2
 		GP32, 1,
 		GP33, 1,
@@ -149,12 +158,6 @@ Scope(\)
 		GP61, 1,
 		GP62, 1,
 		GP63, 1,
-		Offset(0x40),	// GPIO Use Select 3
-		GU08, 8,
-		GU09, 4,
-		Offset(0x44),	// GPIO IO Select 3
-		GIO8, 8,
-		GIO9, 4,
 		Offset(0x48),	// GPIO Level 3
 		GP64, 1,
 		GP65, 1,

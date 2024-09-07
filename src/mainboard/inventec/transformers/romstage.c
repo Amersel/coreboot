@@ -6,10 +6,12 @@
 #include <drivers/ipmi/ipmi_if.h>
 #include <drivers/ipmi/ocp/ipmi_ocp.h>
 #include <drivers/ocp/ewl/ocp_ewl.h>
+#include <soc/config.h>
 #include <soc/romstage.h>
 #include <defs_cxl.h>
 #include <defs_iio.h>
 #include <sprsp_ac_iio.h>
+#include <stdint.h>
 
 #include "ipmi.h"
 
@@ -24,7 +26,7 @@ static void mainboard_config_iio(FSPM_UPD *mupd)
 	int port;
 
 	UPD_IIO_PCIE_PORT_CONFIG *PciePortConfig =
-		(UPD_IIO_PCIE_PORT_CONFIG *)mupd->FspmConfig.IioPcieConfigTablePtr;
+		(UPD_IIO_PCIE_PORT_CONFIG *)(uintptr_t)mupd->FspmConfig.IioPcieConfigTablePtr;
 
 	/* Socket0: Array ac_iio_pci_port_skt0 only configures DMI, IOU0 ~ IOU4, the rest will be left zero */
 	for (port = 0; port < ARRAY_SIZE(ac_iio_pci_port_skt0); port++) {
@@ -97,21 +99,27 @@ static void mainboard_config_iio(FSPM_UPD *mupd)
 
 void mainboard_memory_init_params(FSPM_UPD *mupd)
 {
-	uint8_t val;
-
 	/* Since it's the first IPMI command, it's better to run get BMC selftest result first */
 	if (ipmi_premem_init(CONFIG_BMC_KCS_BASE, 0) == CB_SUCCESS) {
 		init_frb2_wdt();
 	}
 
-	/* Send FSP log message to SOL */
-	if (CONFIG(VPD) && vpd_get_bool(FSP_LOG, VPD_RW_THEN_RO, &val))
-		mupd->FspmConfig.SerialIoUartDebugEnable = val;
-	else {
-		printk(BIOS_INFO, "Not able to get VPD %s, default set "
-			"SerialIoUartDebugEnable to %d\n", FSP_LOG, FSP_LOG_DEFAULT);
-		mupd->FspmConfig.SerialIoUartDebugEnable = FSP_LOG_DEFAULT;
+	/* Setup FSP log */
+	mupd->FspmConfig.SerialIoUartDebugEnable = get_bool_from_vpd(FSP_LOG,
+		FSP_LOG_DEFAULT);
+	if (mupd->FspmConfig.SerialIoUartDebugEnable) {
+		mupd->FspmConfig.serialDebugMsgLvl = get_int_from_vpd_range(
+			FSP_MEM_LOG_LEVEL, FSP_MEM_LOG_LEVEL_DEFAULT, 0, 4);
+		/* If serialDebugMsgLvl less than 1, disable FSP memory train results */
+		if (mupd->FspmConfig.serialDebugMsgLvl <= 1) {
+			printk(BIOS_DEBUG, "Setting serialDebugMsgLvlTrainResults to 0\n");
+			mupd->FspmConfig.serialDebugMsgLvlTrainResults = 0x0;
+		}
 	}
+
+	/* FSP Dfx PMIC Secure mode */
+	mupd->FspmConfig.DfxPmicSecureMode = get_int_from_vpd_range(
+		FSP_PMIC_SECURE_MODE, FSP_PMIC_SECURE_MODE_DEFAULT, 0, 2);
 
 	/* Set Rank Margin Tool to disable. */
 	mupd->FspmConfig.EnableRMT = 0x0;

@@ -7,11 +7,6 @@
 		./common.nix
 	];
 
-	hardware.pulseaudio = {
-		enable = true;
-		package = pkgs.pulseaudioFull;
-	};
-
 	security.polkit = {
 		enable = true;
 		extraConfig = ''
@@ -21,6 +16,26 @@
 				}
 			});
 		'';
+	};
+
+	programs.dconf = {
+		enable = true;
+		profiles = {
+			user.databases = [{
+				settings = {
+					"org/gnome/settings-daemon/plugins/power" = {
+						sleep-inactive-ac-type = "nothing";
+					};
+					"org/gnome/desktop/interface" = {
+						show-battery-percentage = true;
+						clock-show-weekday = true;
+					};
+					"org/gnome/desktop/calendar" = {
+						show-weekdate = true;
+					};
+				};
+			}];
+		};
 	};
 
 	services.xserver = {
@@ -36,6 +51,13 @@
 			};
 		};
 		desktopManager.gnome.enable = true;
+	};
+
+	hardware.pulseaudio.enable = false;
+	services.pipewire = {
+		enable = true;
+		pulse.enable = true;
+		alsa.enable = true;
 	};
 
 	users.users.user.extraGroups = [ "audio" "video" "input" ];

@@ -26,6 +26,11 @@
 #define PMC_IPC_BIOS_RST_SUBID_PCI_ENUM_DONE	0
 #define PMC_IPC_BIOS_RST_CMPL_STS_PCI_ENUM	BIT(0)
 
+/* IPC command for accessing SoC registers */
+#define PMC_IPC_CMD_SOC_REG_ACC		0xAA
+#define PMC_IPC_CMD_SUBCMD_SOC_REG_RD	0x00
+#define PMC_IPC_CMD_REGID_SOC_QDF	0x03
+
 static struct chipset_power_state power_state;
 
 /* List of Minimum Assertion durations in microseconds */
@@ -64,7 +69,7 @@ struct chipset_power_state *pmc_get_power_state(void)
 {
 	struct chipset_power_state *ptr = NULL;
 
-	if (cbmem_possibly_online())
+	if (ENV_HAS_CBMEM)
 		ptr = acpi_get_pm_state();
 
 	/* cbmem is online but ptr is not populated yet */
@@ -89,7 +94,7 @@ static void migrate_power_state(int is_recovery)
 CBMEM_CREATION_HOOK(migrate_power_state);
 
 static void print_num_status_bits(int num_bits, uint32_t status,
-				  const char *const bit_names[])
+				  const char *const *bit_names)
 {
 	int i;
 
@@ -461,10 +466,25 @@ void pmc_fill_pm_reg_info(struct chipset_power_state *ps)
 /* Reads and prints ACPI specific PM registers */
 int pmc_fill_power_state(struct chipset_power_state *ps)
 {
+	/* Define the sleep state string */
+	static const char * const acpi_sleep_states[] = {
+		[ACPI_S0] = "S0",
+		[ACPI_S1] = "S1",
+		[ACPI_S3] = "S3",
+		[ACPI_S4] = "S4",
+		[ACPI_S5] = "S5",
+	};
+
 	pmc_fill_pm_reg_info(ps);
 
 	ps->prev_sleep_state = pmc_prev_sleep_state(ps);
-	printk(BIOS_DEBUG, "prev_sleep_state %d\n", ps->prev_sleep_state);
+
+	if (ps->prev_sleep_state < ARRAY_SIZE(acpi_sleep_states) &&
+		acpi_sleep_states[ps->prev_sleep_state] != NULL)
+		printk(BIOS_DEBUG, "prev_sleep_state %d (%s)\n", ps->prev_sleep_state,
+			acpi_sleep_states[ps->prev_sleep_state]);
+	else
+		printk(BIOS_DEBUG, "prev_sleep_state %d (unknown state)\n", ps->prev_sleep_state);
 
 	return ps->prev_sleep_state;
 }
@@ -566,7 +586,7 @@ void pmc_gpe_init(void)
 {
 	uint32_t gpio_cfg = 0;
 	uint32_t gpio_cfg_reg;
-	uint8_t dw0, dw1, dw2;
+	uint8_t dw0 = 0, dw1 = 0, dw2 = 0;
 
 	/* Read PMC base address from soc. This is implemented in soc */
 	uintptr_t pmc_bar = soc_read_pmc_base();
@@ -866,4 +886,40 @@ void pmc_send_bios_reset_pci_enum_done(void)
 			 PMC_IPC_BIOS_RST_SUBID_PCI_ENUM_DONE, 0);
 	if (pmc_send_ipc_cmd(cmd, &req, &rsp) != CB_SUCCESS)
 		printk(BIOS_ERR, "PMC: Failed sending PCI Enumeration Done Command\n");
+}
+
+/*
+ * This function reads and prints SoC QDF information using PMC interface
+ * if SOC_QDF_DYNAMIC_READ_PMC config is enabled.
+ */
+void pmc_dump_soc_qdf_info(void)
+{
+	struct pmc_ipc_buffer req = { 0 };
+	struct pmc_ipc_buffer rsp;
+	uint32_t cmd_reg;
+	int r;
+	char qdf_info[5];
+
+	if (!CONFIG(SOC_QDF_DYNAMIC_READ_PMC))
+		return;
+
+	req.buf[0] = PMC_IPC_CMD_REGID_SOC_QDF;
+	cmd_reg = pmc_make_ipc_cmd(PMC_IPC_CMD_SOC_REG_ACC,
+				PMC_IPC_CMD_SUBCMD_SOC_REG_RD,
+				PMC_IPC_BUF_COUNT);
+
+	r = pmc_send_ipc_cmd(cmd_reg, &req, &rsp);
+
+	if (r < 0 || rsp.buf[0] == 0) {
+		printk(BIOS_ERR, "%s: pmc_send_ipc_cmd failed or QDF not available.\n",
+				__func__);
+		return;
+	}
+
+	qdf_info[0] = ((rsp.buf[0] >> 24) & 0xFF);
+	qdf_info[1] = ((rsp.buf[0] >> 16) & 0xFF);
+	qdf_info[2] = ((rsp.buf[0] >> 8) & 0xFF);
+	qdf_info[3] = (rsp.buf[0] & 0xFF);
+	qdf_info[4] = '\0';
+	printk(BIOS_INFO, "SoC QDF: %s\n", qdf_info);
 }

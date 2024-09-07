@@ -194,7 +194,6 @@ static void simple_spi_test(void)
 			printk(BIOS_SPEW, "RTRY at %d(%p):\nRAM %08lx\nSPI %08lx\n",
 			       i, &data[i/4], (unsigned long)data[i/4], (unsigned long)in);
 		}
-
 	}
 	printk(BIOS_SPEW, "%d errors\n", errors);
 }
@@ -202,6 +201,7 @@ static void simple_spi_test(void)
 #define simple_spi_test()
 #endif
 
+#if CONFIG(SEPARATE_ROMSTAGE)
 void main(void)
 {
 	timestamp_init(timestamp_get());
@@ -210,14 +210,14 @@ void main(void)
 	/*
 	 * From the clocks comment below it looks like serial console won't
 	 * work in the bootblock so keep in the romstage_main flow even with
-	 * !CONFIG SEPARATE_ROMSTAGE.
+	 * !CONFIG(SEPARATE_ROMSTAGE).
 	 */
 	romstage_main();
 }
+#endif
 
 void __noreturn romstage_main(void)
 {
-
 	extern struct mem_timings mem_timings;
 	int is_resume = (get_wakeup_state() != IS_NOT_WAKEUP);
 	int power_init_failed;

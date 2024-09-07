@@ -4,6 +4,7 @@
 #include <commonlib/bsd/helpers.h>
 #include <console/console.h>
 #include <cpu/cpu.h>
+#include <cpu/x86/smm.h>
 #include <cpxsp_dl_gpio.h>
 #include <device/device.h>
 #include <device/pci_def.h>
@@ -16,6 +17,7 @@
 #include <security/intel/txt/txt.h>
 #include <smbios.h>
 #include <soc/ramstage.h>
+#include <soc/smmrelocate.h>
 #include <soc/soc_util.h>
 #include <soc/util.h>
 #include <stdio.h>
@@ -193,7 +195,7 @@ static int create_smbios_type9(int *handle, unsigned long *current)
 		printk(BIOS_ERR, "Failed to get IPMI PCIe config\n");
 
 	for (index = 0; index < ARRAY_SIZE(stack_busnos); index++)
-		stack_busnos[index] = get_stack_busno(index);
+		stack_busnos[index] = socket0_get_ubox_busno(index);
 
 	for (index = 0; index < ARRAY_SIZE(slotinfo); index++) {
 		uint8_t characteristics_1 = 0;
@@ -278,6 +280,7 @@ static int create_smbios_type9(int *handle, unsigned long *current)
 					  slot_id,
 					  characteristics_1,
 					  characteristics_2,
+					  0, /* segment group */
 					  stack_busnos[slotinfo[index].stack],
 					  slotinfo[index].dev_func);
 	}
@@ -333,6 +336,11 @@ struct chip_operations mainboard_ops = {
 	.enable_dev = mainboard_enable,
 	.final = mainboard_final,
 };
+
+void smm_mainboard_pci_resource_store_init(struct smm_pci_resource_info *slots, size_t size)
+{
+	soc_ubox_store_resources(slots, size);
+}
 
 bool skip_intel_txt_lockdown(void)
 {

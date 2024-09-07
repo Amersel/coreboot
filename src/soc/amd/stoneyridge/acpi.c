@@ -22,14 +22,6 @@
 #include <soc/southbridge.h>
 #include <soc/northbridge.h>
 
-unsigned long acpi_fill_madt(unsigned long current)
-{
-	/* Write Kern IOAPIC, only one */
-	current += acpi_create_madt_ioapic_from_hw((acpi_madt_ioapic_t *)current, IO_APIC2_ADDR);
-
-	return current;
-}
-
 /*
  * Reference section 5.2.9 Fixed ACPI Description Table (FADT)
  * in the ACPI 3.0b specification.
@@ -49,7 +41,7 @@ void acpi_fill_fadt(acpi_fadt_t *fadt)
 	fadt->pm_tmr_len = 4;	/* 32 bits */
 	fadt->gpe0_blk_len = 8;	/* 64 bits */
 
-	fill_fadt_extended_pm_regs(fadt);
+	fill_fadt_extended_pm_io(fadt);
 
 	fadt->duty_offset = 1;	/* CLK_VAL bits 3:1 */
 	fadt->duty_width = 3;	/* CLK_VAL bits 3:1 */

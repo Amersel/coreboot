@@ -3,8 +3,6 @@
 #include <acpi/acpi_device.h>
 #include <acpi/acpigen.h>
 #include <device/device.h>
-#include <device/path.h>
-#include <string.h>
 
 #include "chip.h"
 
@@ -85,6 +83,6 @@ static void sof_enable(struct device *dev)
 }
 
 struct chip_operations drivers_sof_ops = {
-	CHIP_NAME("SOF")
+	.name = "SOF",
 	.enable_dev = sof_enable
 };

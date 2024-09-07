@@ -231,7 +231,6 @@ static void pcie_enable_clock_gating(void)
 		rp = root_port_number(dev);
 
 		if (!is_rp_enabled(rp)) {
-
 			/* Configure shared resource clock gating. */
 			if (rp == 1 || rp == 5 || (rp == 6 && is_lp))
 				pci_or_config8(dev, 0xe1, 0x3c);
@@ -519,17 +518,17 @@ static void pch_pcie_early(struct device *dev)
 			break;
 		case 5:
 			/*
-			 * Bit 28 of b0d28f4 0x32c register correspond to
-			 * Root Ports 4:1.
+			 * Bit 28 of b0d28f4 0x32c register corresponds to
+			 * Root Port 5.
 			 */
 			do_aspm = !!(rpc.b0d28f4_32c & (1 << 28));
 			break;
 		case 6:
 			/*
-			 * Bit 28 of b0d28f5 0x32c register correspond to
-			 * Root Ports 4:1.
+			 * Bit 29 of b0d28f5 0x32c register corresponds to
+			 * Root Port 6.
 			 */
-			do_aspm = !!(rpc.b0d28f5_32c & (1 << 28));
+			do_aspm = !!(rpc.b0d28f5_32c & (1 << 29));
 			break;
 		}
 	} else {
@@ -570,9 +569,6 @@ static void pch_pcie_early(struct device *dev)
 
 		/* Set unique clock exit latency in MPC register. */
 		pci_update_config32(dev, 0xd8, ~(0x7 << 18), (0x7 << 18));
-
-		/* Set L1 exit latency in LCAP register. */
-		pci_update_config32(dev, 0x4c, ~(0x7 << 15), (0x4 << 15));
 
 		if (is_lp) {
 			switch (rp) {
@@ -651,7 +647,7 @@ static void pch_pcie_early(struct device *dev)
 	pci_update_config32(dev, 0x318, ~(0xffff << 16), (0x1414 << 16));
 
 	/* Set L1 exit latency in LCAP register. */
-	if (!do_aspm && (pci_read_config8(dev, 0xf5) & 0x1))
+	if ((pci_read_config8(dev, 0xf5) & 0x1) || do_aspm)
 		pci_update_config32(dev, 0x4c, ~(0x7 << 15), (0x4 << 15));
 	else
 		pci_update_config32(dev, 0x4c, ~(0x7 << 15), (0x2 << 15));
@@ -666,7 +662,7 @@ static void pch_pcie_early(struct device *dev)
 	/* Set Invalid Receive Range Check Enable in MPC register. */
 	pci_or_config32(dev, 0xd8, 1 << 25);
 
-	pci_and_config8(dev, 0xf5, 0x3f);
+	pci_and_config8(dev, 0xf5, 0x0f);
 
 	if (rp == 1 || rp == 5 || (is_lp && rp == 6))
 		pci_and_config8(dev, 0xf7, ~0x0c);
@@ -674,20 +670,22 @@ static void pch_pcie_early(struct device *dev)
 	/* Set EOI forwarding disable. */
 	pci_or_config32(dev, 0xd4, 1 << 1);
 
-	/* Set AER Extended Cap ID to 01h and Next Cap Pointer to 200h. */
-	if (CONFIG(PCIEXP_AER))
-		pci_update_config32(dev, 0x100, ~0xfffff, (1 << 29) | 0x10001);
-	else
-		pci_update_config32(dev, 0x100, ~0xfffff, (1 << 29));
+	/* Set AER Extended Cap ID to 01h */
+	u32 aech = CONFIG(PCIEXP_AER) ? 0x10001 : 0;
 
-	/* Set L1 Sub-State Cap ID to 1Eh and Next Cap Pointer to None. */
-	if (CONFIG(PCIEXP_L1_SUB_STATE))
-		pci_update_config32(dev, 0x200, ~0xfffff, 0x001e);
-	else
-		pci_update_config32(dev, 0x200, ~0xfffff, 0);
-
+	/* For PCH-LP, set Next Cap Pointer to 200h. */
 	if (is_lp)
-		pci_or_config32(dev, 0x100, 1 << 29);
+		aech |= 1 << 29;
+
+	pci_update_config32(dev, 0x100, ~0xfffff, aech);
+
+	if (is_lp) {
+		/* Set L1 Sub-State Cap ID to 1Eh and Next Cap Pointer to None. */
+		if (CONFIG(PCIEXP_L1_SUB_STATE))
+			pci_update_config32(dev, 0x200, ~0xfffff, 0x001e);
+		else
+			pci_update_config32(dev, 0x200, ~0xfffff, 0);
+	}
 
 	/* Read and write back write-once capability registers. */
 	pci_update_config32(dev, 0x34, ~0, 0);
@@ -756,6 +754,14 @@ static const unsigned short pci_device_ids[] = {
 	PCI_DID_INTEL_LPT_H_PCIE_RP6,
 	PCI_DID_INTEL_LPT_H_PCIE_RP7,
 	PCI_DID_INTEL_LPT_H_PCIE_RP8,
+	PCI_DID_INTEL_LPT_H_PCIE_RP1_9,
+	PCI_DID_INTEL_LPT_H_PCIE_RP2_9,
+	PCI_DID_INTEL_LPT_H_PCIE_RP3_9,
+	PCI_DID_INTEL_LPT_H_PCIE_RP4_9,
+	PCI_DID_INTEL_LPT_H_PCIE_RP5_9,
+	PCI_DID_INTEL_LPT_H_PCIE_RP6_9,
+	PCI_DID_INTEL_LPT_H_PCIE_RP7_9,
+	PCI_DID_INTEL_LPT_H_PCIE_RP8_9,
 	PCI_DID_INTEL_LPT_LP_PCIE_RP1,
 	PCI_DID_INTEL_LPT_LP_PCIE_RP2,
 	PCI_DID_INTEL_LPT_LP_PCIE_RP3,

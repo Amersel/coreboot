@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -30,9 +31,12 @@ type PCIDevice interface {
 }
 
 type InteltoolData struct {
-	GPIO map[uint16]uint32
-	RCBA map[uint16]uint32
-	IGD  map[uint32]uint32
+	GPIO   map[uint16]uint32
+	RCBA   map[uint16]uint32
+	IOBP   map[uint32]uint32
+	IGD    map[uint32]uint32
+	MCHBAR map[uint16]uint32
+	PMBASE map[uint16]uint32
 }
 
 type DMIData struct {
@@ -95,12 +99,6 @@ type Context struct {
 	SaneVendor    string
 }
 
-type IOAPICIRQ struct {
-	APICID int
-	IRQNO  [4]int
-}
-
-var IOAPICIRQs map[PCIAddr]IOAPICIRQ = map[PCIAddr]IOAPICIRQ{}
 var KconfigBool map[string]bool = map[string]bool{}
 var KconfigComment map[string]string = map[string]string{}
 var KconfigString map[string]string = map[string]string{}
@@ -258,6 +256,7 @@ type DevTreeNode struct {
 	SubVendor     uint16
 	SubSystem     uint16
 	Chip          string
+	Ops           string
 	Comment       string
 }
 
@@ -275,34 +274,6 @@ func Offset(dt *os.File, offset int) {
 func MatchDev(dev *DevTreeNode) {
 	for idx := range dev.Children {
 		MatchDev(&dev.Children[idx])
-	}
-
-	for _, slot := range dev.PCISlots {
-		slotChip, ok := unmatchedPCIChips[slot.PCIAddr]
-
-		if !ok {
-			continue
-		}
-
-		if slot.additionalComment != "" && slotChip.Comment != "" {
-			slotChip.Comment = slot.additionalComment + " " + slotChip.Comment
-		} else {
-			slotChip.Comment = slot.additionalComment + slotChip.Comment
-		}
-
-		delete(unmatchedPCIChips, slot.PCIAddr)
-		MatchDev(&slotChip)
-		dev.Children = append(dev.Children, slotChip)
-	}
-
-	if dev.PCIController {
-		for slot, slotDev := range unmatchedPCIChips {
-			if slot.Bus == dev.ChildPCIBus {
-				delete(unmatchedPCIChips, slot)
-				MatchDev(&slotDev)
-				dev.Children = append(dev.Children, slotDev)
-			}
-		}
 	}
 
 	for _, slot := range dev.PCISlots {
@@ -335,6 +306,34 @@ func MatchDev(dev *DevTreeNode) {
 		delete(unmatchedPCIDevices, slot.PCIAddr)
 	}
 
+	for _, slot := range dev.PCISlots {
+		slotChip, ok := unmatchedPCIChips[slot.PCIAddr]
+
+		if !ok {
+			continue
+		}
+
+		if slot.additionalComment != "" && slotChip.Comment != "" {
+			slotChip.Comment = slot.additionalComment + " " + slotChip.Comment
+		} else {
+			slotChip.Comment = slot.additionalComment + slotChip.Comment
+		}
+
+		delete(unmatchedPCIChips, slot.PCIAddr)
+		MatchDev(&slotChip)
+		dev.Children = append(dev.Children, slotChip)
+	}
+
+	if dev.PCIController {
+		for slot, slotDev := range unmatchedPCIChips {
+			if slot.Bus == dev.ChildPCIBus {
+				delete(unmatchedPCIChips, slot)
+				MatchDev(&slotDev)
+				dev.Children = append(dev.Children, slotDev)
+			}
+		}
+	}
+
 	if dev.MissingParent != "" {
 		for _, child := range MissingChildren[dev.MissingParent] {
 			MatchDev(&child)
@@ -365,7 +364,7 @@ func writeOn(dt *os.File, dev DevTreeNode) {
 func WriteDev(dt *os.File, offset int, alias string, dev DevTreeNode) {
 	Offset(dt, offset)
 	switch dev.Chip {
-	case "cpu_cluster", "lapic", "domain", "ioapic":
+	case "cpu_cluster", "domain":
 		fmt.Fprintf(dt, "device %s 0x%x ", dev.Chip, dev.Dev)
 		writeOn(dt, dev)
 	case "pci", "pnp":
@@ -385,19 +384,13 @@ func WriteDev(dt *os.File, offset int, alias string, dev DevTreeNode) {
 		fmt.Fprintf(dt, " # %s", dev.Comment)
 	}
 	fmt.Fprintf(dt, "\n")
+	if dev.Ops != "" {
+		Offset(dt, offset+1)
+		fmt.Fprintf(dt, "ops %s\n", dev.Ops)
+	}
 	if dev.Chip == "pci" && dev.SubSystem != 0 && dev.SubVendor != 0 {
 		Offset(dt, offset+1)
 		fmt.Fprintf(dt, "subsystemid 0x%04x 0x%04x\n", dev.SubVendor, dev.SubSystem)
-	}
-
-	ioapic, ok := IOAPICIRQs[PCIAddr{Bus: dev.Bus, Dev: dev.Dev, Func: dev.Func}]
-	if dev.Chip == "pci" && ok {
-		for pin, irq := range ioapic.IRQNO {
-			if irq != 0 {
-				Offset(dt, offset+1)
-				fmt.Fprintf(dt, "ioapic_irq %d INT%c 0x%x\n", ioapic.APICID, 'A'+pin, irq)
-			}
-		}
 	}
 
 	keys := []string{}
@@ -739,7 +732,7 @@ func main() {
 	}
 
 	if len(BootBlockFiles) > 0 || len(ROMStageFiles) > 0 || len(RAMStageFiles) > 0 || len(SMMFiles) > 0 {
-		mf := Create(ctx, "Makefile.inc")
+		mf := Create(ctx, "Makefile.mk")
 		defer mf.Close()
 		writeMF(mf, BootBlockFiles, "bootblock")
 		writeMF(mf, ROMStageFiles, "romstage")
@@ -827,6 +820,7 @@ func main() {
 
 	dsdt := Create(ctx, "dsdt.asl")
 	defer dsdt.Close()
+	Add_gpl(dsdt)
 
 	for _, define := range DSDTDefines {
 		if define.Comment != "" {
@@ -835,10 +829,8 @@ func main() {
 		dsdt.WriteString("#define " + define.Key + " " + define.Value + "\n")
 	}
 
-	Add_gpl(dsdt)
 	dsdt.WriteString(
-		`
-#include <acpi/acpi.h>
+`#include <acpi/acpi.h>
 
 DefinitionBlock(
 	"dsdt.aml",
@@ -846,7 +838,7 @@ DefinitionBlock(
 	ACPI_DSDT_REV_2,
 	OEM_ID,
 	ACPI_TABLE_CREATOR,
-	0x20141018	/* OEM revision */
+	0x20141018
 )
 {
 	#include <acpi/dsdt_top.asl>
@@ -904,4 +896,6 @@ private package GMA.Mainboard is
 end GMA.Mainboard;
 `)
 	}
+	outputPath, _ := filepath.Abs(ctx.BaseDirectory)
+	fmt.Printf("Done! Generated sources are in %s\n", outputPath)
 }

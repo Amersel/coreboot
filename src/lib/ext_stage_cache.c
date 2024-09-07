@@ -16,6 +16,8 @@ static void stage_cache_create_empty(void)
 
 	imd = &imd_stage_cache;
 	stage_cache_external_region(&base, &size);
+	if (base == NULL || size == 0)
+		return;
 	imd_handle_init(imd, (void *)(size + (uintptr_t)base));
 
 	printk(BIOS_DEBUG, "External stage cache:\n");
@@ -32,6 +34,8 @@ static void stage_cache_recover(void)
 
 	imd = &imd_stage_cache;
 	stage_cache_external_region(&base, &size);
+	if (base == NULL || size == 0)
+		return;
 	imd_handle_init(imd, (void *)(size + (uintptr_t)base));
 	if (imd_recover(imd))
 		printk(BIOS_DEBUG, "Unable to recover external stage cache.\n");
@@ -59,8 +63,15 @@ void stage_cache_add(int stage_id, const struct prog *stage)
 	meta->entry_addr = (uintptr_t)prog_entry(stage);
 	meta->arg = (uintptr_t)prog_entry_arg(stage);
 
-	e = imd_entry_add(imd, CBMEM_ID_STAGEx_CACHE + stage_id,
-				prog_size(stage));
+	unsigned int p_size = prog_size(stage);
+	if (stage_id == STAGE_RAMSTAGE) {
+		/* heap resides at the end of the image and will be
+		 * reinitialized, so it doesn't make sense to copy it around.
+		 */
+		p_size -= CONFIG_HEAP_SIZE;
+	}
+
+	e = imd_entry_add(imd, CBMEM_ID_STAGEx_CACHE + stage_id, p_size);
 
 	if (e == NULL) {
 		printk(BIOS_DEBUG, "Error: Can't add stage_cache %x to imd\n",
@@ -70,7 +81,7 @@ void stage_cache_add(int stage_id, const struct prog *stage)
 
 	c = imd_entry_at(imd, e);
 
-	memcpy(c, prog_start(stage), prog_size(stage));
+	memcpy(c, prog_start(stage), p_size);
 }
 
 void stage_cache_add_raw(int stage_id, const void *base, const size_t size)

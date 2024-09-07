@@ -11,15 +11,12 @@
 int __weak probe_mb(const uintptr_t dram_start, const uintptr_t size)
 {
 	uintptr_t addr = dram_start + (size * MiB) - sizeof(uint32_t);
-	static const uint32_t patterns[] = {
-		0x55aa55aa,
-		0x12345678
-	};
-	void *ptr = (void *) addr;
+	static const uint32_t patterns[] = {0x55aa55aa, 0x12345678};
+	void *ptr = (void *)addr;
 	size_t i;
 
-	/* Don't accidentally clober oneself. */
-	if (OVERLAP(addr, addr + sizeof(uint32_t), (uintptr_t)_program, (uintptr_t) _eprogram))
+	/* Don't accidentally clobber oneself. */
+	if (OVERLAP(addr, addr + sizeof(uint32_t), (uintptr_t)_program, (uintptr_t)_eprogram))
 		return 1;
 
 	uint32_t old = read32(ptr);
@@ -57,9 +54,12 @@ size_t probe_ramsize(const uintptr_t dram_start, const size_t probe_size)
 	msb = MIN(msb, MAX_ADDRESSABLE_SPACE);
 
 	/* Compact binary search.  */
-	for (i = msb; i >= 0; i--)
+	for (i = msb; i >= 0; i--) {
+		if ((discovered | (1ULL << i)) > probe_size)
+			continue;
 		if (probe_mb(dram_start, (discovered | (1ULL << i))))
 			discovered |= (1ULL << i);
+	}
 
 	saved_result = discovered;
 	printk(BIOS_DEBUG, "RAMDETECT: Found %zu MiB RAM\n", discovered);

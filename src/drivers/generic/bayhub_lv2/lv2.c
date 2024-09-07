@@ -4,7 +4,6 @@
 
 #include <console/console.h>
 #include <device/device.h>
-#include <device/path.h>
 #include <device/pci.h>
 #include <device/pciexp.h>
 #include <device/pci_ops.h>
@@ -81,5 +80,5 @@ static const struct pci_driver bayhub_lv2 __pci_driver = {
 };
 
 struct chip_operations drivers_generic_bayhub_lv2_ops = {
-	CHIP_NAME("BayHub Technology LV2 PCIe to SD bridge")
+	.name = "BayHub Technology LV2 PCIe to SD bridge",
 };

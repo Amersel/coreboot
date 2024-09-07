@@ -17,6 +17,7 @@ chip northbridge/intel/sandybridge
 	register "gpu_cpu_backlight" = "0x000001e8"
 	register "gpu_pch_backlight" = "0x03d00000"
 
+	register "ec_present" = "1"
 	register "max_mem_clock_mhz" = "666"
 
 	device domain 0 on
@@ -39,6 +40,22 @@ chip northbridge/intel/sandybridge
 			register "gen1_dec" = "0x003c0a01"
 			register "gen2_dec" = "0x003c0b01"
 			register "gen3_dec" = "0x00fc1601"
+			register "usb_port_config" = "{
+				{ 1, 1, 0 }, /* P0: Port 0      (OC0) */
+				{ 1, 1, 1 }, /* P1: Port 1      (OC1) */
+				{ 1, 0, -1 }, /* P2: MINIPCIE1   (no OC) */
+				{ 1, 0, -1 }, /* P3: MMC         (no OC) */
+				{ 0, 0, -1 }, /* P4: Empty */
+				{ 0, 0, -1 }, /* P5: Empty */
+				{ 0, 0, -1 }, /* P6: Empty */
+				{ 0, 0, -1 }, /* P7: Empty */
+				{ 1, 0, -1 }, /* P8: MINIPCIE2   (no OC) */
+				{ 0, 0, -1 }, /* P9: Empty */
+				{ 0, 0, -1 }, /* P10: Empty */
+				{ 1, 0, -1 }, /* P11: Camera     (no OC) */
+				{ 0, 0, -1 }, /* P12-13: Empty */
+				{ 0, 0, -1 }
+			}"
 
 			device ref mei1 on end # Management Engine Interface 1
 			device ref mei2 off end # Management Engine Interface 2
@@ -85,7 +102,7 @@ chip northbridge/intel/sandybridge
 			end
 			device ref sata1 on end # SATA Controller 1
 			device ref smbus on
-				subsystemid 0x04B4 0x18D1
+				subsystemid 0x18D1 0x04B4
 			end # SMBus
 			device ref sata2 off end # SATA Controller 2
 			device ref thermal on end # Thermal

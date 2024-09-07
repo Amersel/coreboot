@@ -3,6 +3,7 @@
 #include <arch/io.h>
 #include <console/console.h>
 #include <cpu/x86/smm.h>
+#include <smm_call.h>
 #include <stdint.h>
 
 static void apmc_log(const char *fn, u8 cmd)
@@ -29,25 +30,25 @@ static void apmc_log(const char *fn, u8 cmd)
 	}
 }
 
-int apm_control(u8 cmd)
+enum cb_err apm_control(u8 cmd)
 {
 	/* Never proceed inside SMI handler or without one. */
 	if (ENV_SMM || !CONFIG(HAVE_SMI_HANDLER))
-		return -1;
+		return CB_ERR;
 
 	apmc_log(__func__, cmd);
 
 	/* Now raise the SMI. */
-	outb(cmd, APM_CNT);
+	call_smm(cmd, 0, NULL);
 
 	printk(BIOS_DEBUG, "APMC done.\n");
-	return 0;
+	return CB_SUCCESS;
 }
 
 u8 apm_get_apmc(void)
 {
-	/* Emulate B2 register as the FADT / Linux expects it */
-	u8 cmd = inb(APM_CNT);
+	/* Read command byte from APMC SMI IO port */
+	u8 cmd = inb(pm_acpi_smi_cmd_port());
 
 	apmc_log("SMI#", cmd);
 	return cmd;

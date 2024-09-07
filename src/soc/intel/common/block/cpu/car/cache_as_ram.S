@@ -9,6 +9,7 @@
 #include <cpu/x86/post_code.h>
 #include <intelblocks/msr.h>
 #include <intelblocks/post_codes.h>
+#include <cpu/x86/64bit/entry64.inc>
 
 .section .init, "ax", @progbits
 
@@ -279,7 +280,8 @@ car_init_done:
 	andl	$0xfffffff0, %esp
 
 #if ENV_X86_64
-	#include <cpu/x86/64bit/entry64.inc>
+	setup_longmode $PM4LE
+
 	movd	%mm2, %rdi
 	shlq	$32, %rdi
 	movd	%mm1, %rsi
@@ -504,11 +506,20 @@ find_llc_subleaf:
 	jnc	set_eviction_mask
 
 	/*
-	 * RW data size / way size is equal to number of
+	 * round(RW data size / way size) is equal to number of
 	 * ways to be configured for non-eviction
 	 */
 	mov	$CONFIG_DCACHE_RAM_SIZE, %eax
+	xor	%edx, %edx /* Clear the upper 32-bit of dividend */
 	div	%ecx
+	/*
+	 * Increment data_ways by 1 if RW data size (CONFIG_DCACHE_RAM_SIZE) is
+	 * not divisible by way_size (ECX)
+	 */
+	movl	$0x01, %ecx
+	cmp	$0x00, %edx
+	cmovne	%ecx, %edx
+	add	%edx, %eax
 	mov	%eax, %edx /* back up data_ways in edx */
 	mov	%eax, %ecx
 	movl	$0x01, %eax

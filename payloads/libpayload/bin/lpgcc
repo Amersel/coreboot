@@ -74,34 +74,34 @@ else
 fi
 
 if [ "$CONFIG_LP_ARCH_ARM" = "y" ]; then
-  _ARCHINCDIR=$_INCDIR/arm
-  _ARCHLIBDIR=$_LIBDIR/arm
+  _ARCHDIR=arm
   _ARCHEXTRA=""
-  _ARCH=arm
+
 fi
 if [ "$CONFIG_LP_ARCH_ARM64" = "y" ]; then
-  _ARCHINCDIR=$_INCDIR/arm64
-  _ARCHLIBDIR=$_LIBDIR/arm64
+  _ARCHDIR=arm64
   _ARCHEXTRA=""
-  _ARCH=arm64
 fi
 if [ "$CONFIG_LP_ARCH_X86" = "y" ]; then
-  _ARCHINCDIR=$_INCDIR/x86
-  _ARCHLIBDIR=$_LIBDIR/x86
-  _ARCHEXTRA="-m32 "
-  _ARCH=x86
+  _ARCHDIR=x86
+  if [ "$CONFIG_LP_ARCH_X86_32" = "y" ]; then
+    _ARCHEXTRA="-m32 "
+  else
+    _ARCHEXTRA="-m64 "
+  fi
 fi
 if [ "$CONFIG_LP_ARCH_MOCK" = "y" ]; then
-  _ARCHINCDIR=$_INCDIR/mock
-  _ARCHLIBDIR=$_LIBDIR/mock
+  _ARCHDIR=mock
   _ARCHEXTRA=""
-  _ARCH=mock
 fi
+
+_ARCHINCDIR=$_INCDIR/$_ARCHDIR
+_ARCHLIBDIR=$_LIBDIR/$_ARCHDIR
 
 if [ -f $_LIBDIR/libpayload.ldscript ]; then
 	_LDDIR=$_LIBDIR
-elif [ -f $BASE/../arch/$_ARCH/libpayload.ldscript ]; then
-	_LDDIR=$BASE/../arch/$_ARCH
+elif [ -f $BASE/../arch/$_ARCHDIR/libpayload.ldscript ]; then
+	_LDDIR=$BASE/../arch/$_ARCHDIR
 fi
 # Host arch should youse default linker script
 if [ "$CONFIG_LP_ARCH_MOCK" = "y" ]; then
@@ -126,12 +126,9 @@ CMDLINE=
 
 while [ $# -gt 0 ]; do
 	case $1 in
-	    -m32|-fno-stack-protector)
+	    -m32|-fno-stack-protector|-m64)
 		shift
 		continue
-		;;
-	    -m64)
-		error "Invalid option --64 - only 32 bit architectures are supported"
 		;;
 	    -c)
 		DOLINK=0
@@ -170,6 +167,9 @@ if [ $_LIBDIR = $_OBJ ]; then
 
     _CFLAGS="$_CFLAGS -include $BASE/../../../src/commonlib/bsd/include/commonlib/bsd/compiler.h"
     _CFLAGS="$_CFLAGS -I$BASE/../../../src/commonlib/bsd/include"
+    if [ "$CONFIG_LP_GPL" = y ]; then
+    _CFLAGS="$_CFLAGS -I$BASE/../../../src/commonlib/include"
+    fi
     _CFLAGS="$_CFLAGS -I$BASE/../../../3rdparty/vboot/firmware/include"
 else
     _CFLAGS="$_CFLAGS -include $BASE/../include/commonlib/bsd/compiler.h"
@@ -202,14 +202,6 @@ if [ $DOLINK -eq 0 ]; then
     $DEFAULT_CC $CMDLINE $_CFLAGS
 else
     _LIBGCC=`$DEFAULT_CC $_ARCHEXTRA -print-libgcc-file-name`
-    if [ -f $_ARCHLIBDIR/head.o ]; then
-	    HEAD_O=$_ARCHLIBDIR/head.o
-    elif [ -f $_OBJ/head.o ]; then
-	    HEAD_O=$_OBJ/head.o
-    else
-	    echo "Could not find head.o"
-	    exit 1
-    fi
 
     if [ "$CONFIG_LP_ARM64_A53_ERRATUM_843419" = y ] &&
        grep -q fix-cortex-a53-843419 $_XCOMPILE; then
@@ -221,13 +213,8 @@ else
     _LDFLAGS="$_LDFLAGS -Wl,--defsym=CONFIG_LP_STACK_SIZE=$CONFIG_LP_STACK_SIZE"
 
     if [ $DEBUGME -eq 1 ]; then
-	echo "$DEFAULT_CC $_LDFLAGS $HEAD_O $CMDLINE $_CFLAGS -lpayload $_LIBGCC"
+	echo "$DEFAULT_CC $_LDFLAGS $CMDLINE $_CFLAGS -lpayload $_LIBGCC"
     fi
 
-    # Note: $_ARCHLIBDIR/head.o must be the first object being linked, because it
-    # contains a Multiboot header.  The Multiboot standard requires this
-    # header to be placed below 0x2000 in the resulting image.  See:
-    # http://www.gnu.org/software/grub/manual/multiboot/html_node/OS-image-format.html
-
-    $DEFAULT_CC $_LDFLAGS $HEAD_O $CMDLINE $_CFLAGS -lpayload -xnone $_LIBGCC
+    $DEFAULT_CC $_LDFLAGS $CMDLINE $_CFLAGS -lpayload -xnone $_LIBGCC
 fi

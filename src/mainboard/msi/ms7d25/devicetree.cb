@@ -1,7 +1,7 @@
 chip soc/intel/alderlake
 	# FSP configuration
 
-	register "eist_enable" = "1"
+	register "eist_enable" = "true"
 
 	# Sagv Configuration
 	register "sagv" = "SaGv_Enabled"
@@ -240,6 +240,9 @@ chip soc/intel/alderlake
 				device pnp 4e.d off end		# Deep Sleep
 				device pnp 4e.e off end		# TACH/PWM assignment
 				device pnp 4e.f off end		# Function register
+			end
+			chip drivers/pc80/tpm
+				device pnp 0.0 on end	# TPM
 			end
 		end
 		device ref p2sb on end

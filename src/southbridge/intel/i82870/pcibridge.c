@@ -20,7 +20,6 @@ static void p64h2_pcix_init(struct device *dev)
 	pci_write_config32(dev, ACNF, dword);
 	byte = 0x08;
 	pci_write_config8(dev, MTT, byte);
-
 }
 static struct device_operations pcix_ops  = {
 	.read_resources   = pci_bus_read_resources,
@@ -38,5 +37,5 @@ static const struct pci_driver pcix_driver __pci_driver = {
 };
 
 struct chip_operations southbridge_intel_i82870_ops = {
-	CHIP_NAME("Intel 82870")
+	.name = "Intel 82870",
 };

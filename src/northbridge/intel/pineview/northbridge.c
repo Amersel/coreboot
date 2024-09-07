@@ -69,7 +69,7 @@ static void mch_domain_read_resources(struct device *dev)
 
 	/* Report the memory regions */
 	ram_range(dev, index++, 0, 0xa0000);
-	ram_from_to(dev, index++, 1 * MiB, (uintptr_t)cbmem_top());
+	ram_from_to(dev, index++, 1 * MiB, cbmem_top());
 	uintptr_t tseg_base;
 	size_t tseg_size;
 	smm_region(&tseg_base, &tseg_size);
@@ -77,8 +77,8 @@ static void mch_domain_read_resources(struct device *dev)
 	mmio_range(dev, index++, gtt_base,  gsm_size);
 	mmio_range(dev, index++, igd_base,  gms_size);
 	printk(BIOS_DEBUG, "Unused RAM between cbmem_top and TOM: 0x%lx\n",
-	       tseg_base - (uintptr_t)cbmem_top());
-	reserved_ram_from_to(dev, index++, (uintptr_t)cbmem_top(), tseg_base);
+	       tseg_base - cbmem_top());
+	reserved_ram_from_to(dev, index++, cbmem_top(), tseg_base);
 
 	/*
 	 * If > 4GB installed then memory from TOLUD to 4GB
@@ -108,7 +108,7 @@ static void mch_domain_set_resources(struct device *dev)
 	for (res = dev->resource_list; res; res = res->next)
 		report_resource_stored(dev, res, "");
 
-	assign_resources(dev->link_list);
+	assign_resources(dev->downstream);
 }
 
 static void mch_domain_init(struct device *dev)
@@ -137,7 +137,7 @@ static struct device_operations pci_domain_ops = {
 	.read_resources	= mch_domain_read_resources,
 	.set_resources	= mch_domain_set_resources,
 	.init		= mch_domain_init,
-	.scan_bus	= pci_domain_scan_bus,
+	.scan_bus	= pci_host_bridge_scan_bus,
 	.acpi_fill_ssdt	= generate_cpu_entries,
 	.acpi_name	= northbridge_acpi_name,
 };
@@ -159,6 +159,6 @@ static void enable_dev(struct device *dev)
 }
 
 struct chip_operations northbridge_intel_pineview_ops = {
-	CHIP_NAME("Intel Pineview Northbridge")
+	.name = "Intel Pineview Northbridge",
 	.enable_dev = enable_dev,
 };

@@ -9,6 +9,7 @@
 #include <ec/ec.h>
 #include <fw_config.h>
 #include <soc/ramstage.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <vendorcode/google/chromeos/chromeos.h>
 
@@ -41,12 +42,12 @@ static void mainboard_init(void *chip_info)
 	fw_config_gpio_padbased_override(padbased_table);
 	gpio_configure_pads_with_padbased(padbased_table);
 	free(padbased_table);
-	variant_devtree_update();
+	baseboard_devtree_update();
 }
 
-void __weak variant_devtree_update(void)
+void __weak baseboard_devtree_update(void)
 {
-	/* Override dev tree settings per board */
+	/* Override dev tree settings per baseboard */
 }
 
 void __weak variant_generate_s0ix_hook(enum s0ix_entry entry)
@@ -82,7 +83,7 @@ static void mainboard_generate_s0ix_hook(void)
 static void mainboard_generate_wwan_shutdown(const struct device *dev)
 {
 	const struct drivers_wwan_fm_config *config = config_of(dev);
-	const struct device *parent = dev->bus->dev;
+	const struct device *parent = dev->upstream->dev;
 
 	if (!config)
 		return;
