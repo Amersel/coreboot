@@ -18,7 +18,6 @@ config SOC_INTEL_ALDERLAKE
 	select FAST_SPI_SUPPORTS_EXT_BIOS_WINDOW
 	select FSP_M_XIP
 	select FSP_MULTIPHASE_SI_INIT_RETURN_BROKEN
-	select FSP_STATUS_GLOBAL_RESET_REQUIRED_3
 	select FSP_USES_CB_DEBUG_EVENT_HANDLER
 	select FSPS_HAS_ARCH_UPD
 	select GENERIC_GPIO_LIB
@@ -84,6 +83,7 @@ config SOC_INTEL_ALDERLAKE
 	select SOC_INTEL_COMMON_FSP_RESET
 	select SOC_INTEL_COMMON_PCH_CLIENT
 	select SOC_INTEL_COMMON_RESET
+	select SOC_INTEL_CRASHLOG if MAINBOARD_HAS_CHROMEOS
 	select SOC_INTEL_CSE_SEND_EOP_LATE if !BOARD_GOOGLE_BRYA_COMMON && !BOARD_GOOGLE_BROX_COMMON
 	select SOC_INTEL_CSE_SET_EOP
 	select SOC_INTEL_MEM_MAPPED_PM_CONFIGURATION
@@ -398,32 +398,28 @@ config FSP_TYPE_IOT
 
 config FSP_HEADER_PATH
 	string "Location of FSP headers"
-	default "src/vendorcode/intel/fsp/fsp2_0/twinlake/" if SOC_INTEL_TWINLAKE && !FSP_USE_REPO
-	default "src/vendorcode/intel/fsp/fsp2_0/alderlake_n/" if SOC_INTEL_ALDERLAKE_PCH_N && !FSP_USE_REPO
-	default "src/vendorcode/intel/fsp/fsp2_0/raptorlake/" if SOC_INTEL_RAPTORLAKE && !FSP_USE_REPO
-	default "3rdparty/fsp/RaptorLakeFspBinPkg/IoT/RaptorLakeP/Include/" if SOC_INTEL_ALDERLAKE_PCH_P && SOC_INTEL_RAPTORLAKE && FSP_TYPE_IOT
-	default "3rdparty/fsp/RaptorLakeFspBinPkg/IoT/RaptorLakeS/Include/" if SOC_INTEL_RAPTORLAKE_PCH_S && FSP_TYPE_IOT
-	default "3rdparty/fsp/RaptorLakeFspBinPkg/Client/RaptorLakeP/Include/" if SOC_INTEL_ALDERLAKE_PCH_P && SOC_INTEL_RAPTORLAKE
-	default "3rdparty/fsp/RaptorLakeFspBinPkg/Client/RaptorLakeS/Include/" if SOC_INTEL_ALDERLAKE_PCH_S && SOC_INTEL_RAPTORLAKE
-	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeP/Include/" if SOC_INTEL_ALDERLAKE_PCH_P && FSP_TYPE_IOT
-	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeS/Include/" if SOC_INTEL_ALDERLAKE_PCH_S && FSP_TYPE_IOT
-	default "3rdparty/fsp/AlderLakeFspBinPkg/Client/AlderLakeP/Include/" if SOC_INTEL_ALDERLAKE_PCH_P && !SOC_INTEL_RAPTORLAKE
-	default "3rdparty/fsp/AlderLakeFspBinPkg/Client/AlderLakeS/Include/" if SOC_INTEL_ALDERLAKE_PCH_S
-	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeN/Include/" if SOC_INTEL_ALDERLAKE_PCH_N && FSP_TYPE_IOT
-	default "src/vendorcode/intel/fsp/fsp2_0/alderlake/" if !FSP_USE_REPO
+	default "src/vendorcode/intel/fsp/fsp2_0/twinlake/"     if !FSP_USE_REPO && SOC_INTEL_TWINLAKE
+	default "src/vendorcode/intel/fsp/fsp2_0/alderlake_n/"  if !FSP_USE_REPO && SOC_INTEL_ALDERLAKE_PCH_N
+	default "src/vendorcode/intel/fsp/fsp2_0/raptorlake/"   if !FSP_USE_REPO && SOC_INTEL_RAPTORLAKE
+	default "src/vendorcode/intel/fsp/fsp2_0/alderlake/"    if !FSP_USE_REPO
+	default "3rdparty/fsp/RaptorLakeFspBinPkg/IoT/RaptorLakeP/Include/" if FSP_TYPE_IOT && SOC_INTEL_ALDERLAKE_PCH_P && SOC_INTEL_RAPTORLAKE
+	default "3rdparty/fsp/RaptorLakeFspBinPkg/IoT/RaptorLakeS/Include/" if FSP_TYPE_IOT && SOC_INTEL_RAPTORLAKE_PCH_S
+	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeP/Include/"   if FSP_TYPE_IOT && SOC_INTEL_ALDERLAKE_PCH_P
+	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeS/Include/"   if FSP_TYPE_IOT && SOC_INTEL_ALDERLAKE_PCH_S
+	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeN/Include/"   if FSP_TYPE_IOT && SOC_INTEL_ALDERLAKE_PCH_N
+	default "3rdparty/fsp/RaptorLakeFspBinPkg/Client/RaptorLakeP/Include/" if SOC_INTEL_ALDERLAKE_PCH_P
+	default "3rdparty/fsp/RaptorLakeFspBinPkg/Client/RaptorLakeS/Include/" if SOC_INTEL_ALDERLAKE_PCH_S
 
 config FSP_FD_PATH
 	string
 	depends on FSP_USE_REPO
-	default "3rdparty/fsp/RaptorLakeFspBinPkg/IoT/RaptorLakeP/FSP.fd" if SOC_INTEL_ALDERLAKE_PCH_P && SOC_INTEL_RAPTORLAKE && FSP_TYPE_IOT
-	default "3rdparty/fsp/RaptorLakeFspBinPkg/IoT/RaptorLakeS/FSP.fd" if SOC_INTEL_RAPTORLAKE_PCH_S && FSP_TYPE_IOT
-	default "3rdparty/fsp/RaptorLakeFspBinPkg/Client/RaptorLakeP/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_P && SOC_INTEL_RAPTORLAKE
-	default "3rdparty/fsp/RaptorLakeFspBinPkg/Client/RaptorLakeS/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_S && SOC_INTEL_RAPTORLAKE
-	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeP/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_P && FSP_TYPE_IOT
-	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeS/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_S && FSP_TYPE_IOT
-	default "3rdparty/fsp/AlderLakeFspBinPkg/Client/AlderLakeP/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_P && !SOC_INTEL_RAPTORLAKE
-	default "3rdparty/fsp/AlderLakeFspBinPkg/Client/AlderLakeS/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_S
-	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeN/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_N && FSP_TYPE_IOT
+	default "3rdparty/fsp/RaptorLakeFspBinPkg/IoT/RaptorLakeP/FSP.fd"   if FSP_TYPE_IOT && SOC_INTEL_ALDERLAKE_PCH_P && SOC_INTEL_RAPTORLAKE
+	default "3rdparty/fsp/RaptorLakeFspBinPkg/IoT/RaptorLakeS/FSP.fd"   if FSP_TYPE_IOT && SOC_INTEL_RAPTORLAKE_PCH_S
+	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeP/Fsp.fd"     if FSP_TYPE_IOT && SOC_INTEL_ALDERLAKE_PCH_P
+	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeS/Fsp.fd"     if FSP_TYPE_IOT && SOC_INTEL_ALDERLAKE_PCH_S
+	default "3rdparty/fsp/AlderLakeFspBinPkg/IoT/AlderLakeN/Fsp.fd"     if FSP_TYPE_IOT && SOC_INTEL_ALDERLAKE_PCH_N
+	default "3rdparty/fsp/RaptorLakeFspBinPkg/Client/RaptorLakeP/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_P
+	default "3rdparty/fsp/RaptorLakeFspBinPkg/Client/RaptorLakeS/Fsp.fd" if SOC_INTEL_ALDERLAKE_PCH_S
 
 # Override platform debug consent value:
 #  0:Disabled, 2:Enabled (All Probes+TraceHub), 6:Enable (Low Power),
@@ -493,12 +489,6 @@ config SI_DESC_REGION_SZ
 	help
 	  Size of Descriptor Region in the FMAP
 
-config BUILDING_WITH_DEBUG_FSP
-	bool "Debug FSP is used for the build"
-	default n
-	help
-	  Set this option if debug build of FSP is used.
-
 config INTEL_GMA_BCLV_OFFSET
 	default 0xc8258
 
@@ -511,18 +501,13 @@ config INTEL_GMA_BCLM_OFFSET
 config INTEL_GMA_BCLM_WIDTH
 	default 32
 
+# Note: It cannot be disabled for ADL-P based platforms because ADL-P FSP relies on
+# MBP HOB for ChipsetInit version for ChipsetInit sync. As ChipsetInit sync doesn't
+# occur if no MBP HOB, so it results S0ix issue. This limitation is addressed in the
+# later platforms so creation of MBP HOB can be skipped for ADL-N based platforms.
 config FSP_PUBLISH_MBP_HOB
 	bool
-	default n if CHROMEOS && (SOC_INTEL_ALDERLAKE_PCH_N)
-	default y
-	help
-	  This is to control creation of ME_BIOS_PAYLOAD_HOB (MBP HOB) by FSP.
-	  Disabling it for the platforms, which do not use MBP HOB, can improve the boot time.
-
-	  Note: It cannot be disabled for ADL-P based platforms because ADL-P FSP relies on
-	  MBP HOB for ChipsetInit version for ChipsetInit sync. As ChipsetInit sync doesn't
-	  occur if no MBP HOB, so it results S0ix issue. This limitation is addressed in the
-	  later platforms so creation of MBP HOB can be skipped for ADL-N based platforms.
+	default y if !SOC_INTEL_ALDERLAKE_PCH_N
 
 config INCLUDE_HSPHY_IN_FMAP
 	bool "Include PCIe 5.0 HSPHY firmware in flash"

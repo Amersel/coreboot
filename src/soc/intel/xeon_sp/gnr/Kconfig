@@ -30,7 +30,7 @@ config FSP_HEADER_PATH
 
 config MAX_CPUS
 	int
-	default 255
+	default 512
 
 config PCR_BASE_ADDRESS
 	hex
@@ -55,15 +55,6 @@ config DCACHE_RAM_SIZE
 	  The size of the cache-as-ram region required during bootblock
 	  and/or romstage. FSP-T reserves the upper 0x100 for
 	  FspReservedBuffer.
-
-config DCACHE_BSP_STACK_SIZE
-	hex
-	default 0x60000
-	help
-	  The amount of anticipated stack usage in CAR by bootblock and
-	  other stages. It needs to include FSP-M stack requirement and
-	  CB romstage stack requirement. The integration documentation
-	  says this needs to be 256KiB.
 
 config FSP_M_RC_HEAP_SIZE
 	hex

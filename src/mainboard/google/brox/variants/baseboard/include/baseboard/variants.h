@@ -25,6 +25,7 @@ bool variant_is_half_populated(void);
 void variant_update_soc_chip_config(struct soc_intel_alderlake_config *config);
 void variant_fill_ssdt(const struct device *dev);
 void variant_configure_pads(void);
+void variant_smi_sleep(u8 slp_typ);
 
 enum s0ix_entry {
 	S0IX_EXIT,
@@ -51,39 +52,11 @@ struct cpu_power_limits {
 struct system_power_limits {
 	uint16_t mchid;
 	u8 cpu_tdp;
-	/* PsysPL2 in Watts */
-	unsigned int psys_pl2_power;
-};
-
-struct psys_config {
-	/*
-	 * The efficiency of type-c chargers
-	 * For example, 'efficiency = 97' means setting 97% of max power to account for
-	 * cable loss and FET Rdson loss in the path from the source.
-	 */
-	unsigned int efficiency;
-
-	/* The maximum current maps to the Psys signal */
-	unsigned int psys_imax_ma;
-
-	/* The voltage of barrel jack */
-	unsigned int bj_volts_mv;
 };
 
 /* Modify Power Limit devictree settings during ramstage */
 void variant_update_power_limits(const struct cpu_power_limits *limits,
 				 size_t num_entries);
-
-
-/*
- * Modify Power Limit and PsysPL devictree settings during ramstage.
- * Note, this function must be called in front of calling variant_update_power_limits.
- */
-void variant_update_psys_power_limits(const struct cpu_power_limits *limits,
-					const struct system_power_limits *sys_limits,
-					size_t num_entries,
-					const struct psys_config *config);
-
 void variant_init(void);
 void variant_finalize(void);
 

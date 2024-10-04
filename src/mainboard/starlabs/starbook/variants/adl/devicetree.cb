@@ -1,21 +1,8 @@
 chip soc/intel/alderlake
-	# Graphics
-	# TODO:
-	# register "panel_cfg" = "{
-	#	.up_delay_ms			= 200,				// T3
-	#	.backlight_on_delay_ms		= 0,				// T7
-	#	.backlight_off_delay_ms		= 50,				// T9
-	#	.down_delay_ms			= 0,				// T10
-	#	.cycle_delay_ms			= 500,				// T12
-	#	.backlight_pwm_hz		= 200,				// PWM
-	# }"
-
-	# FSP Memory
+	# FSP UPDs
+	register "eist_enable"			= "true"
 	register "enable_c6dram"		= "1"
 	register "sagv"				= "SaGv_Enabled"
-
-	# FSP Silicon
-	register "eist_enable"			= "true"
 
 	# Serial I/O
 	register "serial_io_i2c_mode" = "{
@@ -31,11 +18,6 @@ chip soc/intel/alderlake
 	register "pch_slp_s4_min_assertion_width"	= "3"			# 1s
 	register "pch_slp_sus_min_assertion_width"	= "3"			# 500ms
 	register "pch_slp_a_min_assertion_width"	= "3"			# 2s
-
-	# PM Util
-	register "pmc_gpe0_dw0"			= "GPP_B"
-	register "pmc_gpe0_dw1"			= "GPP_C"
-	register "pmc_gpe0_dw2"			= "GPP_E"
 
 	# Device Tree
 	device domain 0 on
@@ -71,6 +53,61 @@ chip soc/intel/alderlake
 
 			# Internal Bluetooth
 			register "usb2_ports[9]"		= "USB2_PORT_MID(OC_SKIP)"
+
+			chip drivers/usb/acpi
+				device ref xhci_root_hub on
+					chip drivers/usb/acpi
+						register "desc"		= ""USB Type-C""
+						register "type"		= "UPC_TYPE_C_USB2_SS_SWITCH"
+						device ref usb2_port1 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""USB Type-C""
+						register "type"		= "UPC_TYPE_C_USB2_SS_SWITCH"
+						device ref usb3_port3 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""Left USB Type-A""
+						register "type"		= "UPC_TYPE_USB3_A"
+						device ref usb2_port3 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""Left USB Type-A""
+						register "type"		= "UPC_TYPE_USB3_A"
+						device ref usb3_port1 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""Right USB Type-A""
+						register "type"		= "UPC_TYPE_USB3_A"
+						device ref usb2_port7 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""Right USB Type-A""
+						register "type"		= "UPC_TYPE_USB3_A"
+						device ref usb3_port2 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""Internal Webcam""
+						register "type"		= "UPC_TYPE_INTERNAL"
+						device ref usb2_port5 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""Fingerprint Reader""
+						register "type"		= "UPC_TYPE_INTERNAL"
+						device ref usb2_port6 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""MicroSD Card Reader""
+						register "type"		= "UPC_TYPE_INTERNAL"
+						device ref usb2_port4 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""Internal Bluetooth""
+						register "type"		= "UPC_TYPE_INTERNAL"
+						device ref usb2_port10 on end
+					end
+				end
+			end
 		end
 		device ref i2c0		on
 			chip drivers/i2c/hid

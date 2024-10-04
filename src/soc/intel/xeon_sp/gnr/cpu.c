@@ -2,11 +2,12 @@
 
 #include <cpu/intel/common/common.h>
 #include <cpu/intel/microcode.h>
+#include <cpu/intel/smm_reloc.h>
 #include <cpu/x86/mp.h>
 #include <cpu/x86/mtrr.h>
 #include <intelblocks/cpulib.h>
 #include <intelblocks/mp_init.h>
-#include <soc/cpu.h>
+#include <soc/smmrelocate.h>
 #include <soc/soc_util.h>
 #include <soc/util.h>
 
@@ -33,8 +34,9 @@ static void each_cpu_init(struct device *cpu)
 	printk(BIOS_SPEW, "%s dev: %s, cpu: %lu, apic_id: 0x%x\n",
 		__func__, dev_path(cpu), cpu_index(), cpu->path.apic.apic_id);
 
-	/* Enable VMX */
-	set_vmx_and_lock();
+	/* Only lock and let vmx enabled by FSP to avoid FSP always triggering power good reset
+	   due to vmx configuration conflict */
+	set_feature_ctrl_lock();
 }
 
 static struct device_operations cpu_dev_ops = {
@@ -85,6 +87,11 @@ static void post_mp_init(void)
 static const struct mp_ops mp_ops = {
 	.pre_mp_init = pre_mp_init,
 	.get_cpu_count = get_thread_count,
+#if CONFIG(HAVE_SMI_HANDLER)
+	.get_smm_info = get_smm_info,
+	.pre_mp_smm_init = smm_southbridge_clear_state,
+	.relocation_handler = smm_relocation_handler,
+#endif
 	.get_microcode_info = get_microcode_info,
 	.post_mp_init = post_mp_init,
 };

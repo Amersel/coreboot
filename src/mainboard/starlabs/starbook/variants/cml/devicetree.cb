@@ -1,7 +1,8 @@
 chip soc/intel/cannonlake
-	# CPU
-	# Enable Enhanced Intel SpeedStep
+	# FSP UPDs
 	register "eist_enable"			= "true"
+	register "enable_c6dram"		= "1"
+	register "SaGv"				= "SaGv_Enabled"
 
 	# Graphics
 	# IGD Displays
@@ -14,11 +15,6 @@ chip soc/intel/cannonlake
 		.backlight_pwm_hz		=  200,				// PWM
 	}"
 
-	# FSP Memory
-	register "enable_c6dram"		= "1"
-	register "SaGv"				= "SaGv_Enabled"
-
-	# FSP Silicon
 	# Serial I/O
 	register "SerialIoDevMode" = "{
 		[PchSerialIoIndexI2C0]		= PchSerialIoPci,
@@ -32,16 +28,6 @@ chip soc/intel/cannonlake
 	register "PchPmSlpSusMinAssert"		= "3"				# 500ms
 	register "PchPmSlpAMinAssert"		= "3"				# 2s
 
-	# PM Util
-	# GPE configuration
-	# Note that GPE events called out in ASL code rely on this
-	# route. i.e. If this route changes then the affected GPE
-	# offset bits also need to be changed.
-	# sudo devmem2 0xfe001920 (pmc_bar + GPIO_GPE_CFG)
-	register "gpe0_dw0"			= "PMC_GPP_B"
-	register "gpe0_dw1"			= "PMC_GPP_C"
-	register "gpe0_dw2"			= "PMC_GPP_E"
-
 	# PCIe Clock
 	register "PcieClkSrcClkReq[0]"		= "PCIE_CLK_NOTUSED"
 	register "PcieClkSrcClkReq[2]"		= "PCIE_CLK_NOTUSED"
@@ -52,9 +38,6 @@ chip soc/intel/cannonlake
 # Actual device tree.
 	device domain 0 on
 		device ref igpu on  end
-		device ref dptf on
-			register "Device4Enable"		= "1"
-		end
 		device ref xhci on
 			# Motherboard USB Type C
 			register "usb2_ports[0]"		= "USB2_PORT_TYPE_C(OC_SKIP)"
@@ -76,6 +59,56 @@ chip soc/intel/cannonlake
 
 			# Internal Bluetooth
 			register "usb2_ports[9]"		= "USB2_PORT_MID(OC_SKIP)"
+
+			chip drivers/usb/acpi
+				device ref xhci_root_hub on
+					chip drivers/usb/acpi
+						register "desc"		= ""USB Type-C""
+						register "type"		= "UPC_TYPE_C_USB2_SS_SWITCH"
+						device ref usb2_port1 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""USB Type-C""
+						register "type"		= "UPC_TYPE_C_USB2_SS_SWITCH"
+						device ref usb3_port1 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""Left USB Type-A""
+						register "type"		= "UPC_TYPE_USB3_A"
+						device ref usb2_port2 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""Left USB Type-A""
+						register "type"		= "UPC_TYPE_USB3_A"
+						device ref usb3_port2 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""Right USB Type-A""
+						register "type"		= "UPC_TYPE_USB3_A"
+						device ref usb2_port6 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""Right USB Type-A""
+						register "type"		= "UPC_TYPE_USB3_A"
+						device ref usb3_port3 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""Internal Webcam""
+						register "type"		= "UPC_TYPE_INTERNAL"
+						device ref usb2_port7 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""MicroSD Card Reader""
+						register "type"		= "UPC_TYPE_INTERNAL"
+						device ref usb2_port4 on end
+					end
+					chip drivers/usb/acpi
+						register "desc"		= ""Internal Bluetooth""
+						register "type"		= "UPC_TYPE_INTERNAL"
+						device ref usb2_port10 on end
+					end
+				end
+			end
 		end
 		device ref shared_sram on  end
 		device ref cnvi_wifi on

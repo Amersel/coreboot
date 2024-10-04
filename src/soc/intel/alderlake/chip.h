@@ -42,6 +42,13 @@ struct ibecc_config {
 	/* add ECC error injection if needed by a mainboard */
 };
 
+/* FSPM UPD for setting the boot frequency  */
+enum fspm_boot_freq {
+	MAX_BATTERY_PERFORMANCE,
+	MAX_NONTURBO_PERFORMANCE,
+	TURBO_PERFORMANCE
+};
+
 /* Types of different SKUs */
 enum soc_intel_alderlake_power_limits {
 	ADL_P_142_242_282_15W_CORE,
@@ -54,9 +61,13 @@ enum soc_intel_alderlake_power_limits {
 	ADL_M_242_CORE,
 	ADL_P_442_45W_CORE,
 	ADL_N_081_7W_CORE,
+	ADL_N_081_9W_CORE,
 	ADL_N_081_15W_CORE,
 	ADL_N_041_6W_CORE,
+	ADL_N_041_12W_CORE,
+	ADL_N_041_15W_CORE,
 	ADL_N_021_6W_CORE,
+	ADL_N_021_10W_CORE,
 	ADL_S_882_35W_CORE,
 	ADL_S_882_65W_CORE,
 	ADL_S_882_125W_CORE,
@@ -111,6 +122,7 @@ enum soc_intel_alderlake_cpu_tdps {
 	TDP_6W  = 6,
 	TDP_7W  = 7,
 	TDP_9W  = 9,
+	TDP_10W = 10,
 	TDP_12W = 12,
 	TDP_15W = 15,
 	TDP_28W = 28,
@@ -148,12 +160,16 @@ static const struct {
 	{ PCI_DID_INTEL_ADL_M_ID_1, ADL_M_282_12W_CORE, TDP_12W },
 	{ PCI_DID_INTEL_ADL_M_ID_1, ADL_M_282_15W_CORE, TDP_15W },
 	{ PCI_DID_INTEL_ADL_M_ID_2, ADL_M_242_CORE, TDP_9W },
-	{ PCI_DID_INTEL_ADL_N_ID_1, ADL_N_081_7W_CORE, TDP_7W },
 	{ PCI_DID_INTEL_ADL_N_ID_1, ADL_N_081_15W_CORE, TDP_15W },
 	{ PCI_DID_INTEL_ADL_N_ID_2, ADL_N_041_6W_CORE, TDP_6W },
 	{ PCI_DID_INTEL_ADL_N_ID_3, ADL_N_041_6W_CORE, TDP_6W },
 	{ PCI_DID_INTEL_ADL_N_ID_4, ADL_N_021_6W_CORE, TDP_6W },
 	{ PCI_DID_INTEL_ADL_N_ID_5, ADL_N_041_6W_CORE, TDP_6W },
+	{ PCI_DID_INTEL_ADL_N_ID_5, ADL_N_041_15W_CORE, TDP_15W },
+	{ PCI_DID_INTEL_ADL_N_ID_6, ADL_N_041_12W_CORE, TDP_12W },
+	{ PCI_DID_INTEL_ADL_N_ID_7, ADL_N_041_12W_CORE, TDP_12W },
+	{ PCI_DID_INTEL_ADL_N_ID_8, ADL_N_021_6W_CORE, TDP_6W },
+	{ PCI_DID_INTEL_ADL_N_ID_9, ADL_N_021_10W_CORE, TDP_10W },
 	{ PCI_DID_INTEL_ADL_S_ID_1, ADL_S_882_35W_CORE, TDP_35W },
 	{ PCI_DID_INTEL_ADL_S_ID_1, ADL_S_882_65W_CORE, TDP_65W },
 	{ PCI_DID_INTEL_ADL_S_ID_1, ADL_S_882_125W_CORE, TDP_125W },
@@ -575,8 +591,8 @@ struct soc_intel_alderlake_config {
 	uint8_t cpu_ratio_override;
 
 	/*
-	 * Enable(0)/Disable(1) DMI Power Optimizer on PCH side.
-	 * Default 0. Setting this to 1 disables the DMI Power Optimizer.
+	 * Enable/Disable DMI Power Optimizer on PCH side.
+	 * Default is "false".
 	 */
 	bool dmi_power_optimize_disable;
 

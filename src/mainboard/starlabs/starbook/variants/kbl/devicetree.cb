@@ -1,7 +1,7 @@
 chip soc/intel/skylake
-# CPU
-	# Enable Enhanced Intel SpeedStep
+	# FPD UPDs
 	register "eist_enable"			= "true"
+	register "SaGv"				= "SaGv_Enabled"
 
 	# Graphics
 	# IGD Displays
@@ -14,10 +14,6 @@ chip soc/intel/skylake
 		.backlight_pwm_hz		=  200,				// PWM
 	}"
 
-	# FSP Memory
-	register "SaGv"				= "SaGv_Enabled"
-
-# FSP Silicon
 	# Serial I/O
 	register "SerialIoDevMode" = "{
 		[PchSerialIoIndexI2C0]		= PchSerialIoPci,
@@ -30,16 +26,6 @@ chip soc/intel/skylake
 	register "PmConfigSlpSusMinAssert"	= "3"				# 500ms
 	register "PmConfigSlpAMinAssert"	= "3"				# 2s
 
-	# PM Util
-	# GPE configuration
-	# Note that GPE events called out in ASL code rely on this
-	# route. i.e. If this route changes then the affected GPE
-	# offset bits also need to be changed.
-	# sudo devmem2 0xfe001920 (pmc_bar + GPIO_GPE_CFG)
-	register "gpe0_dw0"			= "GPP_B"
-	register "gpe0_dw1"			= "GPP_C"
-	register "gpe0_dw2"			= "GPP_E"
-
 	# Enable the correct decode ranges on the LPC bus.
 	register "lpc_ioe"			= "LPC_IOE_EC_4E_4F |
 						   LPC_IOE_KBC_60_64 |
@@ -48,7 +34,6 @@ chip soc/intel/skylake
 # Actual device tree.
 	device domain 0 on
 		device ref igpu		on  end
-		device ref sa_thermal	on  end
 		device ref south_xhci	on
 			# Motherboard USB Type C
 			register "usb2_ports[0]"		= "USB2_PORT_TYPE_C(OC_SKIP)"

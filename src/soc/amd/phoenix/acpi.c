@@ -18,8 +18,9 @@
 #include <cpu/amd/cpuid.h>
 #include <device/device.h>
 #include <soc/iomap.h>
+#include <static.h>
 #include <types.h>
-#include <vendorcode/amd/opensil/genoa_poc/opensil.h>
+#include <vendorcode/amd/opensil/opensil.h>
 #include "chip.h"
 
 /*

@@ -835,6 +835,7 @@ static enum cb_err cse_write_rw_region(const struct region_device *target_rdev,
 		return CB_ERR;
 
 	printk(BIOS_INFO, "cse_lite: CSE RW Update Successful\n");
+	elog_add_event_byte(ELOG_TYPE_FW_EARLY_SOL, ELOG_FW_EARLY_SOL_CSE_SYNC);
 	return CB_SUCCESS;
 }
 
@@ -1583,7 +1584,7 @@ static void ramstage_cse_misc_ops(void *unused)
 	 * Store the ISH RW Firmware Version into CBMEM if ISH partition
 	 * is available
 	 */
-	if (soc_is_ish_partition_enabled())
+	if (!CONFIG(DRIVER_INTEL_ISH_HAS_MAIN_FW) && soc_is_ish_partition_enabled())
 		store_ish_version();
 }
 

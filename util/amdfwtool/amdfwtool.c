@@ -492,6 +492,8 @@ static void *new_psp_dir(context *ctx, int multi, uint32_t cookie)
 	((psp_directory_header *)ptr)->num_entries = 0;
 	((psp_directory_header *)ptr)->additional_info = 0;
 	((psp_directory_header *)ptr)->additional_info_fields.address_mode = ctx->address_mode;
+	((psp_directory_header *)ptr)->additional_info_fields.spi_block_size = 1;
+	((psp_directory_header *)ptr)->additional_info_fields.base_addr = 0;
 	adjust_current_pointer(ctx,
 		sizeof(psp_directory_header) + MAX_PSP_ENTRIES * sizeof(psp_directory_entry),
 		1);
@@ -515,10 +517,21 @@ static void *new_combo_dir(context *ctx, uint32_t cookie)
 	adjust_current_pointer(ctx, 0, TABLE_ALIGNMENT);
 	ptr = BUFF_CURRENT(*ctx);
 	((psp_combo_header *)ptr)->cookie = cookie;
+	/* lookup mode is hardcoded for now. */
+	((psp_combo_header *)ptr)->lookup = 1;
+	((psp_combo_header *)ptr)->reserved[0] = 0;
+	((psp_combo_header *)ptr)->reserved[1] = 0;
+
 	adjust_current_pointer(ctx,
 		sizeof(psp_combo_header) + MAX_COMBO_ENTRIES * sizeof(psp_combo_entry),
 		1);
 	return ptr;
+}
+
+static void copy_psp_header(void *bak, void *orig)
+{
+	uint32_t count = ((psp_directory_header *)orig)->num_entries;
+	memcpy(bak, orig, count * sizeof(bios_directory_entry) + sizeof(psp_directory_table));
 }
 
 static void fill_dir_header(void *directory, uint32_t count, context *ctx)
@@ -541,11 +554,7 @@ static void fill_dir_header(void *directory, uint32_t count, context *ctx)
 	switch (cookie) {
 	case PSP2_COOKIE:
 	case BHD2_COOKIE:
-		/* lookup mode is hardcoded for now. */
-		cdir->header.lookup = 1;
 		cdir->header.num_entries = count;
-		cdir->header.reserved[0] = 0;
-		cdir->header.reserved[1] = 0;
 		/* checksum everything that comes after the Checksum field */
 		cdir->header.checksum = fletcher32(&cdir->header.num_entries,
 					count * sizeof(psp_combo_entry)
@@ -569,8 +578,6 @@ static void fill_dir_header(void *directory, uint32_t count, context *ctx)
 					table_size / TABLE_ALIGNMENT;
 		}
 		dir->header.num_entries = count;
-		dir->header.additional_info_fields.spi_block_size = 1;
-		dir->header.additional_info_fields.base_addr = 0;
 		/* checksum everything that comes after the Checksum field */
 		dir->header.checksum = fletcher32(&dir->header.num_entries,
 					count * sizeof(psp_directory_entry)
@@ -591,8 +598,6 @@ static void fill_dir_header(void *directory, uint32_t count, context *ctx)
 				table_size / TABLE_ALIGNMENT;
 		}
 		bdir->header.num_entries = count;
-		bdir->header.additional_info_fields.spi_block_size = 1;
-		bdir->header.additional_info_fields.base_addr = 0;
 		/* checksum everything that comes after the Checksum field */
 		bdir->header.checksum = fletcher32(&bdir->header.num_entries,
 					count * sizeof(bios_directory_entry)
@@ -600,7 +605,6 @@ static void fill_dir_header(void *directory, uint32_t count, context *ctx)
 					+ sizeof(bdir->header.additional_info));
 		break;
 	}
-
 }
 
 static void fill_psp_directory_to_efs(embedded_firmware *amd_romsig, void *pspdir,
@@ -628,6 +632,14 @@ static void fill_psp_directory_to_efs(embedded_firmware *amd_romsig, void *pspdi
 			BUFF_TO_RUN_MODE(*ctx, pspdir, AMD_ADDR_REL_BIOS);
 		break;
 	}
+}
+
+static void fill_psp_bak_directory_to_efs(embedded_firmware *amd_romsig, void *pspdir_bak,
+	context *ctx, amd_cb_config *cb_config)
+{
+	if (cb_config->recovery_ab)
+		amd_romsig->psp_bak_directory =
+			BUFF_TO_RUN_MODE(*ctx, pspdir_bak, AMD_ADDR_REL_BIOS);
 }
 
 static void fill_bios_directory_to_efs(embedded_firmware *amd_romsig, void *biosdir,
@@ -818,6 +830,8 @@ static void dump_image_addresses(context *ctx)
 {
 	printf("romsig offset:%lx\n", BUFF_TO_RUN(*ctx, ctx->amd_romsig_ptr));
 	printf("PSP L1 offset:%lx\n", BUFF_TO_RUN(*ctx, ctx->pspdir));
+	if (ctx->pspdir_bak != NULL)
+		printf("PSP L1 backup offset:%lx\n", BUFF_TO_RUN(*ctx, ctx->pspdir_bak));
 	if (ctx->pspdir2 != NULL)
 		printf("PSP L2(A) offset:%lx\n", BUFF_TO_RUN(*ctx, ctx->pspdir2));
 	if (ctx->ish_a_dir != NULL)
@@ -870,7 +884,7 @@ static void integrate_psp_ab(context *ctx, psp_directory_table *pspdir,
 				BUFF_TO_RUN_MODE(*ctx, pspdir2, AMD_ADDR_REL_BIOS);
 		pspdir->entries[count].address_mode =
 				SET_ADDR_MODE(pspdir, AMD_ADDR_REL_BIOS);
-		pspdir->entries[count].size = _MAX(TABLE_ALIGNMENT,
+		pspdir->entries[count].size = _MAX(TABLE_L2_SIZE_MAX,
 				pspdir2->header.num_entries *
 				sizeof(psp_directory_entry) +
 				sizeof(psp_directory_header));
@@ -914,6 +928,7 @@ static void integrate_psp_levels(context *ctx,
 				use_only_a ? AMD_FW_RECOVERYAB_A : AMD_FW_RECOVERYAB_B,
 				cb_config->soc_id);
 
+		copy_psp_header(ctx->pspdir_bak, ctx->pspdir);
 	} else if (pspdir2 != NULL) {
 		assert_fw_entry(count, MAX_PSP_ENTRIES, ctx);
 		pspdir->entries[count].type = AMD_FW_L2_PTR;
@@ -955,9 +970,11 @@ static void integrate_psp_firmwares(context *ctx,
 	 */
 	pspdir = new_psp_dir(ctx, cb_config->multi_level, cookie);
 
-	if (cookie == PSP_COOKIE)
+	if (cookie == PSP_COOKIE) {
 		ctx->pspdir = pspdir;
-	else if (cookie == PSPL2_COOKIE) {
+		if (recovery_ab)
+			ctx->pspdir_bak = new_psp_dir(ctx, cb_config->multi_level, cookie);
+	} else if (cookie == PSPL2_COOKIE) {
 		if (ctx->pspdir2 == NULL)
 			ctx->pspdir2 = pspdir;
 		else if (ctx->pspdir2_b == NULL)
@@ -1132,6 +1149,8 @@ static void *new_bios_dir(context *ctx, bool multi, uint32_t cookie)
 	((bios_directory_hdr *) ptr)->cookie = cookie;
 	((bios_directory_hdr *) ptr)->additional_info = 0;
 	((bios_directory_hdr *) ptr)->additional_info_fields.address_mode = ctx->address_mode;
+	((bios_directory_hdr *) ptr)->additional_info_fields.spi_block_size = 1;
+	((bios_directory_hdr *) ptr)->additional_info_fields.base_addr = 0;
 	adjust_current_pointer(ctx,
 		sizeof(bios_directory_hdr) + MAX_BIOS_ENTRIES * sizeof(bios_directory_entry),
 		1);
@@ -1216,11 +1235,11 @@ static void integrate_bios_levels(context *ctx, amd_cb_config *cb_config)
 
 	if (cb_config->recovery_ab) {
 		add_psp_firmware_entry(ctx, ctx->pspdir2, ctx->biosdir2,
-			AMD_FW_BIOS_TABLE, TABLE_ALIGNMENT);
+			AMD_FW_BIOS_TABLE, TABLE_L2_SIZE_MAX);
 		if (ctx->pspdir2_b != NULL)
 			add_psp_firmware_entry(ctx, ctx->pspdir2_b,
 				ctx->biosdir2_b, AMD_FW_BIOS_TABLE,
-				TABLE_ALIGNMENT);
+				TABLE_L2_SIZE_MAX);
 	} else if (ctx->biosdir2) {
 		current_table_save = ctx->current_table;
 		ctx->current_table = BUFF_TO_RUN_MODE(*ctx, ctx->biosdir, AMD_ADDR_REL_BIOS);
@@ -1471,6 +1490,20 @@ static void integrate_bios_firmwares(context *ctx,
 	ctx->current_table = current_table_save;
 }
 
+static void add_combo_entry(void *combo_dir, void *dir, uint32_t combo_index,
+			context *ctx, amd_cb_config *cb_config)
+{
+	psp_combo_directory *cdir = combo_dir;
+	assert_fw_entry(combo_index, MAX_COMBO_ENTRIES, ctx);
+	/* 0 -Compare PSP ID, 1 -Compare chip family ID */
+	cdir->entries[combo_index].id_sel = 0;
+	cdir->entries[combo_index].id = get_psp_id(cb_config->soc_id);
+	cdir->entries[combo_index].lvl2_addr =
+		BUFF_TO_RUN_MODE(*ctx, dir, AMD_ADDR_REL_BIOS);
+
+	fill_dir_header(combo_dir, combo_index + 1, ctx);
+}
+
 static int set_efs_table(uint8_t soc_id, amd_cb_config *cb_config,
 			 embedded_firmware *amd_romsig)
 {
@@ -1582,6 +1615,11 @@ static bool is_initial_alignment_required(enum platform soc_id)
 	}
 }
 
+static bool needs_new_combo_layout(enum platform soc_id)
+{
+	return needs_ish(soc_id);
+}
+
 int main(int argc, char **argv)
 {
 	int retval = 0;
@@ -1609,6 +1647,9 @@ int main(int argc, char **argv)
 	}
 
 	open_process_config(cb_config.config, &cb_config);
+
+	if (cb_config.use_combo && needs_new_combo_layout(cb_config.soc_id))
+		cb_config.combo_new_rab = true;
 
 	ctx.rom = malloc(ctx.rom_size);
 	if (!ctx.rom) {
@@ -1664,7 +1705,7 @@ int main(int argc, char **argv)
 				cb_config.signed_start_addr,
 				cb_config.soc_id);
 
-	if (cb_config.use_combo) {
+	if (cb_config.use_combo && !cb_config.combo_new_rab) {
 		ctx.psp_combo_dir = new_combo_dir(&ctx, PSP2_COOKIE);
 
 		adjust_current_pointer(&ctx, 0, 0x1000U);
@@ -1681,7 +1722,12 @@ int main(int argc, char **argv)
 		if (cb_config.use_combo && cb_config.debug)
 			printf("Processing %dth combo entry\n", combo_index);
 
-		ctx.pspdir = NULL;
+		/* The pspdir level 1 is special. For new combo layout, all the combo entries
+		   share one pspdir L1. It should not be cleared at each iteration. */
+		if (!cb_config.combo_new_rab || combo_index == 0) {
+			ctx.pspdir = NULL;
+			ctx.pspdir_bak = NULL;
+		}
 		ctx.pspdir2 = NULL;
 		ctx.pspdir2_b = NULL;
 		ctx.biosdir = NULL;
@@ -1735,7 +1781,8 @@ int main(int argc, char **argv)
 				 */
 				ctx.pspdir2_b = NULL; /* More explicitly */
 			}
-			integrate_psp_firmwares(&ctx,
+			if (!cb_config.combo_new_rab || combo_index == 0)
+				integrate_psp_firmwares(&ctx,
 					amd_psp_fw_table, PSP_COOKIE, &cb_config);
 			integrate_psp_levels(&ctx, &cb_config);
 		} else {
@@ -1744,18 +1791,13 @@ int main(int argc, char **argv)
 					amd_psp_fw_table, PSP_COOKIE, &cb_config);
 		}
 
-		if (!cb_config.use_combo) {
+		if (!cb_config.use_combo || (cb_config.combo_new_rab && combo_index == 0)) {
+			/* For new combo layout, there is only 1 PSP level 1 directory. */
 			fill_psp_directory_to_efs(ctx.amd_romsig_ptr, ctx.pspdir, &ctx, &cb_config);
-		} else {
+			fill_psp_bak_directory_to_efs(ctx.amd_romsig_ptr, ctx.pspdir_bak, &ctx, &cb_config);
+		} else if (cb_config.use_combo && !cb_config.combo_new_rab) {
 			fill_psp_directory_to_efs(ctx.amd_romsig_ptr, ctx.psp_combo_dir, &ctx, &cb_config);
-			/* 0 -Compare PSP ID, 1 -Compare chip family ID */
-			assert_fw_entry(combo_index, MAX_COMBO_ENTRIES, &ctx);
-			ctx.psp_combo_dir->entries[combo_index].id_sel = 0;
-			ctx.psp_combo_dir->entries[combo_index].id = get_psp_id(cb_config.soc_id);
-			ctx.psp_combo_dir->entries[combo_index].lvl2_addr =
-				BUFF_TO_RUN_MODE(ctx, ctx.pspdir, AMD_ADDR_REL_BIOS);
-
-			fill_dir_header(ctx.psp_combo_dir, combo_index + 1, &ctx);
+			add_combo_entry(ctx.psp_combo_dir, ctx.pspdir, combo_index, &ctx, &cb_config);
 		}
 
 		if (have_bios_tables(amd_bios_table)) {
@@ -1788,14 +1830,7 @@ int main(int argc, char **argv)
 				 */
 				fill_bios_directory_to_efs(ctx.amd_romsig_ptr, ctx.bhd_combo_dir,
 					&ctx, &cb_config);
-				assert_fw_entry(combo_index, MAX_COMBO_ENTRIES, &ctx);
-				ctx.bhd_combo_dir->entries[combo_index].id_sel = 0;
-				ctx.bhd_combo_dir->entries[combo_index].id =
-					get_psp_id(cb_config.soc_id);
-				ctx.bhd_combo_dir->entries[combo_index].lvl2_addr =
-					BUFF_TO_RUN_MODE(ctx, ctx.biosdir, AMD_ADDR_REL_BIOS);
-
-				fill_dir_header(ctx.bhd_combo_dir, combo_index + 1, &ctx);
+				add_combo_entry(ctx.bhd_combo_dir, ctx.biosdir, combo_index, &ctx, &cb_config);
 			}
 		}
 		if (cb_config.debug)

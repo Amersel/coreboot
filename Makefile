@@ -229,6 +229,12 @@ real-all: site-local-target real-target
 .SECONDEXPANSION:
 .DELETE_ON_ERROR:
 
+# conf is treated as an intermediate target and may be built after config.h
+# during a clean build due to the way GNU Make handles intermediates when the
+# .SECONDARY target is present, forcing config.h and thus every object out of
+# date on a subsequent no-op build. Mark it as not intermediate to prevent this
+.NOTINTERMEDIATE: $(objutil)/kconfig/conf
+
 $(KCONFIG_AUTOHEADER): $(KCONFIG_CONFIG) $(objutil)/kconfig/conf
 	$(MAKE) olddefconfig
 	$(MAKE) syncconfig
@@ -392,16 +398,17 @@ define create_cc_template
 # $2 source suffix (c, S, ld, ...)
 # $3 additional compiler flags
 # $4 additional dependencies
+# $5 generated header dependencies
 ifn$(EMPTY)def $(1)-objs_$(2)_template
 de$(EMPTY)fine $(1)-objs_$(2)_template
 ifn$(EMPTY)eq ($(filter ads adb,$(2)),)
-$$(call src-to-obj,$1,$$(1).$2): $$(1).$2 $$(call create_ada_deps,$1,$$(call src-to-ali,$1,$$(1).$2)) $(4)
+$$(call src-to-obj,$1,$$(1).$2): $$(1).$2 $$(call create_ada_deps,$1,$$(call src-to-ali,$1,$$(1).$2)) $(4) | $(5)
 	@printf "    GCC        $$$$(subst $$$$(obj)/,,$$$$(@))\n"
 	$(GCC_$(1)) \
 		$$$$(ADAFLAGS_$(1)) $$$$(addprefix -I,$$$$($(1)-ada-dirs)) \
 		$(3) -c -o $$$$@ $$$$<
 el$(EMPTY)se
-$$(call src-to-obj,$1,$$(1).$2): $$(1).$2 $(KCONFIG_AUTOHEADER) $(4)
+$$(call src-to-obj,$1,$$(1).$2): $$(1).$2 $(KCONFIG_AUTOHEADER) $(4) | $(5)
 	@printf "    CC         $$$$(subst $$$$(obj)/,,$$$$(@))\n"
 	$(CC_$(1)) \
 		-MMD $$$$(CPPFLAGS_$(1)) $$$$(CFLAGS_$(1)) -MT $$$$(@) \
@@ -416,7 +423,7 @@ $(foreach class,$(classes), \
 	$(foreach type,$(call filetypes-of-class,$(class)), \
 		$(eval $(class)-$(type)-ccopts += $(generic-$(type)-ccopts) $($(class)-generic-ccopts)) \
 		$(if $(generic-objs_$(type)_template_gen),$(eval $(call generic-objs_$(type)_template_gen,$(class))),\
-		$(eval $(call create_cc_template,$(class),$(type),$($(class)-$(type)-ccopts),$($(class)-$(type)-deps))))))
+		$(eval $(call create_cc_template,$(class),$(type),$($(class)-$(type)-ccopts),$($(class)-$(type)-deps),$($(class)-$(type)-gen-deps))))))
 
 foreach-src=$(foreach file,$($(1)-srcs),$(eval $(call $(1)-objs_$(subst .,,$(suffix $(file)))_template,$(basename $(file)))))
 $(eval $(foreach class,$(classes),$(call foreach-src,$(class))))
